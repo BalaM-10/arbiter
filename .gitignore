@@ -1,13 +1,3 @@
-# Local working files: never committed
-CLAUDE.md
-KIT_README.md
-.claude/
-docs/REQUIREMENTS.md
-docs/QNX_KNOWLEDGE_PACK.md
-docs/STATUS.md
-docs/owner-notes/
-docs/reviews/
-
 # QNX-licensed and generated output
 targets/
 build/
