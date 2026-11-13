@@ -10,15 +10,15 @@ here once implemented. Requirement IDs are defined in
 
 | Component | Runs on | Trust | Job |
 | --- | --- | --- | --- |
-| Guardian (`arb-guardian`) | QNX | Trusted | Decides every command with `libcontract`; the only process allowed to send setpoints to the arm |
+| Guardian (`arb-guardian`) | QNX | Trusted | Decides every command with `libcontract`; the only process allowed to send setpoints to the arm (TM-C2, `docs/THREAT_MODEL.md`) |
 | Arm controller (`arb-arm`) | QNX | Trusted | 1 kHz loop driving a simulated 2-joint arm |
 | Watchdog (`arb-watchdog`) | QNX | Trusted | Detects guardian or arm death and missed heartbeats; forces a stop |
 | Evidence logger (`arb-logd`) | QNX | Trusted, low priority | Hash-chained decision log (M2) |
 | Gateway (`arb-gateway`) | QNX | Untrusted | TCP from the planner to the guardian (M2) |
 | Planner, contract compiler, bench | Host | Untrusted / build-time / test | Python tools |
 
-Only the guardian, the arm controller, the watchdog and `libcontract` are
-trusted code. They follow the rules in `rt-c-review`: no allocation after
+Only the guardian, the arm controller, the watchdog and `libcontract` are <!-- not a claim -->
+trusted code (the trust list is T1 to T6 in `docs/THREAT_MODEL.md`). They follow the rules in `rt-c-review`: no allocation after
 startup, no recursion, every loop bounded, every input validated first.
 
 ## Units

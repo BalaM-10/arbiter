@@ -16,7 +16,8 @@ contract ([`contracts/default.yaml`](contracts/default.yaml)) marks the area
 where the person's hands work as a keep-out zone, together with joint limits,
 a speed limit and timing rules. Whatever the planner proposes, and whether it is
 right, wrong, silent, flooding or dead, Arbiter decides on QNX what the arm may
-do.
+do. What Arbiter defends against, and what it does not, is in
+[`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
 ## Status: milestone M1 (safety core), in progress
 
@@ -53,6 +54,8 @@ The full log is saved under `evidence/runs/`.
 
 ## Where to look
 
+- [`docs/WHY_QNX.md`](docs/WHY_QNX.md): one page, each QNX feature mapped to the failure it handles, the scenario that proves it and its log.
+- [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md): what the attacker controls, what is trusted, what is out of scope, and the claims.
 - [`docs/QNX_EVIDENCE.md`](docs/QNX_EVIDENCE.md): every QNX feature used, why, where, its 8.0 doc page, and the log that proves it ran.
 - [`docs/TARGETS.md`](docs/TARGETS.md): exact host, SDP and target versions, setup steps, and the WSL2 networking fix.
 - [`docs/REQUIREMENTS_SUMMARY.md`](docs/REQUIREMENTS_SUMMARY.md): the requirement IDs cited in code, tests and commits.

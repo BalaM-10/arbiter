@@ -2,7 +2,8 @@
 
 The requirement IDs cited in code, tests, commit messages and
 `docs/QNX_EVIDENCE.md`, each with a one-line description. Every requirement
-needs at least one automated test that names its ID.
+needs at least one automated test that names its ID. Requirements that say what
+an untrusted party cannot do cite the claim in `docs/THREAT_MODEL.md` (TM-C1 to TM-C8).
 
 ## Hackathon constraints (HC)
 
@@ -40,7 +41,7 @@ needs at least one automated test that names its ID.
 | FR-G3 | Each command gets one verdict, `ALLOW`, `CLAMP` (duration stretched so no joint exceeds the velocity limit) or `DENY`, with the ID of the deciding rule |
 | FR-G4 | Checks run in order: well-formed, newer sequence, rate limit, joint limits, velocity limit, keep-out zones |
 | FR-G5 | States `NORMAL`, `HOLD` (AI silent) and `SAFE_STOP` (needs an explicit operator reset); only joint-limit and keep-out denials count toward the violation threshold |
-| FR-G6 | Only the guardian can send setpoints to the arm controller, enforced by sender identity and by the security policy |
+| FR-G6 | Only the guardian can send setpoints to the arm controller, enforced by sender identity and by the security policy (TM-C2) |
 | FR-G7 | The guardian emits a heartbeat every control cycle |
 | FR-G8 | Every decision and its measured latency go to a ring buffer without blocking |
 | FR-G9 | After initialization: no memory allocation, no unbounded loop, no blocking call except the message receive and one `TimerTimeout()`-bounded setpoint send to the arm, whose timeout enters `SAFE_STOP` |
@@ -60,7 +61,7 @@ needs at least one automated test that names its ID.
 
 | ID | Description |
 | --- | --- |
-| FR-W1 | The watchdog runs at the highest priority and monitors guardian and arm heartbeats |
+| FR-W1 | The watchdog runs above the guardian and below only the arm's control loop, and monitors guardian and arm heartbeats |
 | FR-W2 | On a missed guardian heartbeat it commands the arm to brake and records the cause |
 | FR-W3 | It detects process death through process-manager death notices and stuck processes through missed heartbeats |
 | FR-W4 | An emergency-stop input (dashboard or GPIO button) forces `SAFE_STOP` |
@@ -71,7 +72,7 @@ needs at least one automated test that names its ID.
 | --- | --- |
 | FR-N1 | The gateway accepts one planner connection over TCP and forwards well-formed commands to the guardian |
 | FR-N2 | The wire format is a fixed-size binary frame, documented in `docs/PROTOCOL.md` |
-| FR-N3 | A crash, hang or flood of the gateway cannot delay the guardian, the arm or the watchdog |
+| FR-N3 | A crash, hang or flood of the gateway cannot delay the guardian, the arm or the watchdog (TM-C3, TM-C4) |
 | FR-N4 | The gateway streams joint state, verdicts and state changes to the host for the dashboard |
 
 ## Evidence (FR-E)
@@ -110,15 +111,15 @@ needs at least one automated test that names its ID.
 | FR-D3 | A histogram shows guardian decision latency with the deadline marked |
 | FR-D4 | Controls trigger each fault scenario and the emergency stop |
 | FR-D5 | The current state is always visible |
-| FR-D6 | The dashboard is read-only toward safety: it cannot change a limit or bypass the guardian |
+| FR-D6 | The dashboard is read-only toward safety: it cannot change a limit or bypass the guardian (TM-C1, TM-C2) |
 
 ## Security policy (FR-S)
 
 | ID | Description |
 | --- | --- |
 | FR-S1 | Each Arbiter process runs under its own QNX security type |
-| FR-S2 | Only the guardian's type may connect to the arm controller; the gateway's type may connect only to the guardian |
-| FR-S3 | Only the guardian's type may attach `/dev/arbiter` |
+| FR-S2 | Only the guardian's type may connect to the arm controller; the gateway's type may connect only to the guardian (TM-C2) |
+| FR-S3 | Only the guardian's type may attach `/dev/arbiter` (TM-C2) |
 | FR-S4 | The compiled policy is in the boot image and pushed before any Arbiter process starts |
 | FR-S5 | The policy source is in the repo, and the policy inspection tool's output is saved in `evidence/` |
 | FR-S6 | All fault scenarios still pass with the policy off, so the code-level checks stand on their own |
@@ -147,7 +148,7 @@ measurement, and timing is claimed only from Pi 5 runs saved in `evidence/`.
 | NFR-I3 | Trusted processes use fixed-priority FIFO scheduling with documented priorities |
 | NFR-I4 | Killing any untrusted process leaves the arm safe within the timeouts above |
 | NFR-I5 | Trusted processes drop every privilege they do not need after startup |
-| NFR-I6 | Malformed input of any length or content cannot crash a trusted process |
+| NFR-I6 | Malformed input of any length or content cannot crash a trusted process (TM-C8) |
 
 ## Evidence of QNX use (NFR-Q)
 
@@ -176,7 +177,7 @@ measurement, and timing is claimed only from Pi 5 runs saved in `evidence/`.
 | --- | --- |
 | F1 | Normal operation: every command `ALLOW`, the arm reaches each target, no deadline miss |
 | F2 | AI hang: `HOLD` within the silence timeout, then back to `NORMAL` when commands resume |
-| F3 | AI flood: excess commands `DENY`, loop jitter within NFR-T6 |
+| F3 | AI flood: a message flood and a pulse flood; excess commands `DENY`, unauthorized pulses ignored, no trusted priority changes, loop jitter within NFR-T6 |
 | F4 | Joint limit violation: `DENY` by the joint-limit rule; the arm never exceeds the limit |
 | F5 | Keep-out violation: `DENY` by the keep-out rule; elbow and end effector never enter the zone |
 | F6 | Over-speed: `CLAMP`; measured joint velocity never exceeds the limit |
@@ -184,7 +185,7 @@ measurement, and timing is claimed only from Pi 5 runs saved in `evidence/`.
 | F8 | Malformed input: truncated, oversized and random frames rejected; nothing trusted crashes or stalls |
 | F9 | Replay: old sequence numbers `DENY` by the sequence rule |
 | F10 | AI process killed: `HOLD`, then safe; trusted processes unaffected |
-| F11 | Bypass attempt: a direct setpoint to the arm is blocked by the security policy, and rejected by the arm with the policy off |
+| F11 | Bypass attempt: a direct setpoint to the arm is blocked by the security policy, and rejected by the arm with the policy off (TM-C2) |
 | F12 | CPU starvation attempt: latency and jitter stay within NFR-T2 and NFR-T6 |
 | F13 | Guardian killed: the arm brakes within NFR-T5 and the watchdog records the cause |
 | F14 | Emergency stop: `SAFE_STOP` within 2 control cycles |
