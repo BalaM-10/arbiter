@@ -12,9 +12,8 @@
 
 #define ARB_PROTO_VERSION    1u
 
-/* Requested duration of a move (FR-G2). */
-#define ARB_DURATION_MIN_MS  1u
-#define ARB_DURATION_MAX_MS  60000u
+/* The requested duration of a move must lie in [ARB_DURATION_MIN_MS, the
+ * contract's max_duration_ms] (FR-G2); see arb_contract_table.h. */
 
 /* A motion command from the planner (FR-G2). 32 bytes. */
 typedef struct {

@@ -2,12 +2,13 @@
 
 **The AI proposes. QNX decides.**
 
-Arbiter is a deterministic safety authority that sits between an untrusted AI
-planner and a robot arm, running on **QNX OS 8.0**. Every command the AI sends
-is checked against a declared safety contract inside a fixed deadline. On a
-violation, on AI silence, or if Arbiter's own guardian fails, the arm comes to a
-safe stop. This is a safety-oriented design for the QNX Global Hackathon; it is
-not certified and not intended for production use.
+Arbiter is a QNX-based runtime safety prototype that validates AI-generated
+motion commands against an explicit contract and demonstrates fault containment
+for a defined set of failures, with reproducible test evidence.
+
+It runs on **QNX OS 8.0**, between an untrusted AI planner and a (simulated)
+robot arm. It is a safety-oriented design built for the QNX Global Hackathon; it
+is not certified and not intended for production use.
 
 ## Status: milestone M1 (safety core), in progress
 
@@ -17,7 +18,7 @@ not certified and not intended for production use.
 | QEMU x86_64 target built with `mkqnximage`, reached over SSH | Arm controller, watchdog, evidence logger, gateway |
 | Message-passing sample: two processes, send/receive/reply, rejection of malformed messages, pulses, sender identity (7 checks) | Safety contract, planner, fault bench, dashboard |
 | Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target and timing measurements |
-| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 47 tests on the host and on QNX | |
+| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 58 tests on the host and on QNX | |
 
 ## Quick start (QEMU)
 
@@ -35,7 +36,7 @@ sudo ./scripts/qemu-br0-dhcp.sh                                        # QEMU ne
 ./scripts/host-checks.sh                                               # host unit tests, analyzers, traceability
 ```
 
-Expected: `RESULT PASS test_libcontract 47/47` and `SUMMARY 3/3 tests passed on qemu`,
+Expected: `RESULT PASS test_libcontract 58/58` and `SUMMARY 3/3 tests passed on qemu`,
 then `SUMMARY host-checks: PASS`.
 The full log is saved under `evidence/runs/`.
 
@@ -45,6 +46,7 @@ The full log is saved under `evidence/runs/`.
 - [`docs/TARGETS.md`](docs/TARGETS.md): exact host, SDP and target versions, setup steps, and the WSL2 networking fix.
 - [`docs/REQUIREMENTS_SUMMARY.md`](docs/REQUIREMENTS_SUMMARY.md): the requirement IDs cited in code, tests and commits.
 - [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md): each requirement, the code that implements it, its tests and where they passed.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): how the guardian decides, units, path checking, and leaving a keep-out zone.
 - [`evidence/`](evidence/): saved on-target run logs and the host record.
 - [`qnx/samples/msgpass/msgpass.c`](qnx/samples/msgpass/msgpass.c): the message-passing sample.
 

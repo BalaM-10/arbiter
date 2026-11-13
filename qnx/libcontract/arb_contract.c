@@ -50,8 +50,18 @@ static int contract_values_ok(const arb_contract_table_t *t)
         !in_range_u32(t->rate_burst, ARB_BURST_MIN, ARB_BURST_MAX) ||
         !in_range_u32(t->violation_threshold, 1u, ARB_MAX_VIOLATION_THRESHOLD) ||
         !in_range_u32(t->violation_window_ms, ARB_WINDOW_MIN_MS, ARB_WINDOW_MAX_MS) ||
+        !in_range_u32(t->max_duration_ms, ARB_DURATION_MIN_MS, ARB_DURATION_CEIL_MS) ||
         t->zone_count > (uint32_t)ARB_MAX_ZONES) {
         return 0;
+    }
+    /* max_duration_ms must allow a full-range move at vmax, so that a CLAMP of
+     * any move between joint limits stays within it. Widened: span <= 2*pi*1e6. */
+    for (int j = 0; j < ARB_JOINTS; j++) {                 /* bound: ARB_JOINTS */
+        const uint64_t span = (uint64_t)((int64_t)t->joint_max_urad[j] - (int64_t)t->joint_min_urad[j]);
+        const uint64_t full_ms = (span * 1000u + (uint64_t)t->vmax_urad_s - 1u) / (uint64_t)t->vmax_urad_s;
+        if (full_ms > (uint64_t)t->max_duration_ms) {
+            return 0;
+        }
     }
     for (uint32_t z = 0; z < (uint32_t)ARB_MAX_ZONES; z++) { /* bound: ARB_MAX_ZONES */
         const arb_zone_t *r = &t->zones[z];
@@ -117,17 +127,31 @@ void arb_fk(const double q_rad[ARB_JOINTS], double elbow_um[2], double tip_um[2]
     tip_um[1]   = elbow_um[1] + (double)ARB_LINK2_UM * sin(ab);
 }
 
-static int point_in_inflated_zone(const double p[2], const arb_zone_t *z, double margin)
+/* Depth of p inside zone z inflated by margin: > 0 inside, <= 0 outside. */
+static double depth_in_zone(const double p[2], const arb_zone_t *z, double margin)
 {
-    return p[0] > (double)z->x_min_um - margin && p[0] < (double)z->x_max_um + margin &&
-           p[1] > (double)z->y_min_um - margin && p[1] < (double)z->y_max_um + margin;
+    double d = p[0] - ((double)z->x_min_um - margin);
+    double e = ((double)z->x_max_um + margin) - p[0];
+
+    if (e < d) { d = e; }
+    e = p[1] - ((double)z->y_min_um - margin);
+    if (e < d) { d = e; }
+    e = ((double)z->y_max_um + margin) - p[1];
+    if (e < d) { d = e; }
+    return d;
 }
+
+typedef enum {
+    KEEPOUT_CLEAR     = 0,  /* no point of the path is in any zone */
+    KEEPOUT_EXIT_ONLY = 1,  /* starts inside a zone, never goes deeper, ends outside every zone */
+    KEEPOUT_HIT       = 2   /* deny */
+} keepout_result_t;
 
 static int64_t abs64(int64_t v) { return v < 0 ? -v : v; }
 
 /*
- * Does the elbow or the tip enter a keep-out zone anywhere on the straight
- * joint-space path from `from` to `to`? (The arm moves along exactly this path.)
+ * Keep-out check of the straight joint-space path from `from` to `to` (the arm
+ * moves along exactly this path) for the elbow and the tip.
  *
  * The path is sampled at ARB_PATH_SAMPLES + 1 points. Between two samples the
  * joints move by at most s1, s2 radians, so the tip moves at most
@@ -135,9 +159,15 @@ static int64_t abs64(int64_t v) { return v < 0 ? -v : v; }
  * between two samples lies within D / 2 of one of them, so inflating each zone
  * by D / 2 (plus 1 um for rounding) makes the sampled test conservative: if no
  * sample is inside an inflated zone, no point of the path is inside the zone.
+ *
+ * Leaving a zone (docs/ARCHITECTURE.md): if the start pose already has a point
+ * inside an inflated zone, the move is allowed only if, sample by sample, that
+ * point's depth in that zone never increases, no other point enters any zone,
+ * and the final pose is outside every inflated zone. Between two samples a
+ * point can be at most D / 2 deeper than at the nearer sample.
  */
-static int path_hits_zone(const arb_contract_table_t *c,
-                          const int32_t from[ARB_JOINTS], const int32_t to[ARB_JOINTS])
+static keepout_result_t path_keepout(const arb_contract_table_t *c,
+                                     const int32_t from[ARB_JOINTS], const int32_t to[ARB_JOINTS])
 {
     const double d0 = (double)((int64_t)to[0] - (int64_t)from[0]) * URAD_TO_RAD;
     const double d1 = (double)((int64_t)to[1] - (int64_t)from[1]) * URAD_TO_RAD;
@@ -145,27 +175,45 @@ static int path_hits_zone(const arb_contract_table_t *c,
     const double s1 = fabs(d1) / (double)ARB_PATH_SAMPLES;
     const double step_um = ((double)ARB_LINK1_UM + (double)ARB_LINK2_UM) * s0 + (double)ARB_LINK2_UM * s1;
     const double margin = step_um / 2.0 + 1.0;
+    double prev[ARB_MAX_ZONES][2];   /* depth at the previous sample: [zone][elbow, tip] */
+    int started_inside = 0;
 
     if (c->zone_count == 0u) {
-        return 0;
+        return KEEPOUT_CLEAR;
     }
     for (int i = 0; i <= ARB_PATH_SAMPLES; i++) {          /* bound: ARB_PATH_SAMPLES + 1 */
         const double f = (double)i / (double)ARB_PATH_SAMPLES;
         double q[ARB_JOINTS];
-        double elbow[2];
-        double tip[2];
+        double pts[2][2];                                  /* elbow, tip */
 
         q[0] = (double)from[0] * URAD_TO_RAD + d0 * f;
         q[1] = (double)from[1] * URAD_TO_RAD + d1 * f;
-        arb_fk(q, elbow, tip);
+        arb_fk(q, pts[0], pts[1]);
         for (uint32_t z = 0; z < c->zone_count && z < (uint32_t)ARB_MAX_ZONES; z++) { /* bound: ARB_MAX_ZONES */
-            if (point_in_inflated_zone(elbow, &c->zones[z], margin) ||
-                point_in_inflated_zone(tip, &c->zones[z], margin)) {
-                return 1;
+            for (int k = 0; k < 2; k++) {                  /* bound: 2 points */
+                const double d = depth_in_zone(pts[k], &c->zones[z], margin);
+                if (i == 0) {
+                    prev[z][k] = d;
+                    if (d > 0.0) {
+                        started_inside = 1;
+                    }
+                    continue;
+                }
+                if (prev[z][k] <= 0.0) {
+                    if (d > 0.0) {
+                        return KEEPOUT_HIT;                /* enters a zone it was not in */
+                    }
+                } else if (d > prev[z][k]) {
+                    return KEEPOUT_HIT;                    /* goes deeper into a zone it starts in */
+                }
+                if (i == ARB_PATH_SAMPLES && d > 0.0) {
+                    return KEEPOUT_HIT;                    /* does not end outside */
+                }
+                prev[z][k] = d;
             }
         }
     }
-    return 0;
+    return started_inside ? KEEPOUT_EXIT_ONLY : KEEPOUT_CLEAR;
 }
 
 /* ------------------------------------------------------------------- guard */
@@ -320,13 +368,17 @@ void arb_guard_check(arb_guard_t *g, const void *msg, size_t len,
         goto done;
     }
     memcpy(&cmd, msg, sizeof cmd);
-    if (cmd.version != ARB_PROTO_VERSION || cmd.flags != 0u || cmd.reserved != 0u ||
-        cmd.duration_ms < ARB_DURATION_MIN_MS || cmd.duration_ms > ARB_DURATION_MAX_MS) {
+    if (cmd.version != ARB_PROTO_VERSION || cmd.flags != 0u || cmd.reserved != 0u) {
         deny(out, ARB_RULE_MALFORMED);
         goto done;
     }
     out->seq = cmd.seq;
     out->requested_ms = cmd.duration_ms;
+    /* Duration bounds: never zero, never above the contract's maximum. */
+    if (cmd.duration_ms < ARB_DURATION_MIN_MS || cmd.duration_ms > c->max_duration_ms) {
+        deny(out, ARB_RULE_DURATION);
+        goto done;
+    }
 
     /* 2. State gate: nothing moves in SAFE_STOP until an operator reset. */
     if (g->state == ARB_STATE_SAFE_STOP) {
@@ -387,15 +439,26 @@ void arb_guard_check(arb_guard_t *g, const void *msg, size_t len,
         out->verdict = ARB_VERDICT_ALLOW;
         out->rule = ARB_RULE_NONE;
         out->duration_ms = cmd.duration_ms;
-    } else {
+    } else if (min_ms <= (uint64_t)c->max_duration_ms) {
         out->verdict = ARB_VERDICT_CLAMP;
         out->rule = ARB_RULE_VELOCITY;
-        out->duration_ms = (uint32_t)min_ms; /* <= 2*pi*1e6*1000/1000: fits */
+        out->duration_ms = (uint32_t)min_ms; /* <= max_duration_ms: fits */
+    } else {
+        /* Only possible if the arm is outside its joint limits; fail closed. */
+        deny(out, ARB_RULE_DURATION);
+        goto done;
     }
 
     /* 7. Keep-out zones along the whole path (counted toward the threshold).
      *    A keep-out failure overrides an ALLOW or CLAMP. */
-    if (path_hits_zone(c, current_urad, cmd.target_urad)) {
+    switch (path_keepout(c, current_urad, cmd.target_urad)) {
+    case KEEPOUT_CLEAR:
+        break;
+    case KEEPOUT_EXIT_ONLY:
+        out->flags |= ARB_VFLAG_KEEPOUT_EXIT;
+        break;
+    case KEEPOUT_HIT:
+    default:
         deny(out, ARB_RULE_KEEPOUT);
         if (count_violation(g, now_ns)) {
             enter_safe_stop(g, ARB_STOP_VIOLATIONS);

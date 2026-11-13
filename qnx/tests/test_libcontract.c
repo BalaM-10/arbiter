@@ -44,6 +44,7 @@ static arb_contract_table_t make_table(int with_zone)
     t.rate_burst = 10;
     t.violation_threshold = 3;
     t.violation_window_ms = 1000;
+    t.max_duration_ms = 10000;        /* a full-range move needs 5200 ms at vmax */
     if (with_zone) {
         t.zone_count = 1;
         t.zones[0].x_min_um = 200000;   /* person zone: x 0.20..0.40 m, y 0.15..0.35 m */
@@ -211,14 +212,37 @@ static void fr_c4_out_of_range_values_rejected(void)
 
     /* Boundaries that must still load. */
     t = make_table(1);
-    t.joint_min_urad[0] = -ARB_ANGLE_LIMIT_URAD;
+    t.joint_min_urad[0] = -ARB_ANGLE_LIMIT_URAD;             /* full +-pi: 6284 ms at 1 rad/s */
     t.joint_max_urad[0] = ARB_ANGLE_LIMIT_URAD;
-    t.vmax_urad_s = ARB_VMAX_MIN_URAD_S;
     t.violation_threshold = ARB_MAX_VIOLATION_THRESHOLD;
+    seal(&t);
+    CHECK_EQ_INT(arb_contract_load(&t, sizeof t, &out), ARB_LOAD_OK);
+    t = make_table(1);                                       /* slowest vmax: needs a small range */
+    t.vmax_urad_s = ARB_VMAX_MIN_URAD_S;
+    t.joint_min_urad[0] = -25000; t.joint_max_urad[0] = 25000;   /* 50 mrad: 50 s at 1 mrad/s */
+    t.joint_min_urad[1] = -25000; t.joint_max_urad[1] = 25000;
+    t.max_duration_ms = ARB_DURATION_CEIL_MS;
     seal(&t);
     CHECK_EQ_INT(arb_contract_load(&t, sizeof t, &out), ARB_LOAD_OK);
     t = make_table(0);
     CHECK_EQ_INT(arb_contract_load(&t, sizeof t, &out), ARB_LOAD_OK);           /* no zones is valid */
+}
+
+static void fr_c4_max_duration_must_cover_a_full_range_move(void)
+{
+    arb_contract_table_t t, out;
+
+    /* Joint 1 spans 5.2 rad; at 1 rad/s a full-range move takes 5200 ms. */
+    t = make_table(1); t.max_duration_ms = 5200; seal(&t);
+    CHECK_EQ_INT(arb_contract_load(&t, sizeof t, &out), ARB_LOAD_OK);
+    t = make_table(1); t.max_duration_ms = 5199; seal(&t);
+    CHECK_EQ_INT(arb_contract_load(&t, sizeof t, &out), ARB_LOAD_E_RANGE);
+    t = make_table(1); t.max_duration_ms = 0; seal(&t);
+    CHECK_EQ_INT(arb_contract_load(&t, sizeof t, &out), ARB_LOAD_E_RANGE);
+    t = make_table(1); t.max_duration_ms = ARB_DURATION_CEIL_MS; seal(&t);
+    CHECK_EQ_INT(arb_contract_load(&t, sizeof t, &out), ARB_LOAD_OK);
+    t = make_table(1); t.max_duration_ms = ARB_DURATION_CEIL_MS + 1u; seal(&t);
+    CHECK_EQ_INT(arb_contract_load(&t, sizeof t, &out), ARB_LOAD_E_RANGE);
 }
 
 static void fr_c4_output_untouched_on_error(void)
@@ -288,14 +312,69 @@ static void nfr_i6_command_bad_fields_rejected(void)
     v = decide_once(&t, &c, HOME); CHECK(v.rule == ARB_RULE_MALFORMED);
     c = make_cmd(1, 0, 0, 100); c.reserved = 1u;
     v = decide_once(&t, &c, HOME); CHECK(v.rule == ARB_RULE_MALFORMED);
-    c = make_cmd(1, 0, 0, ARB_DURATION_MIN_MS - 1u);
-    v = decide_once(&t, &c, HOME); CHECK(v.rule == ARB_RULE_MALFORMED);
-    c = make_cmd(1, 0, 0, ARB_DURATION_MAX_MS + 1u);
-    v = decide_once(&t, &c, HOME); CHECK(v.rule == ARB_RULE_MALFORMED);
-    c = make_cmd(1, 0, 0, ARB_DURATION_MIN_MS);
+    c = make_cmd(1, 0, 0, 100);                          /* the same command, well-formed */
     v = decide_once(&t, &c, HOME); CHECK(v.verdict == ARB_VERDICT_ALLOW);
-    c = make_cmd(1, 0, 0, ARB_DURATION_MAX_MS);
-    v = decide_once(&t, &c, HOME); CHECK(v.verdict == ARB_VERDICT_ALLOW);
+}
+
+/* ------------------------------------------------- FR-G2: duration bounds */
+
+static void fr_g2_duration_zero_denied(void)
+{
+    const arb_contract_table_t t = make_table(0);
+    const arb_cmd_t c = make_cmd(1, 0, 0, 0);
+    const arb_verdict_t v = decide_once(&t, &c, HOME);
+
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_DURATION);
+}
+
+static void fr_g2_duration_minimum_and_contract_max_allowed(void)
+{
+    const arb_contract_table_t t = make_table(0);        /* max_duration_ms = 10000 */
+    arb_cmd_t c;
+    arb_verdict_t v;
+
+    c = make_cmd(1, 0, 0, ARB_DURATION_MIN_MS);          /* exactly 1 ms */
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_ALLOW && v.duration_ms == 1u);
+    c = make_cmd(1, 0, 0, 10000);                        /* exactly at the contract max */
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_ALLOW && v.duration_ms == 10000u);
+    c = make_cmd(1, 0, 0, 9999);                         /* just inside */
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_ALLOW);
+}
+
+static void fr_g2_duration_one_over_contract_max_denied(void)
+{
+    const arb_contract_table_t t = make_table(0);
+    arb_cmd_t c;
+    arb_verdict_t v;
+
+    c = make_cmd(1, 0, 0, 10001);
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_DURATION);
+    c = make_cmd(1, 0, 0, UINT32_MAX);
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_DURATION);
+}
+
+static void fr_g2_clamp_beyond_contract_max_denied(void)
+{
+    /* With max_duration_ms exactly a full-range move, a CLAMP can only exceed
+     * it if the arm reports a position outside its joint limits: fail closed. */
+    arb_contract_table_t t = make_table(0);
+    const int32_t outside[2] = { -3000000, 0 };          /* sane angle, beyond joint 1's -2.6 rad limit */
+    arb_cmd_t c;
+    arb_verdict_t v;
+
+    t.max_duration_ms = 5200;
+    seal(&t);
+    c = make_cmd(1, 2600000, 0, 100);                    /* needs 5600 ms at 1 rad/s */
+    v = decide_once(&t, &c, outside);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_DURATION);
+    c = make_cmd(1, 2600000, 0, 100);                    /* from home: needs 2600 ms, a normal CLAMP */
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_CLAMP && v.duration_ms == 2600u);
 }
 
 static uint64_t xorshift64(uint64_t *s)
@@ -691,6 +770,25 @@ static void fr_g4_keepout_just_outside_by_more_than_margin_allowed(void)
     CHECK(v.verdict == ARB_VERDICT_ALLOW);
 }
 
+static void fr_g4_keepout_brief_crossing_of_thin_zone_denied(void)
+{
+    /* A path that crosses a 1 mm strip in a few samples, with the depth never
+     * increasing after the first sample inside. Only the "enters a zone it was
+     * not in" rule catches this (found by a random search of paths and zones). */
+    arb_contract_table_t t = make_table(1);
+    const int32_t start[2] = { 801360, 1515683 };
+    const arb_cmd_t c = make_cmd(1, -640195, -1506201, 5000);
+    arb_verdict_t v;
+
+    t.zones[0].x_min_um = 267546;
+    t.zones[0].y_min_um = 405742;
+    t.zones[0].x_max_um = 287546;
+    t.zones[0].y_max_um = 406742;
+    seal(&t);
+    v = decide_once(&t, &c, start);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
 static void fr_g4_keepout_overrides_clamp(void)
 {
     const arb_contract_table_t t = make_table(1);
@@ -698,6 +796,70 @@ static void fr_g4_keepout_overrides_clamp(void)
     const arb_verdict_t v = decide_once(&t, &c, HOME);
 
     CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+/* --------------------------------------------- FR-G4: leaving a keep-out zone */
+
+static const int32_t ELBOW_IN_ZONE[2] = { 785398, 0 };   /* elbow at (212, 212) mm: 12 mm inside x_min */
+
+static void fr_g4_keepout_exit_only_move_from_inside_allowed(void)
+{
+    const arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 1200000, 0, 5000);   /* elbow swings out past x_min, tip stays above */
+    arb_guard_t g;
+    arb_verdict_t v;
+
+    arb_guard_init(&g, &t, T0);
+    arb_guard_check(&g, &c, sizeof c, ELBOW_IN_ZONE, T0, &v);
+    CHECK(v.verdict == ARB_VERDICT_ALLOW && v.rule == ARB_RULE_NONE);
+    CHECK((v.flags & ARB_VFLAG_KEEPOUT_EXIT) != 0u);
+    CHECK_EQ_INT(g.violation_fill, 0);                    /* an exit is not a violation */
+}
+
+static void fr_g4_keepout_from_inside_going_deeper_denied(void)
+{
+    const arb_contract_table_t t = make_table(1);
+    /* Toward q1 = 0.5 rad: ends outside (below y_min), but first goes deeper (x grows). */
+    const arb_cmd_t c = make_cmd(1, 500000, 0, 5000);
+    const arb_verdict_t v = decide_once(&t, &c, ELBOW_IN_ZONE);
+
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_from_inside_not_ending_outside_denied(void)
+{
+    const arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 800000, 0, 5000);    /* shallower, but still inside */
+    const arb_verdict_t v = decide_once(&t, &c, ELBOW_IN_ZONE);
+
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_exit_through_another_zone_denied(void)
+{
+    arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 1200000, 0, 5000);   /* the exit move above, ... */
+    arb_verdict_t v;
+
+    /* ... crossing a second zone mid-path: the elbow passes (162, 252) mm at
+     * q1 = 1.0 rad, then ends at (109, 280) mm, outside both zones. */
+    t.zone_count = 2;
+    t.zones[1].x_min_um = 150000;
+    t.zones[1].y_min_um = 240000;
+    t.zones[1].x_max_um = 175000;
+    t.zones[1].y_max_um = 265000;
+    seal(&t);
+    v = decide_once(&t, &c, ELBOW_IN_ZONE);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_normal_moves_carry_no_exit_flag(void)
+{
+    const arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, -100000, 0, 1000);
+    const arb_verdict_t v = decide_once(&t, &c, HOME);
+
+    CHECK(v.verdict == ARB_VERDICT_ALLOW && v.flags == 0u);
 }
 
 /* -------------------------------------------------------- FR-G4: check order */
@@ -710,9 +872,18 @@ static void fr_g4_checks_run_in_the_specified_order(void)
     arb_cmd_t c;
 
     /* Malformed beats everything. */
-    c = make_cmd(1, 9000000, 0, 0);                       /* bad duration and beyond limits */
+    c = make_cmd(1, 9000000, 0, 0);                       /* bad flags, bad duration, beyond limits */
+    c.flags = 1u;
     v = decide_once(&t, &c, HOME);
     CHECK(v.rule == ARB_RULE_MALFORMED);
+
+    /* Duration bounds (part of well-formed) beat sequence and joint limits. */
+    arb_guard_init(&g, &t, T0);
+    c = make_cmd(5, 0, 0, 10);
+    arb_guard_check(&g, &c, sizeof c, HOME, T0, &v);
+    c = make_cmd(4, 9000000, 0, 0);                       /* old seq, beyond limits, zero duration */
+    arb_guard_check(&g, &c, sizeof c, HOME, T0, &v);
+    CHECK(v.rule == ARB_RULE_DURATION);
 
     /* Sequence beats joint limits. */
     arb_guard_init(&g, &t, T0);
@@ -844,6 +1015,10 @@ static void fr_g5_only_joint_and_keepout_denials_count(void)
     for (uint32_t i = 0; i < 50; i++) {                    /* replays and rate denials */
         arb_guard_check(&g, &c, sizeof c, HOME, T0, &v);
     }
+    for (uint32_t i = 0; i < 50; i++) {                    /* duration out of bounds */
+        c = make_cmd(1000u + i, 0, 0, 0);
+        arb_guard_check(&g, &c, sizeof c, HOME, T0, &v);
+    }
     for (uint32_t i = 0; i < 50; i++) {                    /* rate denials with fresh sequence numbers */
         c = make_cmd(100u + i, 0, 0, 10);
         arb_guard_check(&g, &c, sizeof c, HOME, T0, &v);
@@ -933,12 +1108,17 @@ static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_c4_crc_mismatch_rejected),
     ARB_TEST_CASE(fr_c4_any_single_byte_change_rejected),
     ARB_TEST_CASE(fr_c4_out_of_range_values_rejected),
+    ARB_TEST_CASE(fr_c4_max_duration_must_cover_a_full_range_move),
     ARB_TEST_CASE(fr_c4_output_untouched_on_error),
     ARB_TEST_CASE(fr_c5_text_contract_rejected),
     ARB_TEST_CASE(nfr_i6_command_wrong_length_rejected),
     ARB_TEST_CASE(nfr_i6_command_bad_fields_rejected),
     ARB_TEST_CASE(nfr_i6_random_bytes_never_crash_or_allow_garbage),
     ARB_TEST_CASE(fr_g2_command_fields_carried_through),
+    ARB_TEST_CASE(fr_g2_duration_zero_denied),
+    ARB_TEST_CASE(fr_g2_duration_minimum_and_contract_max_allowed),
+    ARB_TEST_CASE(fr_g2_duration_one_over_contract_max_denied),
+    ARB_TEST_CASE(fr_g2_clamp_beyond_contract_max_denied),
     ARB_TEST_CASE(fr_g3_every_verdict_names_its_rule),
     ARB_TEST_CASE(fr_g4_sequence_replay_and_old_denied),
     ARB_TEST_CASE(fr_g4_sequence_wraps_around),
@@ -958,7 +1138,13 @@ static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_g4_keepout_clear_path_allowed),
     ARB_TEST_CASE(fr_g4_keepout_just_outside_by_less_than_margin_denied),
     ARB_TEST_CASE(fr_g4_keepout_just_outside_by_more_than_margin_allowed),
+    ARB_TEST_CASE(fr_g4_keepout_brief_crossing_of_thin_zone_denied),
     ARB_TEST_CASE(fr_g4_keepout_overrides_clamp),
+    ARB_TEST_CASE(fr_g4_keepout_exit_only_move_from_inside_allowed),
+    ARB_TEST_CASE(fr_g4_keepout_from_inside_going_deeper_denied),
+    ARB_TEST_CASE(fr_g4_keepout_from_inside_not_ending_outside_denied),
+    ARB_TEST_CASE(fr_g4_keepout_exit_through_another_zone_denied),
+    ARB_TEST_CASE(fr_g4_keepout_normal_moves_carry_no_exit_flag),
     ARB_TEST_CASE(fr_g4_checks_run_in_the_specified_order),
     ARB_TEST_CASE(fr_g4_forward_kinematics_reference_poses),
     ARB_TEST_CASE(fr_g5_starts_in_hold_and_valid_command_enters_normal),

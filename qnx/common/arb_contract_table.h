@@ -40,6 +40,8 @@
 #define ARB_WINDOW_MIN_MS           1u
 #define ARB_WINDOW_MAX_MS           600000u
 #define ARB_WORKSPACE_LIMIT_UM      2000000      /* zone corners within +-2 m */
+#define ARB_DURATION_MIN_MS         1u           /* shortest requested move */
+#define ARB_DURATION_CEIL_MS        60000u       /* largest allowed contract max_duration_ms */
 
 typedef struct {
     int32_t x_min_um;
@@ -61,6 +63,7 @@ typedef struct {
     uint32_t   rate_burst;                 /* token-bucket depth */
     uint32_t   violation_threshold;        /* N counted denials ... */
     uint32_t   violation_window_ms;        /* ... within W ms -> SAFE_STOP */
+    uint32_t   max_duration_ms;            /* longest requested move; >= a full-range move at vmax */
     uint32_t   zone_count;                 /* 0..ARB_MAX_ZONES */
     arb_zone_t zones[ARB_MAX_ZONES];       /* keep-out rectangles, workspace frame */
     uint32_t   crc32;                      /* over bytes [0, offsetof(crc32)) */
@@ -70,9 +73,10 @@ _Static_assert(offsetof(arb_contract_table_t, version) == 4, "layout");
 _Static_assert(offsetof(arb_contract_table_t, source_sha256) == 8, "layout");
 _Static_assert(offsetof(arb_contract_table_t, joint_min_urad) == 40, "layout");
 _Static_assert(offsetof(arb_contract_table_t, vmax_urad_s) == 56, "layout");
-_Static_assert(offsetof(arb_contract_table_t, zone_count) == 80, "layout");
-_Static_assert(offsetof(arb_contract_table_t, zones) == 84, "layout");
-_Static_assert(offsetof(arb_contract_table_t, crc32) == 148, "layout");
-_Static_assert(sizeof(arb_contract_table_t) == 152, "layout");
+_Static_assert(offsetof(arb_contract_table_t, max_duration_ms) == 80, "layout");
+_Static_assert(offsetof(arb_contract_table_t, zone_count) == 84, "layout");
+_Static_assert(offsetof(arb_contract_table_t, zones) == 88, "layout");
+_Static_assert(offsetof(arb_contract_table_t, crc32) == 152, "layout");
+_Static_assert(sizeof(arb_contract_table_t) == 156, "layout");
 
 #endif /* ARB_CONTRACT_TABLE_H */

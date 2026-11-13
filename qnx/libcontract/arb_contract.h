@@ -7,8 +7,9 @@
  * <math.h> (sin, cos, ceil) from the C standard library.
  *
  * Decision order for every command (FR-G4):
- *   1 well-formed  2 state gate  3 sequence  4 rate limit  5 joint limits
- *   6 velocity (CLAMP)  7 keep-out zones along the whole path
+ *   1 well-formed (incl. duration bounds)  2 state gate  3 sequence
+ *   4 rate limit  5 joint limits  6 velocity (CLAMP)
+ *   7 keep-out zones along the whole path
  * The first failing check decides. When unsure, deny.
  */
 #ifndef ARB_CONTRACT_H
@@ -38,8 +39,13 @@ typedef enum {
     ARB_RULE_VELOCITY    = 5,  /* CLAMP: duration stretched */
     ARB_RULE_KEEPOUT     = 6,
     ARB_RULE_STATE       = 7,  /* DENY: guardian is in SAFE_STOP */
-    ARB_RULE_INTERNAL    = 8   /* DENY: caller passed an impossible arm state */
+    ARB_RULE_INTERNAL    = 8,  /* DENY: caller passed an impossible arm state or contract */
+    ARB_RULE_DURATION    = 9   /* DENY: requested duration 0, above the contract max, or
+                                  a CLAMP that would need more than the max */
 } arb_rule_t;
+
+/* Verdict flags. */
+#define ARB_VFLAG_KEEPOUT_EXIT 0x01u /* move starts inside a keep-out zone and only exits it */
 
 /* Guardian states (FR-G5). Nonzero so an uninitialized guard is visible. */
 typedef enum {
@@ -78,6 +84,8 @@ typedef struct {
     uint8_t  rule;                     /* arb_rule_t */
     uint8_t  state_before;             /* arb_state_t */
     uint8_t  state_after;              /* arb_state_t */
+    uint8_t  flags;                    /* ARB_VFLAG_* */
+    uint8_t  reserved_[3];
     uint32_t seq;                      /* echoed when the command was well-formed, else 0 */
     int32_t  target_urad[ARB_JOINTS];  /* setpoint to forward (ALLOW/CLAMP), else 0 */
     uint32_t requested_ms;             /* as sent (well-formed commands), else 0 */

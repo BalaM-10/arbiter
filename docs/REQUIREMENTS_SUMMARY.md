@@ -24,7 +24,7 @@ needs at least one automated test that names its ID.
 
 | ID | Description |
 | --- | --- |
-| FR-C1 | One YAML contract file holds joint limits, velocity limit, keep-out zones, silence timeout, rate limit, and violation threshold with its time window |
+| FR-C1 | One YAML contract file holds joint limits, velocity limit, keep-out zones, silence timeout, rate limit, maximum move duration, and violation threshold with its time window |
 | FR-C2 | The contract compiler rejects missing, out-of-range or contradictory values with a clear message |
 | FR-C3 | The compiler emits a fixed-layout binary table with a format version, a CRC and the source file's SHA-256 |
 | FR-C4 | The guardian loads the table once at startup and refuses to start on a version or CRC mismatch |
@@ -36,7 +36,7 @@ needs at least one automated test that names its ID.
 | ID | Description |
 | --- | --- |
 | FR-G1 | The guardian is a QNX resource manager at `/dev/arbiter`, receiving each command as a `devctl()` over native message passing |
-| FR-G2 | A command carries a sequence number, a sender timestamp, target angles for each joint, and a requested duration to reach them |
+| FR-G2 | A command carries a sequence number, a sender timestamp, target angles for each joint, and a requested duration to reach them; zero or above the contract maximum is denied |
 | FR-G3 | Each command gets one verdict, `ALLOW`, `CLAMP` (duration stretched so no joint exceeds the velocity limit) or `DENY`, with the ID of the deciding rule |
 | FR-G4 | Checks run in order: well-formed, newer sequence, rate limit, joint limits, velocity limit, keep-out zones |
 | FR-G5 | States `NORMAL`, `HOLD` (AI silent) and `SAFE_STOP` (needs an explicit operator reset); only joint-limit and keep-out denials count toward the violation threshold |
