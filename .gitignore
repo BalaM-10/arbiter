@@ -7,3 +7,6 @@ build/
 # Secrets
 .env
 *.key
+
+# Python bytecode
+__pycache__/

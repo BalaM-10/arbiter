@@ -1,0 +1,100 @@
+# run-tests qemu — 2026-11-13T11:45:29-06:00, REPEAT=1
+# commit: 008ce2d
+# host: Ubuntu 22.04.5 LTS; qcc 12.2.0,gcc_ntox86_64
+
+## build (all architectures)
+$ make -C qnx ARCH=x86_64
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -o ../build/x86_64/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+  hello  sha256 e491474caa943f082c5eb613ccce073a77f6cfd2b75d39d99440d34ff4ec8d82
+    ELF 64-bit LSB pie executable, x86-64
+  msgpass  sha256 b6b20a163faa339894cdb71eb34eb3746f73486a6cd3f9a6f13a6baf5fa23c8a
+    ELF 64-bit LSB pie executable, x86-64
+  test_libcontract  sha256 35073f98d83d7562f16a92a8b94a021c7560c4dcb17daeb8f4bbb01ed52f0105
+    ELF 64-bit LSB pie executable, x86-64
+$ make -C qnx ARCH=aarch64le
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -o ../build/aarch64le/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+  hello  sha256 1ab74333346df2367c5a3d0ecaa885a93cd1ec9810f1dd119626d56d96859569
+    ELF 64-bit LSB pie executable, ARM aarch64
+  msgpass  sha256 caca0169357d68d3bf54f1b3e4419a94380aaca1b84aa055fa4e8e007016a72b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_libcontract  sha256 49fbda30dc608514590911e59fdd2651e49b392e65fde60613319be807d72771
+    ELF 64-bit LSB pie executable, ARM aarch64
+deployed hello msgpass test_libcontract to qemu (root@172.31.1.174:/data/home/root/arbiter/bin)
+
+## target: root@172.31.1.174:/data/home/root/arbiter/bin (x86_64)
+$ uname -a
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## hello — M0 toolchain: qcc-built binary runs
+$ /data/home/root/arbiter/bin/hello
+hello from Arbiter on QNX 8.0.0 2026/02/27-11:02:56EST (x86pc)
+exit=0
+
+## msgpass — M0 message passing (M0-MSG-1..7, previews NFR-Q2)
+$ /data/home/root/arbiter/bin/msgpass
+info server pid 8495125 chid 1, client pid 8499222
+PASS M0-MSG-1 round trip: sent 21, reply 42
+PASS M0-MSG-2 server saw the client's pid in _msg_info
+PASS M0-MSG-3 short message rejected with EBADMSG
+PASS M0-MSG-4 oversized message rejected with EBADMSG
+PASS M0-MSG-5 wrong version rejected with EPROTO
+info stats request answered after 1 try
+PASS M0-MSG-6 3 pulses received by the server, values summed to 7
+info server counters: replies 3, bad_length 2, bad_version 1, bad_sender 0, pulses 3, pulse_sum 7
+PASS M0-MSG-7 client exited 0 and the server's counters match every event
+RESULT PASS msgpass
+exit=0
+
+## test_libcontract — libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)
+$ /data/home/root/arbiter/bin/test_libcontract
+PASS fr_c4_crc32_matches_zlib_check_value
+PASS fr_c4_valid_table_loads
+PASS fr_c4_null_arguments_rejected
+PASS fr_c4_wrong_length_rejected
+PASS fr_c4_bad_magic_rejected
+PASS fr_c4_version_mismatch_rejected
+PASS fr_c4_table_size_field_mismatch_rejected
+PASS fr_c4_crc_mismatch_rejected
+PASS fr_c4_any_single_byte_change_rejected
+PASS fr_c4_out_of_range_values_rejected
+PASS fr_c4_output_untouched_on_error
+PASS fr_c5_text_contract_rejected
+PASS nfr_i6_command_wrong_length_rejected
+PASS nfr_i6_command_bad_fields_rejected
+PASS nfr_i6_random_bytes_never_crash_or_allow_garbage
+PASS fr_g2_command_fields_carried_through
+PASS fr_g3_every_verdict_names_its_rule
+PASS fr_g4_sequence_replay_and_old_denied
+PASS fr_g4_sequence_wraps_around
+PASS fr_g4_rate_limit_burst_then_deny_then_refill
+PASS fr_g4_rate_limit_uses_guardian_clock_not_sender_clock
+PASS fr_g4_rate_limit_sustained_rate_holds
+PASS fr_g4_joint_limit_exactly_at_max
+PASS fr_g4_joint_limit_just_inside
+PASS fr_g4_joint_limit_just_outside_denied
+PASS fr_g4_impossible_arm_position_fails_closed
+PASS fr_g4_unusable_contract_fails_closed
+PASS fr_g4_velocity_exactly_at_limit_allowed
+PASS fr_g4_velocity_over_limit_clamped_by_stretching_duration
+PASS fr_g4_velocity_clamped_motion_never_exceeds_vmax
+PASS fr_g4_keepout_target_inside_zone_denied
+PASS fr_g4_keepout_path_through_zone_denied_though_endpoints_clear
+PASS fr_g4_keepout_clear_path_allowed
+PASS fr_g4_keepout_just_outside_by_less_than_margin_denied
+PASS fr_g4_keepout_just_outside_by_more_than_margin_allowed
+PASS fr_g4_keepout_overrides_clamp
+PASS fr_g4_checks_run_in_the_specified_order
+PASS fr_g4_forward_kinematics_reference_poses
+PASS fr_g5_starts_in_hold_and_valid_command_enters_normal
+PASS fr_g5_silence_past_timeout_enters_hold
+PASS fr_g5_denied_commands_do_not_reset_silence
+PASS fr_g5_violation_threshold_enters_safe_stop
+PASS fr_g5_violations_spread_beyond_window_do_not_stop
+PASS fr_g5_only_joint_and_keepout_denials_count
+PASS fr_g5_safe_stop_denies_until_operator_reset
+PASS fr_g5_replay_protection_survives_reset
+PASS fr_g9_arm_send_timeout_fault_enters_safe_stop
+RESULT PASS test_libcontract 47/47
+exit=0
+
+SUMMARY 3/3 tests passed on qemu (each run 1 time(s))
