@@ -10,5 +10,8 @@ make -C "$REPO_ROOT/qnx" ARCH="$T_ARCH" >/dev/null
 BUILD="$REPO_ROOT/build/$T_ARCH"
 
 "${SSH[@]}" "mkdir -p '$T_DIR'"
-"${SCP[@]}" "$BUILD"/* "$T_USER@$T_HOST:$T_DIR/"
-echo "deployed $(cd "$BUILD" && ls | tr '\n' ' ')to $T_NAME ($T_USER@$T_HOST:$T_DIR)"
+# Executables only (build/<arch>/obj holds intermediate objects).
+mapfile -t FILES < <(find "$BUILD" -maxdepth 1 -type f -perm -u+x | sort)
+[ "${#FILES[@]}" -gt 0 ] || die "nothing to deploy in $BUILD"
+"${SCP[@]}" "${FILES[@]}" "$T_USER@$T_HOST:$T_DIR/"
+echo "deployed $(for f in "${FILES[@]}"; do printf '%s ' "$(basename "$f")"; done)to $T_NAME ($T_USER@$T_HOST:$T_DIR)"

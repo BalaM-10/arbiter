@@ -10,6 +10,7 @@ set -euo pipefail
 TESTS=(
     "hello:M0 toolchain: qcc-built binary runs"
     "msgpass:M0 message passing (M0-MSG-1..7, previews NFR-Q2)"
+    "test_libcontract:libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)"
 )
 ALL_ARCHS=(x86_64 aarch64le)
 
@@ -37,7 +38,7 @@ mkdir -p "$OUTDIR"
         echo "\$ make -C qnx ARCH=$a"
         mk_out="$(make -C "$REPO_ROOT/qnx" ARCH="$a" 2>&1)" || { printf '%s\n' "$mk_out"; die "build failed for $a"; }
         printf '%s\n' "$mk_out" | grep -v -E '^make(\[[0-9]+\])?: (Entering|Leaving)' || true
-        for f in "$REPO_ROOT/build/$a"/*; do
+        for f in $(find "$REPO_ROOT/build/$a" -maxdepth 1 -type f -perm -u+x | sort); do
             echo "  $(basename "$f")  sha256 $(sha256sum "$f" | cut -d' ' -f1)"
             echo "    $(file -b "$f" | cut -d, -f1-2)"
         done
