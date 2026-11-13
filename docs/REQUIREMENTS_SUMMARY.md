@@ -66,6 +66,7 @@ an untrusted party cannot do cite the claim in `docs/THREAT_MODEL.md` (TM-C1 to 
 | FR-W3 | It detects process death through process-manager death notices and stuck processes through missed heartbeats |
 | FR-W4 | An emergency-stop input (dashboard or GPIO button) forces `SAFE_STOP` |
 | FR-W5 | If the watchdog itself dies, the guardian enters `SAFE_STOP` and the arm brakes (fail-safe); the cause is recorded (decided Nov 13, M2) |
+| FR-W6 | The watchdog sends its own heartbeat to the arm and the guardian; if it stops (a frozen watchdog), the arm brakes and the guardian enters `SAFE_STOP` (decided Nov 13, M2) |
 
 ## Gateway (FR-N)
 

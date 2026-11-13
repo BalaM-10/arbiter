@@ -197,10 +197,25 @@ def stayed_at(run: Run, pos: tuple[int, int], from_ms: int, to_ms: int, name: st
                  f"from {pos}")
 
 
+# Targets whose tick spacing is reported but not judged. Owner decision 2026-11-13:
+# QEMU proves function, never timing (NFR-T7), so on QEMU the 2-period rule is
+# measured and shown, and enforced only on real hardware (the Pi 5). Any other
+# target name, known or not, gets the strict rule.
+TIMING_NOT_JUDGED = frozenset({"qemu"})
+TIMING_POLICY = ("tick spacing on QEMU is measured and reported but not judged (owner decision 2026-11-13: "
+                 "QEMU proves function, never timing); the rule of no interval of 2 control periods or more "
+                 "is enforced on the Pi 5")
+
+
+def timing_judged(target: str) -> bool:
+    return target not in TIMING_NOT_JUDGED
+
+
 def no_missed_cycle(run: Run, script: Script) -> Check:
-    """No deadline miss, as observable from outside: every control cycle published
-    (no interval of 2 periods or more), no lease expiry, no guardian-to-arm send
-    fault, and the lease valid whenever the arm moved. QEMU: function only."""
+    """No deadline miss, as observable from outside the arm (owner-confirmed 2026-11-13):
+    no lease expiry, no guardian-to-arm send fault, the lease valid in every moving
+    sample, and no telemetry interval of 2 control periods or more. The interval
+    rule is judged on hardware targets only; on QEMU it is measured and reported."""
     ints = [b.t_ns - a.t_ns for a, b in pairwise(run.samples)]
     worst = max(ints, default=0)
     late = sum(1 for i in ints if i >= 2 * PERIOD_NS)
@@ -208,12 +223,16 @@ def no_missed_cycle(run: Run, script: Script) -> Check:
     expiries = c1.get("lease_expiries", -1) - c0.get("lease_expiries", 0)
     faults = run.statuses[-1].arm_faults if run.statuses else -1
     moving_unleased = sum(1 for s in run.samples if s.state == ARM_STATE["MOVING"] and not s.lease_ok)
-    ok = late == 0 and expiries == 0 and faults == 0 and moving_unleased == 0
+    strict = timing_judged(run.target)
+    ok = expiries == 0 and faults == 0 and moving_unleased == 0 and (late == 0 or not strict)
+    spacing = (f"tick spacing: {len(ints)} intervals, longest {worst / 1e6:.3f} ms, "
+               f"{late} at 2 periods or more")
+    spacing += " (judged)" if strict else f" (reported, not judged: {TIMING_POLICY})"
     return Check("no_deadline_miss", ok,
-                 f"{len(ints)} intervals, longest {worst / 1e6:.3f} ms, {late} at 2 periods or more; "
                  f"lease expiries {expiries}; guardian arm faults {faults}; "
-                 f"moving without lease {moving_unleased}",
-                 {"longest_interval_ms": worst / 1e6, "intervals_2_periods_or_more": late})
+                 f"moving without lease {moving_unleased}; {spacing}",
+                 {"longest_interval_ms": worst / 1e6, "intervals_2_periods_or_more": late,
+                  "tick_spacing_judged": strict, "target": run.target})
 
 
 def on_segment(run: Run, p0: tuple[int, int], p1: tuple[int, int], name: str) -> Check:

@@ -22,7 +22,7 @@ where = ["host"]
 [tool.pytest.ini_options]
 testpaths = ["host/tests"]
 # Tests are named after the requirement they cover (fr_c2_..., nfr_k4_...).
-python_functions = ["test_*", "fr_*", "nfr_*", "hc_*"]
+python_functions = ["test_*", "fr_*", "nfr_*", "hc_*", "f[0-9]*_*"]
 
 [tool.ruff]
 line-length = 110

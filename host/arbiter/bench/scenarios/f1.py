@@ -13,9 +13,10 @@ ID = "F1"
 TITLE = "Normal operation"
 PASS_CONDITION = (
     "Every command of the pick-and-place path is ALLOW; telemetry shows the arm reaching every waypoint "
-    "while it pauses there; "
-    "no deadline miss (no control cycle missing from telemetry, no lease expiry, no guardian-to-arm send "
-    "fault); and the independent checks find no limit, keep-out or speed violation."
+    "while it pauses there; no deadline miss: no lease expiry, no guardian-to-arm send fault, the lease "
+    "valid whenever the arm moves, and no telemetry interval of 2 control periods or more (strict on the "
+    "Pi 5; on QEMU measured and reported, not judged, because QEMU proves function, never timing); and "
+    "the independent checks find no limit, keep-out or speed violation."
 )
 
 # Waypoints in degrees (shoulder, elbow): all on the far side of the bench from

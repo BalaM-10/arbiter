@@ -124,14 +124,37 @@ def fr_b2_verdict_check_fails_on_the_wrong_rule() -> None:
     assert ck.verdicts_as_expected(run, s, {"violation": ("DENY", "JOINT_LIMIT")}).passed
 
 
-def fr_b2_missed_cycle_check_fails_on_a_long_interval() -> None:
+def _cycle_run(target: str, *, late: bool = False, expiries: int = 0, arm_faults: int = 0) -> Run:
     run = _run([(0, 0)] * 4)
-    run.counters = {"begin": {"lease_expiries": 0}, "end": {"lease_expiries": 0}}
-    s = Script()
-    run.statuses.append(Status(0, 2, 0, 0, 0, 0, 0, 0))
-    assert ck.no_missed_cycle(run, s).passed
-    run.samples[3] = Sample(3, 2 * MS + 2 * MS, 3, (0, 0), (0, 0), 0, 2, 1)
-    assert not ck.no_missed_cycle(run, s).passed
+    run.target = target
+    run.counters = {"begin": {"lease_expiries": 0}, "end": {"lease_expiries": expiries}}
+    run.statuses.append(Status(0, 2, 0, 0, arm_faults, 0, 0, 0))
+    if late:
+        run.samples[3] = Sample(3, 2 * MS + 2 * MS, 3, (0, 0), (0, 0), 0, 2, 1)   # a 2-period gap
+    return run
+
+
+def f1_tick_spacing_is_strict_on_the_pi5_and_on_unknown_targets() -> None:
+    for target in ("pi5", "some-new-board", ""):
+        assert ck.no_missed_cycle(_cycle_run(target), Script()).passed
+        c = ck.no_missed_cycle(_cycle_run(target, late=True), Script())
+        assert not c.passed and "(judged)" in c.detail and c.data["tick_spacing_judged"] is True
+
+
+def f1_tick_spacing_on_qemu_is_reported_with_the_reason_not_judged() -> None:
+    c = ck.no_missed_cycle(_cycle_run("qemu", late=True), Script())
+    assert c.passed and c.data["tick_spacing_judged"] is False
+    assert c.data["intervals_2_periods_or_more"] == 1                 # still measured and shown
+    assert "not judged" in c.detail and "enforced on the Pi 5" in c.detail
+
+
+def f1_lease_expiry_or_send_fault_fails_on_every_target() -> None:
+    for target in ("qemu", "pi5"):
+        assert not ck.no_missed_cycle(_cycle_run(target, expiries=1), Script()).passed
+        assert not ck.no_missed_cycle(_cycle_run(target, arm_faults=1), Script()).passed
+        moving_unleased = _cycle_run(target)
+        moving_unleased.samples[1] = Sample(1, MS, 1, (0, 0), (0, 0), 0, 2, 0)   # MOVING, lease_ok 0
+        assert not ck.no_missed_cycle(moving_unleased, Script()).passed
 
 
 # ------------------------------------------------------- scenario scripts

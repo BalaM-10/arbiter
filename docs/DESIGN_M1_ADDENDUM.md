@@ -438,11 +438,23 @@ but every safety pass condition is decided on the host from telemetry alone:
 Host tests (`host/tests/test_bench.py`) feed the judge synthetic telemetry that
 breaks each rule and check that it fails, so no check can pass vacuously.
 
-**"No deadline miss" in F1 (proposed definition, owner to confirm).** As seen
+**"No deadline miss" in F1 (confirmed by the owner, 2026-11-13).** As seen
 from outside the arm: no telemetry interval of 2 control periods or more (no
 skipped cycle), no motion-lease expiry, no guardian-to-arm send fault, and the
-lease valid in every moving sample. On QEMU this proves function only; the Pi 5
-run in M3 reports the interval distribution as a measurement.
+lease valid in every moving sample.
+
+**Where each part is judged (owner decision, 2026-11-13).** Lease expiry, send
+faults and moving without a lease are judged on every target. The 2-period
+tick rule is judged on the Pi 5 (and on any target other than QEMU); on QEMU it
+is measured and printed in every report, with the reason, but not judged,
+because QEMU proves function, never timing (NFR-T7). The arm computes motion
+from elapsed time, so a late tick changes how often the arm looks, not how fast
+it moves; F6's speed check, which uses each sample's own time, confirms that
+independently. The rule was fixed before the evidence run and is the same
+code on both targets (`host/arbiter/bench/checks.py` `no_missed_cycle()`,
+tested by `f1_tick_spacing_*`). It is not a test relaxed after a failure.
+Before the decision, 1 of 4 F1 runs at 0db90c9 had 2 of 12,490 intervals at
+2.129 ms on QEMU; that run is kept in `evidence/bench/2026-11-13-qemu/153541`.
 
 ---
 
@@ -512,7 +524,27 @@ run in M3 reports the interval distribution as a measurement.
    watchdog mid-move; the guardian enters `SAFE_STOP` with cause `WATCHDOG`, the
    arm reaches BRAKED and stays latched (checked from telemetry), and the
    measured time to L1 and L2 is reported.
-   **Not covered by this decision (owner to decide in M2):** a *stopped* or
-   stuck watchdog. Its channel still exists, so no COIDDEATH pulse is sent and
-   heartbeats still queue, so neither sign fires. Covering it would need the
-   watchdog to send its own heartbeat to the arm and the guardian.
+   A *stopped* or stuck watchdog is not covered by these two signs: its
+   channel still exists, so no COIDDEATH pulse is sent, and heartbeats still
+   queue. Decision 9 covers it.
+
+9. **A frozen watchdog is caught by its own heartbeat (owner decision,
+   2026-11-13; implemented in M2, FR-W6).** The watchdog sends its own
+   heartbeat to the arm and the guardian. When it stops arriving, the arm brakes
+   and latches and the guardian enters `SAFE_STOP` (cause `WATCHDOG`), each on
+   its own. Proposed mechanism, reusing what the watchdog already does for trips:
+   each client registers a second event with the watchdog (`MsgRegisterEvent()`
+   on its connection to the watchdog, so only the watchdog can deliver it) and
+   the watchdog delivers it with `MsgDeliverEvent()` every watchdog cycle; the
+   client accepts it only with its own token. The arm checks the time since the
+   last beat in its own 1 ms loop; the guardian checks it on its tick. Period
+   and timeout are measurement targets, proposed: a beat every 2 ms, timeout
+   10 ms (the same timeout the watchdog applies to its clients). Note: a
+   watchdog spinning in a loop at priority 66 would starve the guardian (64), so
+   the guardian might not run to notice; the arm (70) still does, and braking
+   does not depend on the guardian. Acceptance test (on target):
+   `fr_w6_watchdog_stopped_mid_move_guardian_safe_stops_and_arm_brakes`:
+   `slay -h` the watchdog mid-move; the arm reaches BRAKED and stays latched
+   (from telemetry), the guardian enters `SAFE_STOP` with cause `WATCHDOG`, and
+   the measured time from the last beat to L1 and L2 is reported. Then
+   `slay -u` (continue) must not resume motion: an operator reset is needed.

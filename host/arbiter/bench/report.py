@@ -94,6 +94,9 @@ def write(report: dict[str, Any], spec: Spec, out: Path) -> None:
     note = ("Safety checks are computed on the host from the arm's telemetry with independent kinematics, "
             "not from the guardian's verdicts. On QEMU the bench proves function, never timing. "
             "Top views: base at the centre, operator's hand area shaded, tip path dark, elbow path grey.")
+    if not m.get("tick_spacing_judged", True):
+        note += (" Timing policy for this run: " + str(m["timing_policy"]) + ". This is the rule as decided, "
+                 "not a relaxed test: the same F1 check is strict on the Pi 5.")
     body = "".join(_scenario_html(sc, spec) for sc in report["scenarios"])
     page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'

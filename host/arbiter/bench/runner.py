@@ -10,7 +10,7 @@ from typing import Any
 
 from ..contract import compile_file
 from . import report
-from .checks import Check
+from .checks import TIMING_POLICY, Check, timing_judged
 from .records import parse
 from .scenarios import ALL
 from .spec import REPO_ROOT, load_spec
@@ -57,7 +57,9 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
     dirty = _git("status", "--porcelain", "--", "qnx", "host", "scripts", "contracts")
     meta = {"started": now.isoformat(timespec="seconds"), "target": target, "uname": uname,
             "commit": _git("rev-parse", "--short", "HEAD") + (" (uncommitted changes)" if dirty else ""),
-            "contract": str(contract.resolve().relative_to(REPO_ROOT)), "contract_sha256": spec.sha256}
+            "contract": str(contract.resolve().relative_to(REPO_ROOT)), "contract_sha256": spec.sha256,
+            "tick_spacing_judged": timing_judged(target),
+            "timing_policy": "tick spacing judged" if timing_judged(target) else TIMING_POLICY}
 
     scenarios: list[dict[str, Any]] = []
     for sid in ids:
@@ -73,6 +75,7 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
             if r.stderr:
                 f.write("".join(f"STDERR {line}\n" for line in r.stderr.splitlines()))
         run = parse(r.stdout, r.returncode)
+        run.target = target
         checks: list[Check] = mod.judge(run, script, spec)
         passed = all(c.passed for c in checks)
         for c in checks:

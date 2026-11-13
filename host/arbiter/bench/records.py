@@ -57,6 +57,7 @@ class Run:
     done: bool = False
     exit_code: int = -1
     t0_ns: int = 0          # clock of the first command; scenario times are relative to it
+    target: str = ""        # target name from scripts/targets.env (decides whether timing is judged)
 
 
 def parse(text: str, exit_code: int) -> Run:
