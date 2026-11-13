@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arbiter"
+version = "0.1.0"
+description = "Host tools for Arbiter: contract compiler (later: planner, bench, evidence)"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+dependencies = ["PyYAML==6.0.2"]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.3", "ruff==0.7.4", "mypy==1.13.0", "types-PyYAML==6.0.12.20240917"]
+
+[project.scripts]
+arbiter = "arbiter.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["host"]
+
+[tool.pytest.ini_options]
+testpaths = ["host/tests"]
+# Tests are named after the requirement they cover (fr_c2_..., nfr_k4_...).
+python_functions = ["test_*", "fr_*", "nfr_*", "hc_*"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+src = ["host"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["host/arbiter", "host/tests"]

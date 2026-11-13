@@ -37,7 +37,7 @@ HOST_OUT    := ../build/host
 LIBCONTRACT_SRC := libcontract/arb_contract.c
 LIBCONTRACT_HDR := libcontract/arb_contract.h common/arb_contract_table.h common/arb_proto.h common/arb_arm_model.h
 
-BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract
+BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract_file
 
 .PHONY: all clean qnx-env host-test analyze check-pure
 all: qnx-env $(BINS)
@@ -61,6 +61,9 @@ $(OUT)/msgpass: samples/msgpass/msgpass.c common/arb_pulses.h | $(OUT)
 
 $(OUT)/test_libcontract: tests/test_libcontract.c tests/arb_test.h $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ tests/test_libcontract.c $(LIBCONTRACT_SRC) $(LDLIBS)
+
+$(OUT)/test_contract_file: tests/test_contract_file.c $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/test_contract_file.c $(LIBCONTRACT_SRC) $(LDLIBS)
 
 # --------------------------------------------------------------- host checks
 

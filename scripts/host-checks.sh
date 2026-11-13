@@ -5,10 +5,12 @@
 #   - purity: libcontract objects (host gcc and qcc, both architectures) call
 #     nothing outside the allowed C library set (NFR-K2)
 #   - traceability: every requirement has a row; every named test exists
+#   - Python host tools: pytest, ruff, mypy --strict (NFR-K4)
 #   ./scripts/host-checks.sh
 set -euo pipefail
 . "$(dirname "$0")/lib/target.sh"
 sdp_env
+cd "$REPO_ROOT"   # mypy and pytest read pyproject.toml paths relative to the repo root
 
 OUTDIR="$REPO_ROOT/evidence/runs/$(date +%F)-host"
 LOG="$OUTDIR/host-checks-$(date +%H%M%S).log"
@@ -35,6 +37,9 @@ step() {   # step <title> <command...>
     step "purity, x86_64"                                make -C "$REPO_ROOT/qnx" check-pure ARCH=x86_64
     step "purity, aarch64le"                             make -C "$REPO_ROOT/qnx" check-pure ARCH=aarch64le
     step "traceability"                                  python3 -I "$REPO_ROOT/scripts/check-traceability.py"
+    step "python tests (pytest)"                         "$REPO_ROOT/.venv/bin/python" -m pytest -q "$REPO_ROOT/host/tests"
+    step "nfr_k4_python_lint_and_types: ruff"            "$REPO_ROOT/.venv/bin/ruff" check "$REPO_ROOT/host"
+    step "nfr_k4_python_lint_and_types: mypy --strict"   "$REPO_ROOT/.venv/bin/mypy" --config-file "$REPO_ROOT/pyproject.toml"
     echo
     echo "SUMMARY host-checks: $([ "$fail" -eq 0 ] && echo PASS || echo "FAIL ($fail step(s))")"
 } 2>&1 | tee "$LOG"

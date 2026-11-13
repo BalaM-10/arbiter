@@ -1,0 +1,24 @@
+Arbiter
+Copyright 2026 the Arbiter authors
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Arbiter's QNX code (qnx/) uses no third-party code. It is built with the QNX
+Software Development Platform 8.0, which is licensed separately by QNX and is
+not part of this repository.
+
+Third-party software used by the host tools (host/), installed from PyPI into a
+local virtual environment and not redistributed in this repository:
+
+Runtime
+  PyYAML 6.0.2            MIT License          https://pyyaml.org/
+
+Development and test only
+  pytest 8.3.3            MIT License          https://pytest.org/
+  ruff 0.7.4              MIT License          https://github.com/astral-sh/ruff
+  mypy 1.13.0             MIT License          https://mypy-lang.org/
+  types-PyYAML 6.0.12.20240917
+                          Apache License 2.0   https://github.com/python/typeshed
+
+Host analysis tools used by scripts/host-checks.sh, installed from Ubuntu
+packages and not redistributed: gcc (GPL-3.0 with GCC Runtime Library
+Exception), cppcheck (GPL-3.0).

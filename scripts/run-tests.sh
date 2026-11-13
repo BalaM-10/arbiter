@@ -6,11 +6,12 @@
 set -euo pipefail
 . "$(dirname "$0")/lib/target.sh"
 
-# Each entry: <binary on target>:<what it covers>
+# Each entry: <command run in the target directory>:<what it covers>
 TESTS=(
     "hello:M0 toolchain: qcc-built binary runs"
     "msgpass:M0 message passing (M0-MSG-1..7, previews NFR-Q2)"
     "test_libcontract:libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)"
+    "test_contract_file contract-corpus/manifest.txt:compiled contract loads on QNX exactly as written; corrupted tables rejected (FR-C3, FR-C4)"
 )
 ALL_ARCHS=(x86_64 aarch64le)
 
@@ -32,6 +33,12 @@ mkdir -p "$OUTDIR"
     echo "# run-tests $T_NAME — $(date -Is), REPEAT=$REPEAT"
     echo "# commit: $(git -C "$REPO_ROOT" rev-parse --short HEAD)${dirty:+ (UNCOMMITTED changes in qnx/ or scripts/)}"
     echo "# host: $(lsb_release -ds 2>/dev/null || uname -sr); qcc $(qcc -V 2>&1 | awk '/default/{print $1}')"
+    echo
+    echo "## contract corpus (host compiler)"
+    echo "\$ arbiter contract corpus contracts/default.yaml -o build/contract-corpus"
+    "$REPO_ROOT/.venv/bin/arbiter" contract corpus "$REPO_ROOT/contracts/default.yaml" \
+        -o "$REPO_ROOT/build/contract-corpus" || die "contract corpus failed (is .venv set up? see docs/TARGETS.md)"
+    sha256sum "$REPO_ROOT/build/contract-corpus/contract.bin" | sed "s|$REPO_ROOT/||; s|^|  |"
     echo
     echo "## build (all architectures)"
     for a in "${ALL_ARCHS[@]}"; do
@@ -63,13 +70,13 @@ for entry in "${TESTS[@]}"; do
     {
         echo
         echo "## $bin — $what"
-        echo "\$ $T_DIR/$bin"
+        echo "\$ cd $T_DIR && ./$bin"
     } | tee -a "$LOG"
 
     ok=0
     for ((i = 1; i <= REPEAT; i++)); do
         set +e
-        out="$("${SSH[@]}" "$T_DIR/$bin" 2>&1)"
+        out="$("${SSH[@]}" "cd '$T_DIR' && ./$bin" 2>&1)"
         rc=$?
         set -e
         # Full output for the first run and for every failing run.

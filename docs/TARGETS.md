@@ -34,7 +34,7 @@ file. Versions below are recorded by `scripts/record-host.sh` in
 
 ## First-time setup (Ubuntu 22.04, native or WSL2)
 
-Do these once, in order. Steps 3 to 5 need a myQNX account.
+Do these once, in order, from the repo root. Steps 3 to 5 need a myQNX account.
 
 1. **Host packages.**
    ```sh
@@ -74,6 +74,13 @@ Do these once, in order. Steps 3 to 5 need a myQNX account.
    mkqnximage --type=qemu --arch=x86_64 --hostname=arbiter-qemu \
      --ssh-ident=$HOME/.ssh/qnx_target_ed25519.pub --build
    cd ../..
+   ```
+8. **Python host tools** (contract compiler and its tests), in a project-local
+   virtual environment; versions are pinned in `pyproject.toml`, licenses in `NOTICE`:
+   ```sh
+   sudo apt install -y python3-venv cppcheck
+   python3 -m venv .venv
+   .venv/bin/pip install -e ".[dev]"
    ```
 
 ## Every session

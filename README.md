@@ -16,9 +16,10 @@ is not certified and not intended for production use.
 | --- | --- |
 | QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Guardian (resource manager at `/dev/arbiter`) |
 | QEMU x86_64 target built with `mkqnximage`, reached over SSH | Arm controller, watchdog, evidence logger, gateway |
-| Message-passing sample: two processes, send/receive/reply, rejection of malformed messages, pulses, sender identity (7 checks) | Safety contract, planner, fault bench, dashboard |
+| Message-passing sample: two processes, send/receive/reply, rejection of malformed messages, pulses, sender identity (7 checks) | Planner, fault bench, dashboard |
 | Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target and timing measurements |
 | `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 58 tests on the host and on QNX | |
+| Contract compiler (`arbiter contract`): strict YAML validation, binary table, checked against the C loader on the host and on QNX | |
 
 ## Quick start (QEMU)
 
@@ -26,7 +27,7 @@ Tested with QNX SDP 8.0.4 on Ubuntu 22.04 (WSL2 on Windows 11), QEMU 6.2,
 toolchain `qcc` (GCC 12.2.0), target QEMU x86_64. Do the
 [first-time setup](docs/TARGETS.md#first-time-setup-ubuntu-2204-native-or-wsl2)
 once: host packages, KVM, the free QNX license, Software Center, SDP 8.0.4, an
-SSH key and the QEMU image. Then, from the repo root:
+SSH key, the QEMU image and the Python virtual environment. Then, from the repo root:
 
 ```sh
 source ~/qnx800/qnxsdp-env.sh
@@ -36,8 +37,10 @@ sudo ./scripts/qemu-br0-dhcp.sh                                        # QEMU ne
 ./scripts/host-checks.sh                                               # host unit tests, analyzers, traceability
 ```
 
-Expected: `RESULT PASS test_libcontract 58/58` and `SUMMARY 3/3 tests passed on qemu`,
-then `SUMMARY host-checks: PASS`.
+Expected: `RESULT PASS test_libcontract 58/58`, `RESULT PASS test_contract_file 11/11` and
+`SUMMARY 4/4 tests passed on qemu`, then `SUMMARY host-checks: PASS`.
+
+To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/default.yaml -o build/contract.bin`.
 The full log is saved under `evidence/runs/`.
 
 ## Where to look

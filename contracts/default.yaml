@@ -1,0 +1,41 @@
+# Arbiter safety contract (FR-C1). Compiled on the host with
+#   arbiter contract compile contracts/default.yaml -o build/contract/default.bin
+# The guardian only ever loads the compiled binary table (FR-C5).
+#
+# Units: degrees, millimetres, milliseconds. The compiler converts to the
+# table's integer units and always rounds toward safety: joint limits inward,
+# the speed limit down, keep-out zones outward.
+
+contract_version: 1
+
+# Two joints of the simulated planar arm (shoulder, then elbow).
+joints:
+  shoulder: {min_deg: -150, max_deg: 150}
+  elbow:    {min_deg: -135, max_deg: 135}
+
+# Fastest any joint may move.
+max_joint_speed_deg_per_s: 57.29578     # 1.0000000085 rad/s; compiles to exactly 1 rad/s (rounded down)
+
+# Longest move a command may request. Must allow a full-range move at the
+# speed limit (here 300 deg at 57.3 deg/s = 5.24 s).
+max_move_duration_ms: 10000
+
+# AI silence before the guardian holds the arm (NFR-T4).
+ai_silence_timeout_ms: 250
+
+# Sustained command rate and burst allowance.
+command_rate:
+  per_second: 50
+  burst: 10
+
+# Joint-limit and keep-out denials that trigger SAFE_STOP: this many within the window.
+violations:
+  threshold: 3
+  window_ms: 1000
+
+# Rectangles in the workspace (base at the origin, x along the arm at rest).
+# Neither the elbow nor the tip may enter one, anywhere along a move.
+keep_out_zones:
+  - name: person
+    x_mm: [200, 400]
+    y_mm: [150, 350]
