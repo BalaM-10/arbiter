@@ -25,7 +25,7 @@ QNX_NM_x86_64    := ntox86_64-nm
 QNX_NM_aarch64le := ntoaarch64-nm
 
 CC       := qcc -V$(QCC_VARIANT)
-INCLUDES := -Icommon -Ilibcontract -Itests
+INCLUDES := -Icommon -Ilibcontract -Itests -Iarm
 CFLAGS   := -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE $(INCLUDES)
 LDLIBS   := -lm
 OUT      := ../build/$(ARCH)
@@ -39,7 +39,8 @@ LIBCONTRACT_SRC := libcontract/arb_contract.c
 LIBCONTRACT_HDR := libcontract/arb_contract.h common/arb_contract_table.h common/arb_proto.h common/arb_arm_model.h
 
 BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract_file $(OUT)/test_send_timeout \
-        $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh
+        $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh \
+        $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/arm_suite.sh
 
 .PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
@@ -85,13 +86,36 @@ $(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h common/arb_devctl.h
 $(OUT)/guardian_suite.sh: tests/guardian_suite.sh | $(OUT)
 	install -m 755 $< $@
 
+ARM_SRC := arm/main.c arm/arm_motion.c arm/arm_backend_sim.c
+ARM_HDR := arm/arm_motion.h arm/arm_backend.h common/arb_arm_model.h common/arb_arm_proto.h \
+           common/arb_telemetry.h common/arb_prio.h common/arb_pulses.h
+
+$(OUT)/arb-arm: $(ARM_SRC) $(ARM_HDR) $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $(ARM_SRC) $(LIBCONTRACT_SRC) $(LDLIBS)
+
+$(OUT)/test_arm_motion: tests/test_arm_motion.c tests/arb_test.h arm/arm_motion.c arm/arm_motion.h arm/arm_backend_sim.c arm/arm_backend.h | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/test_arm_motion.c arm/arm_motion.c arm/arm_backend_sim.c $(LDLIBS)
+
+$(OUT)/test_arm: tests/test_arm.c tests/arb_test.h $(ARM_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
+
+$(OUT)/test_e2e: tests/test_e2e.c tests/arb_test.h $(ARM_HDR) common/arb_devctl.h | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
+
+$(OUT)/arm_suite.sh: tests/arm_suite.sh | $(OUT)
+	install -m 755 $< $@
+
 # --------------------------------------------------------------- host checks
 
 $(HOST_OUT)/test_libcontract: tests/test_libcontract.c tests/arb_test.h $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(HOST_OUT)
 	$(HOST_CC) $(HOST_CFLAGS) -o $@ tests/test_libcontract.c $(LIBCONTRACT_SRC) -lm
 
-host-test: $(HOST_OUT)/test_libcontract
+$(HOST_OUT)/test_arm_motion: tests/test_arm_motion.c tests/arb_test.h arm/arm_motion.c arm/arm_motion.h arm/arm_backend_sim.c arm/arm_backend.h common/arb_arm_model.h | $(HOST_OUT)
+	$(HOST_CC) $(HOST_CFLAGS) -o $@ tests/test_arm_motion.c arm/arm_motion.c arm/arm_backend_sim.c -lm
+
+host-test: $(HOST_OUT)/test_libcontract $(HOST_OUT)/test_arm_motion
 	$(HOST_OUT)/test_libcontract
+	$(HOST_OUT)/test_arm_motion
 
 analyze: | $(HOST_OUT)
 	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -fanalyzer $(INCLUDES) -c $(LIBCONTRACT_SRC) -o $(HOST_OUT)/arb_contract.analyze.o
@@ -103,8 +127,9 @@ analyze: | $(HOST_OUT)
 analyze-qnx: qnx-env
 	$(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -Iguardian -c guardian/main.c -o /dev/null
 	$(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -Iguardian -c guardian/arm_link.c -o /dev/null
+	for f in $(ARM_SRC); do $(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -c $$f -o /dev/null || exit 1; done
 	cppcheck --std=c11 --enable=warning,style,performance,portability --inline-suppr \
-	         --error-exitcode=1 --quiet -D_QNX_SOURCE $(INCLUDES) -Iguardian $(GUARDIAN_SRC)
+	         --error-exitcode=1 --quiet -D_QNX_SOURCE $(INCLUDES) -Iguardian $(GUARDIAN_SRC) $(ARM_SRC)
 
 # Purity (NFR-K2): compile the library alone and list every symbol it needs from
 # outside. Anything beyond the allowed C library set fails.
@@ -112,8 +137,12 @@ check-pure: qnx-env | $(HOST_OUT)
 	mkdir -p $(OUT)/obj
 	$(HOST_CC) -std=c11 -O2 $(INCLUDES) -c $(LIBCONTRACT_SRC) -o $(HOST_OUT)/arb_contract.o
 	$(CC) $(CFLAGS) -c $(LIBCONTRACT_SRC) -o $(OUT)/obj/arb_contract.o
+	$(HOST_CC) -std=c11 -O2 $(INCLUDES) -c arm/arm_motion.c -o $(HOST_OUT)/arm_motion.o
+	$(CC) $(CFLAGS) -c arm/arm_motion.c -o $(OUT)/obj/arm_motion.o
 	../scripts/check-pure.sh nm $(HOST_OUT)/arb_contract.o
 	../scripts/check-pure.sh $(QNX_NM_$(ARCH)) $(OUT)/obj/arb_contract.o
+	../scripts/check-pure.sh nm $(HOST_OUT)/arm_motion.o
+	../scripts/check-pure.sh $(QNX_NM_$(ARCH)) $(OUT)/obj/arm_motion.o
 
 clean:
 	rm -rf $(OUT) $(HOST_OUT)

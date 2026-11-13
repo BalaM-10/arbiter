@@ -13,6 +13,8 @@ TESTS=(
     "test_libcontract:libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)"
     "test_contract_file contract-corpus/manifest.txt:compiled contract loads on QNX exactly as written; corrupted tables rejected (FR-C3, FR-C4)"
     "test_send_timeout:2 ms TimerTimeout on MsgSend, SEND and REPLY states, measured (FR-G9 design check)"
+    "test_arm_motion:arm motion model on QNX: straight line, vmax, brake on segment, time-based (FR-A2, FR-A3, FR-A4)"
+    "arm_suite.sh:arb-arm on QNX alone and end to end with arb-guardian: loop period, telemetry, sender binding, lease, disconnect brake, HOLD (FR-A1..A6, FR-G5, FR-G6, NFR-I3)"
     "guardian_suite.sh:arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)"
 )
 ALL_ARCHS=(x86_64 aarch64le)

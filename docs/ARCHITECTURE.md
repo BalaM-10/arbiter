@@ -1,9 +1,9 @@
 # Architecture
 
 Status: M1 in progress. This page describes what is built: the decision logic
-in `qnx/libcontract/` and the guardian in `qnx/guardian/`. The full M1 design
-(scheduling, motion leases, timeouts, fault containment) is in
-`docs/DESIGN_M1_ADDENDUM.md`; the arm controller and watchdog are added here once
+in `qnx/libcontract/`, the guardian in `qnx/guardian/` and the arm controller in
+`qnx/arm/`. The full M1 design (scheduling, motion leases, timeouts, fault
+containment) is in `docs/DESIGN_M1_ADDENDUM.md`; the watchdog is added here once
 implemented. Requirement IDs are defined in
 `docs/REQUIREMENTS_SUMMARY.md`.
 
@@ -145,9 +145,47 @@ commit: AI not silent, HOLD -> NORMAL; reply ALLOW/CLAMP
 A 1 ms timer pulse runs the silence timeout. When the last client closes or
 dies, the close handler moves `NORMAL` to `HOLD` at once.
 
+**The planner must keep talking.** Silence is measured from the last accepted
+command, not from the end of a move: a planner that sends one long move and then
+goes quiet for longer than the contract's silence timeout (250 ms in
+`contracts/default.yaml`) is put in `HOLD`, and the arm stops along its path. A
+planner keeps a long motion going by re-sending its target (or the next waypoint)
+faster than that. This is FR-G5 as written: silence is a fault, whatever the arm
+is doing at the time.
+
 Not yet in the guardian (M1 days 4 to 6): motion-lease renewals and heartbeats,
 the HOLD setpoint on silence, system logging through `slog2`, and the operator
 reset.
+
+## The arm controller (`arb-arm`)
+
+A single thread at FIFO priority 70, the highest of all Arbiter threads. It
+registers the internal name `arbiter_arm` with `name_attach()` on its own
+channel (no `_NTO_CHF_UNBLOCK`, so a guardian whose send times out is released
+by the kernel), loads the contract table, and runs a 1 ms timer pulse.
+
+- **Motion** (`arm_motion.c`, pure): one straight joint-space segment at a time,
+  both joints arriving together. Position and velocity are a function of the
+  arm's clock, so extra or spoofed tick pulses cannot make it move faster (TM-C1).
+  Stopping decelerates along the current segment (10 rad/s² for the fastest
+  joint), so a stop never leaves the path the guardian checked.
+- **Its own checks** on every setpoint, independent of the guardian: the sender
+  is the bound guardian connection; the target is within the joint limits; the
+  start is within 5 control cycles at `vmax` of where the arm actually is
+  (otherwise `STALE_START`); the duration is stretched so no joint exceeds `vmax`.
+  The new segment starts from the actual position.
+- **Motion lease:** each setpoint is valid for 10 ms unless the guardian renews
+  it with a pulse; the guardian renews every tick unless it is in `SAFE_STOP`.
+  An expired lease brakes and latches; only a new setpoint moves the arm again.
+  If the guardian's connection disappears (closed or the process died), the
+  kernel's disconnect pulse brakes the arm at once.
+- **Hold and brake:** the guardian sends a hold pulse on entering `HOLD` (stop
+  along the path, not latched) and a brake pulse on entering `SAFE_STOP`
+  (latched).
+- **Telemetry** (`arb_telemetry.h`): one sample per cycle into a shared-memory
+  ring that only the arm writes; readers map it read-only and never block it.
+- **Backend** (`arm_backend.h`): the loop calls only `init`, `apply` and `read`;
+  M1's backend is the simulation.
 
 ## What is not covered by `libcontract`
 

@@ -14,12 +14,18 @@
 
 /* M0 message-passing sample (qnx/samples/msgpass). Not used by the guardian. */
 #define ARB_PULSE_DEMO          (_PULSE_CODE_MINAVAIL + 0)
-/* Guardian's own 1 ms timer tick (silence timeout; later heartbeats and lease renewals). */
+/* Guardian's own 1 ms timer tick (silence timeout, lease renewals). */
 #define ARB_PULSE_GUARDIAN_TICK (_PULSE_CODE_MINAVAIL + 1)
+/* Arm controller's own 1 ms control-loop tick. Motion depends on the arm's clock,
+ * not on tick count, so a spoofed tick cannot speed the arm up. */
+#define ARB_PULSE_ARM_TICK      (_PULSE_CODE_MINAVAIL + 2)
+/* Guardian -> arm, accepted only from the bound guardian connection (FR-G6): */
+#define ARB_PULSE_ARM_RENEW     (_PULSE_CODE_MINAVAIL + 3)   /* renew the motion lease */
+#define ARB_PULSE_ARM_HOLD      (_PULSE_CODE_MINAVAIL + 4)   /* stop along the segment, not latched (HOLD) */
+#define ARB_PULSE_ARM_BRAKE     (_PULSE_CODE_MINAVAIL + 5)   /* stop along the segment and latch (SAFE_STOP) */
 
 _Static_assert(ARB_PULSE_DEMO >= _PULSE_CODE_MINAVAIL && ARB_PULSE_DEMO <= _PULSE_CODE_MAXAVAIL,
                "pulse code outside the user range");
-_Static_assert(ARB_PULSE_GUARDIAN_TICK >= _PULSE_CODE_MINAVAIL && ARB_PULSE_GUARDIAN_TICK <= _PULSE_CODE_MAXAVAIL,
-               "pulse code outside the user range");
+_Static_assert(ARB_PULSE_ARM_BRAKE <= _PULSE_CODE_MAXAVAIL, "pulse code outside the user range");
 
 #endif /* ARB_PULSES_H */

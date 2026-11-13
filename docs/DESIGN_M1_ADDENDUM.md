@@ -241,6 +241,13 @@ The same bound applies to the guardian's state query to the arm (section 5).
 | Gateway (M2) and test clients | 20 | Network / test input | — | Untrusted; no budget | — |
 | Shells, sshd, other system processes | as configured by the image (to record with `pidin` on target) | | | | |
 
+**Privilege drop (M2, owner requirement 2026-11-13).** When the trusted processes
+drop their privileges (NFR-I5), each keeps `PROCMGR_AID_PRIORITY` and every other
+ability it needs to run at 64 and above and to own its channels and names. Test
+`nfr_i5_trusted_processes_keep_their_priority_after_dropping_privileges`: on the
+target, after the drop, each of guardian, arm and watchdog still runs FIFO at its
+`arb_prio.h` priority (read with `pidin`).
+
 **To confirm on target (test `nfr_i3_untrusted_cannot_send_above_its_priority`):**
 that a process without `PROCMGR_AID_PRIORITY` cannot send a pulse (TM-C3) with a
 priority above 63 (the [MsgSendPulse] page states only the general range).

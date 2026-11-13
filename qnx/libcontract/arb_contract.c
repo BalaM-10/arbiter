@@ -159,6 +159,7 @@ static int64_t abs64(int64_t v) { return v < 0 ? -v : v; }
  * between two samples lies within D / 2 of one of them, so inflating each zone
  * by D / 2 (plus 1 um for rounding) makes the sampled test conservative: if no
  * sample is inside an inflated zone, no point of the path is inside the zone.
+ * The start-tolerance term below covers the arm starting from its actual position.
  *
  * Leaving a zone (docs/ARCHITECTURE.md): if the start pose already has a point
  * inside an inflated zone, the move is allowed only if, sample by sample, that
@@ -174,7 +175,13 @@ static keepout_result_t path_keepout(const arb_contract_table_t *c,
     const double s0 = fabs(d0) / (double)ARB_PATH_SAMPLES;
     const double s1 = fabs(d1) / (double)ARB_PATH_SAMPLES;
     const double step_um = ((double)ARB_LINK1_UM + (double)ARB_LINK2_UM) * s0 + (double)ARB_LINK2_UM * s1;
-    const double margin = step_um / 2.0 + 1.0;
+    /* The arm starts the executed segment from its actual position, which may be
+     * up to tol (per joint) away from the checked start and converges to the same
+     * target; every executed point is then within (L1 + 2 L2) * tol of the checked
+     * path (docs/DESIGN_M1_ADDENDUM.md section 5). */
+    const double tol_rad = (double)c->vmax_urad_s * (double)ARB_START_TOL_MS / 1000.0 * URAD_TO_RAD;
+    const double start_tol_um = ((double)ARB_LINK1_UM + 2.0 * (double)ARB_LINK2_UM) * tol_rad;
+    const double margin = step_um / 2.0 + start_tol_um + 1.0;
     double prev[ARB_MAX_ZONES][2];   /* depth at the previous sample: [zone][elbow, tip] */
     int started_inside = 0;
 

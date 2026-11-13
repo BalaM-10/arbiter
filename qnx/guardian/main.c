@@ -12,8 +12,10 @@
  *
  * Exit status: 2 contract refused (FR-C4), 3 scheduling, 4 no arm, 5 setup.
  * Design: docs/DESIGN_M1_ADDENDUM.md. Threat model: docs/THREAT_MODEL.md.
- * Not yet in this unit (M1 day 4-6): motion-lease renewals and heartbeats,
- * the HOLD setpoint on silence, slog2 logging, operator reset.
+ * Toward the arm (docs/DESIGN_M1_ADDENDUM.md section 2): a lease renewal pulse
+ * every tick unless in SAFE_STOP; a hold pulse on entering HOLD; a latching brake
+ * pulse on entering SAFE_STOP. Not yet: watchdog heartbeats (M1 day 6), slog2
+ * logging, operator reset.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -60,6 +62,31 @@ static uint64_t now_ns(void)
         return 0;   /* CLOCK_MONOTONIC cannot fail with a valid pointer; 0 makes any silence look long */
     }
     return (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+}
+
+/* ------------------------------------------------------- pulses to the arm */
+
+/* Non-blocking notification to the arm, at the arm's priority. A failure is
+ * counted; the arm's lease stops it anyway if renewals stop arriving.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsendpulse.html */
+static void arm_pulse(int code)
+{
+    if (MsgSendPulse(g_arm.coid, ARB_PRIO_ARM, code, 0) == -1) {
+        g_status.arm_pulse_errors++;
+    }
+}
+
+/* Tell the arm about a state change: HOLD stops along the segment, SAFE_STOP brakes and latches. */
+static void follow_state(uint8_t before)
+{
+    if (g_guard.state == before) {
+        return;
+    }
+    if (g_guard.state == ARB_STATE_SAFE_STOP) {
+        arm_pulse(ARB_PULSE_ARM_BRAKE);
+    } else if (g_guard.state == ARB_STATE_HOLD) {
+        arm_pulse(ARB_PULSE_ARM_HOLD);
+    }
 }
 
 /* ------------------------------------------------------------------ decide */
@@ -165,7 +192,11 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
         }
         /* Copy the command out first: the reply is written over the same buffer. */
         memcpy(&cmd_copy, _IO_INPUT_PAYLOAD(msg), sizeof cmd_copy);
-        decide(&cmd_copy, sizeof cmd_copy, &v);
+        {
+            const uint8_t before = g_guard.state;
+            decide(&cmd_copy, sizeof cmd_copy, &v);
+            follow_state(before);
+        }
         to_wire(&v, &w);
         memset(&msg->o, 0, sizeof msg->o);
         memcpy(_IO_OUTPUT_PAYLOAD(msg), &w, sizeof w);
@@ -205,20 +236,28 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
 static int io_close_ocb(resmgr_context_t *ctp, void *reserved, RESMGR_OCB_T *ocb)
 {
     const int status = iofunc_close_ocb_default(ctp, reserved, ocb);
+    const uint8_t before = g_guard.state;
 
     if (g_attr.count == 0u) {
         (void)arb_guard_client_lost(&g_guard);
+        follow_state(before);
     }
     return status;
 }
 
-/* 1 ms tick: silence timeout (FR-G5).
+/* 1 ms tick: silence timeout (FR-G5) and the arm's lease renewal (FR-A4).
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/pulse_attach.html */
 static int on_tick(message_context_t *ctp, int code, unsigned flags, void *handle)
 {
+    const uint8_t before = g_guard.state;
+
     (void)ctp; (void)code; (void)flags; (void)handle;
     g_status.ticks++;
     (void)arb_guard_tick(&g_guard, now_ns());
+    follow_state(before);
+    if (g_guard.state != ARB_STATE_SAFE_STOP) {
+        arm_pulse(ARB_PULSE_ARM_RENEW);   /* HOLD is an authorized state too */
+    }
     return 0;
 }
 
@@ -286,6 +325,17 @@ int main(int argc, char **argv)
         fprintf(stderr, "arb-guardian: arm controller '%s' not found: %s; not starting\n",
                 ARB_ARM_NAME, strerror(errno));
         return 4;
+    }
+    /* One bounded query before serving anyone: proves the arm answers, and makes
+     * the arm bind this connection as the guardian's (FR-G6) before the first
+     * lease renewal is sent. */
+    {
+        int32_t pos[ARB_JOINTS];
+        if (arm_link_get_state(&g_arm, pos) != ARM_LINK_OK) {
+            fprintf(stderr, "arb-guardian: arm controller did not answer (errno %d); not starting\n",
+                    g_arm.last_errno);
+            return 4;
+        }
     }
 
     /* Our own channel, so its flags are ours: no priority inheritance from clients,

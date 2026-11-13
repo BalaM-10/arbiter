@@ -761,9 +761,10 @@ static void fr_g4_keepout_just_outside_by_less_than_margin_denied(void)
 
 static void fr_g4_keepout_just_outside_by_more_than_margin_allowed(void)
 {
+    /* Margin for this move: ~1.2 um sampling + 4 mm start tolerance at 1 rad/s. */
     const arb_contract_table_t t = make_table(1);
-    const int32_t q = elbow_angle_for_x(199995.0);       /* 5 um clear of the edge */
-    const int32_t start[2] = { q + 100, 0 };             /* margin for this move is about 1.2 um */
+    const int32_t q = elbow_angle_for_x(195000.0);       /* 5 mm clear of the edge */
+    const int32_t start[2] = { q + 100, 0 };
     const arb_cmd_t c = make_cmd(1, q, 0, 5000);
     const arb_verdict_t v = decide_once(&t, &c, start);
 
@@ -787,6 +788,29 @@ static void fr_g4_keepout_brief_crossing_of_thin_zone_denied(void)
     seal(&t);
     v = decide_once(&t, &c, start);
     CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_margin_includes_start_tolerance(void)
+{
+    /* The arm may start up to 5 ms at vmax (5 mrad at 1 rad/s) from the checked
+     * start, so every zone is widened by (L1 + 2 L2) * 5 mrad = 4 mm. An elbow
+     * ending 3 mm outside the zone is therefore denied; 5 mm outside is allowed
+     * (fr_g4_keepout_just_outside_by_more_than_margin_allowed). */
+    const arb_contract_table_t t = make_table(1);
+    const int32_t q = elbow_angle_for_x(197000.0);       /* 3 mm clear of the edge */
+    const int32_t start[2] = { q + 100, 0 };
+    const arb_cmd_t c = make_cmd(1, q, 0, 5000);
+    arb_contract_table_t slow = t;
+    arb_verdict_t v;
+
+    v = decide_once(&t, &c, start);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+    /* At 0.25 rad/s the tolerance is 1.25 mrad, margin 1 mm: 3 mm clear is allowed. */
+    slow.vmax_urad_s = 250000;
+    slow.max_duration_ms = 30000;
+    seal(&slow);
+    v = decide_once(&slow, &c, start);
+    CHECK(v.verdict == ARB_VERDICT_ALLOW);
 }
 
 static void fr_g4_keepout_overrides_clamp(void)
@@ -1256,6 +1280,7 @@ static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_g4_keepout_just_outside_by_less_than_margin_denied),
     ARB_TEST_CASE(fr_g4_keepout_just_outside_by_more_than_margin_allowed),
     ARB_TEST_CASE(fr_g4_keepout_brief_crossing_of_thin_zone_denied),
+    ARB_TEST_CASE(fr_g4_keepout_margin_includes_start_tolerance),
     ARB_TEST_CASE(fr_g4_keepout_overrides_clamp),
     ARB_TEST_CASE(fr_g4_keepout_exit_only_move_from_inside_allowed),
     ARB_TEST_CASE(fr_g4_keepout_from_inside_going_deeper_denied),

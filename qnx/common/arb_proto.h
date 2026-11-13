@@ -55,7 +55,8 @@ typedef struct {
     uint32_t arm_faults;               /* arm sends that failed or timed out */
     uint32_t ticks;                    /* 1 ms ticks handled */
     uint32_t bad_messages;             /* devctl messages rejected before decision */
-    uint32_t reserved[2];
+    uint32_t arm_pulse_errors;         /* lease/hold/brake pulses the kernel refused */
+    uint32_t reserved;
 } arb_status_t;
 
 _Static_assert(sizeof(arb_status_t) == 32, "arb_status_t layout");
