@@ -1,0 +1,9 @@
+# M0 hello world on QEMU x86_64 — 2026-11-13T08:34:48-06:00
+# host: Ubuntu 22.04.5 LTS, SDP 8.0.4 at ~/qnx800, qcc 12.2.0,gcc_ntox86_64
+# build: qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -o build/x86_64/hello qnx/samples/hello/hello.c
+# binary sha256: e491474caa943f082c5eb613ccce073a77f6cfd2b75d39d99440d34ff4ec8d82
+$ uname -a
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+$ /data/home/root/arbiter/bin/hello
+hello from Arbiter on QNX 8.0.0 2026/02/27-11:02:56EST (x86pc)
+exit=0
