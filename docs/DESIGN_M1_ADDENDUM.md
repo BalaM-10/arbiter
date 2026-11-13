@@ -46,6 +46,7 @@ Page abbreviations used below (all under `https://www.qnx.com/developers/docs/8.
 | [name_attach] | `com.qnx.doc.neutrino.lib_ref/topic/n/name_attach.html` |
 | [name_open] | `com.qnx.doc.neutrino.lib_ref/topic/n/name_open.html` |
 | [ClockPeriod] | `com.qnx.doc.neutrino.lib_ref/topic/c/clockperiod.html` |
+| [clock_nanosleep] | `com.qnx.doc.neutrino.lib_ref/topic/c/clock_nanosleep.html` |
 | [SDP8-RN] | `https://www.qnx.com/developers/docs/relnotes8.0/com.qnx.doc.release_notes/topic/sdp8_rn.html` |
 
 ---
@@ -404,6 +405,45 @@ arm.
 - `nfr_q5_trace_of_flood`: a `tracelogger` capture of the flood, showing the
   trusted threads running while the flooder is ready (`qnx-trace-capture`).
 
+## 7. Fault bench: judged from telemetry, not from verdicts (M1 day 7)
+
+`arbiter bench run --target qemu` runs F1, F4, F5, F6 and F9 against the live
+target. For each scenario it starts a fresh watchdog, arm and guardian
+(`qnx/tests/bench_scenario.sh`), plays a host-generated, timed command script
+through `/dev/arbiter` with `arb-inject` (an untrusted client at the default
+priority 10), and records every verdict and **every arm telemetry sample**
+written during the run. `arb-inject` keeps everything in static memory and
+prints only after the script ends, so a slow SSH pipe never delays a command.
+Timing uses `clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, ...)`, which
+returns the error number itself [clock_nanosleep].
+
+**Who decides.** The verdicts are checked against what each scenario expects,
+but every safety pass condition is decided on the host from telemetry alone:
+
+- limits and keep-out zones come from the contract YAML as written (degrees and
+  mm), not the compiled table, so the compiler's rounding and the guardian's
+  margins are not part of the judgment;
+- elbow and tip positions come from the bench's own Python kinematics
+  (`host/arbiter/bench/kinematics.py`), which shares no code with libcontract;
+  the keep-out check also tests 8 points between consecutive samples;
+- joint speed is computed from consecutive positions and the time each was
+  computed for, never from the arm's own velocity field. Telemetry version 2
+  adds that time (`t_ns`, the `CLOCK_MONOTONIC` value the arm's model was
+  sampled at), so the only tolerance is the arm's integer rounding of two
+  positions (2 µrad per sample interval);
+- every scenario also requires complete telemetry (no lost sample), all three
+  trusted processes alive afterwards, and the guardian's printed contract hash
+  matching the YAML the bench judged against.
+
+Host tests (`host/tests/test_bench.py`) feed the judge synthetic telemetry that
+breaks each rule and check that it fails, so no check can pass vacuously.
+
+**"No deadline miss" in F1 (proposed definition, owner to confirm).** As seen
+from outside the arm: no telemetry interval of 2 control periods or more (no
+skipped cycle), no motion-lease expiry, no guardian-to-arm send fault, and the
+lease valid in every moving sample. On QEMU this proves function only; the Pi 5
+run in M3 reports the interval distribution as a measurement.
+
 ---
 
 ## Decisions (approved by the owner, 2026-11-13)
@@ -447,3 +487,32 @@ arm.
    the name could receive the guardian's setpoints but could not move the real
    arm, whose lease then expires (TM-C4); in M2 the policy controls who may attach
    the name.
+
+8. **Watchdog death is fail-safe (owner decision, 2026-11-13; implemented in
+   M2, FR-W5).** If the watchdog itself dies, the guardian enters `SAFE_STOP`
+   (stop cause `WATCHDOG`) and the arm brakes and latches, each on its own and
+   without needing the other. Motion resumes only after the watchdog is back
+   and the operator resets `SAFE_STOP` (FR-G5). Reason: without the watchdog a
+   stuck guardian is caught only by the lease, and a stuck arm by nothing; a
+   system that has lost its supervisor stops rather than runs unsupervised.
+   Detection, both processes: the arm's channel already has
+   `_NTO_CHF_COID_DISCONNECT`: the kernel delivers a pulse "for each connection
+   that belongs to the calling process" "when the channel that the connection is
+   attached to is destroyed", with code `_PULSE_CODE_COIDDEATH` and the coid of
+   that connection as its value [ChannelCreate]. The watchdog's death therefore
+   reaches the arm on its connection to the watchdog; the guardian's channel
+   gets the same flag. The page warns that the pulse may or may not be sent if
+   the client closes the connection at about the same time, and can look stale
+   if the coid was reused; it gives the check `ConnectServerInfo(0, coid, NULL)
+   != coid` for "server's really gone" [ChannelCreate], which the handler will
+   use. A refused heartbeat (`MsgSendPulse()` failing) is a second sign.
+   **To confirm on target:** that the pulse arrives for a `name_open()`
+   connection. Acceptance test (on target):
+   `fr_w5_watchdog_killed_mid_move_guardian_safe_stops_and_arm_brakes`: kill the
+   watchdog mid-move; the guardian enters `SAFE_STOP` with cause `WATCHDOG`, the
+   arm reaches BRAKED and stays latched (checked from telemetry), and the
+   measured time to L1 and L2 is reported.
+   **Not covered by this decision (owner to decide in M2):** a *stopped* or
+   stuck watchdog. Its channel still exists, so no COIDDEATH pulse is sent and
+   heartbeats still queue, so neither sign fires. Covering it would need the
+   watchdog to send its own heartbeat to the arm and the guardian.

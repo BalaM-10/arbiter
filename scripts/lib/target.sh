@@ -53,5 +53,5 @@ target_init() {
     # shellcheck disable=SC2206
     SCP=(scp -q -i "$TARGET_KEY" -o BatchMode=yes -o ConnectTimeout=10 $hostkey_opts)
 
-    "${SSH[@]}" true 2>/dev/null || die "cannot SSH to $T_USER@$T_HOST (target '$T_NAME')"
+    "${SSH[@]}" true </dev/null 2>/dev/null || die "cannot SSH to $T_USER@$T_HOST (target '$T_NAME')"
 }

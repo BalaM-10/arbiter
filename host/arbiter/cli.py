@@ -1,4 +1,4 @@
-"""Command-line entry point: ``arbiter contract compile|check|corpus``."""
+"""Command-line entry point: ``arbiter contract compile|check|corpus`` and ``arbiter bench run``."""
 
 from __future__ import annotations
 
@@ -34,6 +34,13 @@ def _contract_corpus(args: argparse.Namespace) -> int:
     return 0
 
 
+def _bench_run(args: argparse.Namespace) -> int:
+    from .bench.runner import run_bench  # imported here: it parses the C headers at import
+
+    only = [s.strip().upper() for s in args.scenarios.split(",")] if args.scenarios else None
+    return run_bench(args.target, args.contract, only, args.out, deploy=not args.no_deploy)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="arbiter", description="Arbiter host tools")
     sub = parser.add_subparsers(dest="tool", required=True)
@@ -55,6 +62,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("source", type=Path)
     p.add_argument("-o", "--output", type=Path, required=True)
     p.set_defaults(func=_contract_corpus)
+
+    bench = sub.add_parser("bench", help="fault bench against a running target")
+    bsub = bench.add_subparsers(dest="action", required=True)
+    p = bsub.add_parser("run", help="run scenarios on the target and write report.json and report.html")
+    p.add_argument("--target", required=True, help="a target named in scripts/targets.env (qemu, pi5)")
+    p.add_argument("--contract", type=Path, default=Path("contracts/default.yaml"))
+    p.add_argument("--scenarios", help="comma-separated IDs, e.g. F1,F5 (default: all implemented)")
+    p.add_argument("--out", type=Path, default=Path("evidence/bench"))
+    p.add_argument("--no-deploy", action="store_true", help="skip building and deploying the binaries")
+    p.set_defaults(func=_bench_run, source=None)
 
     args = parser.parse_args(argv)
     try:

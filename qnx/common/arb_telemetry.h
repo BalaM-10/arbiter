@@ -20,12 +20,14 @@
 
 #define ARB_TELEM_NAME    "/arbiter_arm_telemetry"   /* /dev/shmem/arbiter_arm_telemetry */
 #define ARB_TELEM_MAGIC   0x4D4C4554u                /* "TELM" */
-#define ARB_TELEM_VERSION 1u
+#define ARB_TELEM_VERSION 2u                      /* 2: t_ns added */
 #define ARB_TELEM_SLOTS   8192u                      /* 8 s at 1 kHz */
 
 typedef struct {
     uint64_t t_cycles;                 /* ClockCycles() at the sample */
     uint64_t index;                    /* slot sequence number (= head when written) */
+    int64_t  t_ns;                     /* CLOCK_MONOTONIC time the position was computed for:
+                                        * the bench derives velocity from pos and t_ns (F6) */
     int32_t  pos_urad[ARB_JOINTS];
     int32_t  vel_urad_s[ARB_JOINTS];
     uint32_t segment;                  /* increments with every accepted setpoint */
@@ -47,7 +49,7 @@ typedef struct {
     arb_telem_sample_t s[ARB_TELEM_SLOTS];
 } arb_telem_t;
 
-_Static_assert(sizeof(arb_telem_sample_t) == 40, "layout");
+_Static_assert(sizeof(arb_telem_sample_t) == 48, "layout");
 _Static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "64-bit atomics must be lock-free for shared memory");
 
 #endif /* ARB_TELEMETRY_H */

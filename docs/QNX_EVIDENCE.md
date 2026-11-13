@@ -5,7 +5,8 @@ the 8.0 documentation page, and the saved output that shows it running on QNX.
 
 Status: milestone M1, in progress. The guardian (`qnx/guardian/`) and the arm
 controller (`qnx/arm/`) and the watchdog (`qnx/watchdog/`) run on QNX, alone
-and end to end; the guardian's fault tests also use a stand-in arm
+and end to end, and the M1 fault bench (F1, F4, F5, F6, F9) runs against them
+(`arbiter bench run`); the guardian's fault tests also use a stand-in arm
 (`qnx/tests/arb_arm_stub.c`). Rows marked "sample" come from the M0
 message-passing sample, a toolchain check that is not part of the guardian.
 Why each feature matters in the scenario: `docs/WHY_QNX.md`.
@@ -68,6 +69,7 @@ None yet (M2). Present in the SDP: `secpolcompile`, `secpolpush`, `secpol`,
 | Sender identity on the arm (`ConnectClientInfo`, per-connection binding) | Only the guardian's connection may command the arm; every other connection's setpoints are refused with `EPERM` and its pulses ignored (FR-G6, TM-C2) | `qnx/arm/main.c` | `authorized()`, `handle_pulse()` | [ConnectClientInfo](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectclientinfo.html) | `evidence/runs/2026-11-13-qemu/run-144326.log`: `fr_g6_arm_*` |
 | Kernel-delivered disconnect (`_NTO_CHF_DISCONNECT`, `_PULSE_CODE_DISCONNECT`) | When the guardian dies or closes, the kernel tells the arm, which brakes at once instead of waiting for the lease (FR-A4, TM-C4) | `qnx/arm/main.c` | `handle_pulse()` | [ChannelCreate](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/channelcreate.html) | `evidence/runs/2026-11-13-qemu/run-144326.log`: `fr_a4_guardian_disconnect_brakes_at_once`, `fr_a4_guardian_killed_arm_brakes` |
 | Shared-memory telemetry (`shm_open`, `ftruncate`, `mmap`; readers map `PROT_READ`) | The arm publishes every cycle without ever blocking on a reader (FR-A6) | `qnx/common/arb_telemetry.h`, `qnx/arm/main.c` | `telemetry_create()`, `publish()` | [shm_open](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_open.html), [mmap](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/mmap.html) | `evidence/runs/2026-11-13-qemu/run-144326.log`: `fr_a6_telemetry_published_every_cycle` |
+| Fault bench client (`devctl()` on `/dev/arbiter`, `shm_open`/`mmap` `PROT_READ` of the arm's telemetry, `clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME)`) | The bench drives the system only through the guardian's public path, as the gateway will, and judges it from what the arm actually did, read without ever blocking the arm (FR-B1, FR-B2) | `qnx/tests/arb_inject.c`, `qnx/tests/bench_scenario.sh` | `main()`, `drain()` | [devctl](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html), [shm_open](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_open.html), [clock_nanosleep](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/clock_nanosleep.html) | BENCH_TBD |
 | Separate processes for guardian, arm and clients | A client's malformed input or death cannot corrupt the guardian (TM-C4, TM-C8) | `qnx/tests/guardian_suite.sh` | — | — | `evidence/runs/2026-11-13-qemu/run-141527.log`: `nfr_i6_random_payloads_never_crash_the_guardian` |
 
 ## Tracing and logging

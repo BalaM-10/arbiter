@@ -41,7 +41,8 @@ LIBCONTRACT_HDR := libcontract/arb_contract.h common/arb_contract_table.h common
 BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract_file $(OUT)/test_send_timeout \
         $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh \
         $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/arm_suite.sh \
-        $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh
+        $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh \
+        $(OUT)/arb-inject $(OUT)/bench_scenario.sh
 
 .PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
@@ -117,6 +118,13 @@ $(OUT)/test_watchdog: tests/test_watchdog.c tests/arb_test.h common/arb_wd_clien
 	$(CC) $(CFLAGS) -o $@ tests/test_watchdog.c common/arb_wd_client.c
 
 $(OUT)/watchdog_suite.sh: tests/watchdog_suite.sh | $(OUT)
+	install -m 755 $< $@
+
+# Fault bench client (untrusted; run by `arbiter bench run`).
+$(OUT)/arb-inject: tests/arb_inject.c common/arb_telemetry.h common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $<
+
+$(OUT)/bench_scenario.sh: tests/bench_scenario.sh | $(OUT)
 	install -m 755 $< $@
 
 # --------------------------------------------------------------- host checks

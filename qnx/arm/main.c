@@ -79,7 +79,7 @@ static void count(_Atomic uint64_t *c)
 
 /* --------------------------------------------------------------- telemetry */
 
-static void publish(const arm_sample_t *s)
+static void publish(const arm_sample_t *s, int64_t t_ns)
 {
     const uint64_t h = atomic_load_explicit(&g_telem->head, memory_order_relaxed);
     arb_telem_sample_t *e = &g_telem->s[h % ARB_TELEM_SLOTS];
@@ -87,6 +87,7 @@ static void publish(const arm_sample_t *s)
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/clockcycles.html */
     e->t_cycles = ClockCycles();
     e->index = h;
+    e->t_ns = t_ns;
     e->pos_urad[0] = s->pos_urad[0];
     e->pos_urad[1] = s->pos_urad[1];
     e->vel_urad_s[0] = s->vel_urad_s[0];
@@ -111,7 +112,7 @@ static void control_cycle(int64_t now)
     }
     arm_motion_sample(&g_motion, now, &s);
     g_backend.apply(&g_backend, s.pos_urad, s.vel_urad_s);
-    publish(&s);
+    publish(&s, now);
     arb_wd_client_heartbeat(&g_wd);
 }
 
