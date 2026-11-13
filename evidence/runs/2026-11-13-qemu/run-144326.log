@@ -1,0 +1,317 @@
+# run-tests qemu — 2026-11-13T14:43:26-06:00, REPEAT=1
+# commit: 3e306e8
+# host: Ubuntu 22.04.5 LTS; qcc 12.2.0,gcc_ntox86_64
+
+## contract corpus (host compiler)
+$ arbiter contract corpus contracts/default.yaml -o build/contract-corpus
+wrote build/contract-corpus/manifest.txt
+  045fba7242def7e77bf3b804ca3ec2df6ecd2e50520a806fc395bbf7bb71923c  build/contract-corpus/contract.bin
+
+## build (all architectures)
+$ make -C qnx ARCH=x86_64
+  arb-arm  sha256 39faa680301e96a4ea2b91f5e2298bfed1cda9101b446ac250d17116d2bad796
+    ELF 64-bit LSB pie executable, x86-64
+  arb-guardian  sha256 120000ae3615e826dd5a7b27188df96a9c79700d554789c2f74ecd6d5fea0b43
+    ELF 64-bit LSB pie executable, x86-64
+  arb_arm_stub  sha256 724188fdf17373748d7cc42ee7ad57e3a3c9b03752e950d55484a71f4fad8100
+    ELF 64-bit LSB pie executable, x86-64
+  arm_suite.sh  sha256 bd1c0ed8edb732327fae30a6cdefd26584ee4ce23f7bcf3394199379f0ce3d9c
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 dc162f2ccc80fad0fc73cb8fa9d08a1421868af34a4771ce3dc23ca0dc19eac0
+    POSIX shell script, ASCII text executable
+  hello  sha256 e491474caa943f082c5eb613ccce073a77f6cfd2b75d39d99440d34ff4ec8d82
+    ELF 64-bit LSB pie executable, x86-64
+  msgpass  sha256 b6b20a163faa339894cdb71eb34eb3746f73486a6cd3f9a6f13a6baf5fa23c8a
+    ELF 64-bit LSB pie executable, x86-64
+  test_arm  sha256 2a7666abe64977a59b7521894ec44a2663e2edb985c0f8eb29e4c98c4e4201e0
+    ELF 64-bit LSB pie executable, x86-64
+  test_arm_motion  sha256 25444e80f3e870f81448030e9942aaffd49ee6a8880a59ca451e927d0e8bb42c
+    ELF 64-bit LSB pie executable, x86-64
+  test_contract_file  sha256 3ce7614bfd841c80b08467df35ac466b2a338c55953eb329f564fbe0801488eb
+    ELF 64-bit LSB pie executable, x86-64
+  test_e2e  sha256 91ca029787d2e1c685421486eca4584d75c65ea1cf33e83e82a8039ffee28361
+    ELF 64-bit LSB pie executable, x86-64
+  test_guardian  sha256 4f5ab0a6db19ef6d690a0439a9a5df56e655ca5c919a2da3c8903dbd12c4fc68
+    ELF 64-bit LSB pie executable, x86-64
+  test_libcontract  sha256 0b703b871106698f81c7d57de22380729ca28e6ddbfb9215e6be0d87888e4507
+    ELF 64-bit LSB pie executable, x86-64
+  test_send_timeout  sha256 ededce8cbae09b9e78aab524cb23118ed595935cb07a5c2decd482f39f1865d6
+    ELF 64-bit LSB pie executable, x86-64
+$ make -C qnx ARCH=aarch64le
+  arb-arm  sha256 daa9b18f189d61fb488afa725ed9d3db7aae5436708142355bf30664a665a20a
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-guardian  sha256 9a3f981f4d65d396809d3438e241598eb9641471c87db6a6c57c3bbc52b822d6
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb_arm_stub  sha256 93e353f375f8f52712ca604623015fdf3a23e9830daf28cfeb4784bfb33a387c
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arm_suite.sh  sha256 bd1c0ed8edb732327fae30a6cdefd26584ee4ce23f7bcf3394199379f0ce3d9c
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 dc162f2ccc80fad0fc73cb8fa9d08a1421868af34a4771ce3dc23ca0dc19eac0
+    POSIX shell script, ASCII text executable
+  hello  sha256 1ab74333346df2367c5a3d0ecaa885a93cd1ec9810f1dd119626d56d96859569
+    ELF 64-bit LSB pie executable, ARM aarch64
+  msgpass  sha256 caca0169357d68d3bf54f1b3e4419a94380aaca1b84aa055fa4e8e007016a72b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_arm  sha256 b6ef541bb9586576898b6b607cc16b502e0a2b6178c0a49d1c05d632c2078136
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_arm_motion  sha256 3ae70102ea30e61902ebba8b91b3d840865878a644c42f86a2af45733e6293a8
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_contract_file  sha256 52b315cd3b1f6fdaf111767bb675d2b1979a345cc9bc071960555d028c861cf0
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_e2e  sha256 576ffb46e26235582ec1f7ad3d169b525d4ede793892981d1d97bdeba86c9cdd
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_guardian  sha256 a2b61240d928fe53dbd6fb4554b250ae9d53e4a83d8a9af2b8b061f2cc89d9f9
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_libcontract  sha256 8e573bfd4f816407cf541e06819ea0b1c1899662e3d2c8640836a34b924ad1af
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_send_timeout  sha256 de256b29d535a129dd7b08400a0a7029d691147d3cd670775d3463de81142d8d
+    ELF 64-bit LSB pie executable, ARM aarch64
+deployed arb-arm arb-guardian arb_arm_stub arm_suite.sh guardian_suite.sh hello msgpass test_arm test_arm_motion test_contract_file test_e2e test_guardian test_libcontract test_send_timeout to qemu (root@172.31.1.174:/data/home/root/arbiter/bin)
+
+## target: root@172.31.1.174:/data/home/root/arbiter/bin (x86_64)
+$ uname -a
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## hello — M0 toolchain: qcc-built binary runs
+$ cd /data/home/root/arbiter/bin && ./hello
+hello from Arbiter on QNX 8.0.0 2026/02/27-11:02:56EST (x86pc)
+exit=0
+
+## msgpass — M0 message passing (M0-MSG-1..7, previews NFR-Q2)
+$ cd /data/home/root/arbiter/bin && ./msgpass
+info server pid 13848597 chid 1, client pid 13852694
+PASS M0-MSG-1 round trip: sent 21, reply 42
+PASS M0-MSG-2 server saw the client's pid in _msg_info
+PASS M0-MSG-3 short message rejected with EBADMSG
+PASS M0-MSG-4 oversized message rejected with EBADMSG
+PASS M0-MSG-5 wrong version rejected with EPROTO
+info stats request answered after 1 try
+PASS M0-MSG-6 3 pulses received by the server, values summed to 7
+info server counters: replies 3, bad_length 2, bad_version 1, bad_sender 0, pulses 3, pulse_sum 7
+PASS M0-MSG-7 client exited 0 and the server's counters match every event
+RESULT PASS msgpass
+exit=0
+
+## test_libcontract — libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)
+$ cd /data/home/root/arbiter/bin && ./test_libcontract
+PASS fr_c4_crc32_matches_zlib_check_value
+PASS fr_c4_valid_table_loads
+PASS fr_c4_null_arguments_rejected
+PASS fr_c4_wrong_length_rejected
+PASS fr_c4_bad_magic_rejected
+PASS fr_c4_version_mismatch_rejected
+PASS fr_c4_table_size_field_mismatch_rejected
+PASS fr_c4_crc_mismatch_rejected
+PASS fr_c4_any_single_byte_change_rejected
+PASS fr_c4_out_of_range_values_rejected
+PASS fr_c4_max_duration_must_cover_a_full_range_move
+PASS fr_c4_output_untouched_on_error
+PASS fr_c5_text_contract_rejected
+PASS nfr_i6_command_wrong_length_rejected
+PASS nfr_i6_command_bad_fields_rejected
+PASS nfr_i6_random_bytes_never_crash_or_allow_garbage
+PASS fr_g2_command_fields_carried_through
+PASS fr_g2_duration_zero_denied
+PASS fr_g2_duration_minimum_and_contract_max_allowed
+PASS fr_g2_duration_one_over_contract_max_denied
+PASS fr_g2_clamp_beyond_contract_max_denied
+PASS fr_g3_every_verdict_names_its_rule
+PASS fr_g4_sequence_replay_and_old_denied
+PASS fr_g4_sequence_wraps_around
+PASS fr_g4_rate_limit_burst_then_deny_then_refill
+PASS fr_g4_rate_limit_uses_guardian_clock_not_sender_clock
+PASS fr_g4_rate_limit_sustained_rate_holds
+PASS fr_g4_joint_limit_exactly_at_max
+PASS fr_g4_joint_limit_just_inside
+PASS fr_g4_joint_limit_just_outside_denied
+PASS fr_g4_impossible_arm_position_fails_closed
+PASS fr_g4_unusable_contract_fails_closed
+PASS fr_g4_velocity_exactly_at_limit_allowed
+PASS fr_g4_velocity_over_limit_clamped_by_stretching_duration
+PASS fr_g4_velocity_clamped_motion_never_exceeds_vmax
+PASS fr_g4_keepout_target_inside_zone_denied
+PASS fr_g4_keepout_path_through_zone_denied_though_endpoints_clear
+PASS fr_g4_keepout_clear_path_allowed
+PASS fr_g4_keepout_just_outside_by_less_than_margin_denied
+PASS fr_g4_keepout_just_outside_by_more_than_margin_allowed
+PASS fr_g4_keepout_brief_crossing_of_thin_zone_denied
+PASS fr_g4_keepout_margin_includes_start_tolerance
+PASS fr_g4_keepout_overrides_clamp
+PASS fr_g4_keepout_exit_only_move_from_inside_allowed
+PASS fr_g4_keepout_from_inside_going_deeper_denied
+PASS fr_g4_keepout_from_inside_not_ending_outside_denied
+PASS fr_g4_keepout_exit_through_another_zone_denied
+PASS fr_g4_keepout_normal_moves_carry_no_exit_flag
+PASS fr_g4_checks_run_in_the_specified_order
+PASS fr_g4_forward_kinematics_reference_poses
+PASS fr_g5_starts_in_hold_and_valid_command_enters_normal
+PASS fr_g5_silence_past_timeout_enters_hold
+PASS fr_g5_denied_commands_do_not_reset_silence
+PASS fr_g5_violation_threshold_enters_safe_stop
+PASS fr_g5_violations_spread_beyond_window_do_not_stop
+PASS fr_g5_only_joint_and_keepout_denials_count
+PASS fr_g5_safe_stop_denies_until_operator_reset
+PASS fr_g5_replay_protection_survives_reset
+PASS fr_g9_arm_send_timeout_fault_enters_safe_stop
+PASS fr_g4_three_step_decision_matches_one_call
+PASS fr_g4_pre_check_rejects_without_arm_position
+PASS fr_g5_approval_refused_by_arm_is_not_activity
+PASS fr_g9_arm_fault_denial_carries_no_setpoint
+PASS fr_g5_last_client_lost_enters_hold
+RESULT PASS test_libcontract 64/64
+exit=0
+
+## test_contract_file contract-corpus/manifest.txt — compiled contract loads on QNX exactly as written; corrupted tables rejected (FR-C3, FR-C4)
+$ cd /data/home/root/arbiter/bin && ./test_contract_file contract-corpus/manifest.txt
+PASS fr_c3_compiled_table_matches_source_dump contract.bin
+PASS fr_c4_corrupted_compiled_table_rejected truncated.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected extended.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected empty.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected magic.bin (code 3)
+PASS fr_c4_corrupted_compiled_table_rejected version.bin (code 4)
+PASS fr_c4_corrupted_compiled_table_rejected tablesize.bin (code 5)
+PASS fr_c4_corrupted_compiled_table_rejected crc.bin (code 6)
+PASS fr_c4_corrupted_compiled_table_rejected vmax0.bin (code 7)
+PASS fr_c4_corrupted_compiled_table_rejected shortmax.bin (code 7)
+PASS fr_c4_corrupted_compiled_table_rejected zones5.bin (code 7)
+RESULT PASS test_contract_file 11/11
+exit=0
+
+## test_send_timeout — 2 ms TimerTimeout on MsgSend, SEND and REPLY states, measured (FR-G9 design check)
+$ cd /data/home/root/arbiter/bin && ./test_send_timeout
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.487 ms  median 2.999 ms  p99.9 3.978 ms  max 3.978 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.446 ms  median 3.000 ms  p99.9 3.406 ms  max 3.406 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.678 ms  median 24.100 ms  p99.9 25.843 ms  max 25.843 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+
+## test_arm_motion — arm motion model on QNX: straight line, vmax, brake on segment, time-based (FR-A2, FR-A3, FR-A4)
+$ cd /data/home/root/arbiter/bin && ./test_arm_motion
+PASS fr_a2_model_reports_position_and_velocity_per_joint
+PASS fr_a5_simulation_sits_behind_the_backend_interface
+PASS fr_a3_motion_reaches_target_at_its_duration
+PASS fr_a3_motion_is_a_straight_line_with_joints_arriving_together
+PASS fr_a3_never_faster_than_vmax_at_the_minimum_duration
+PASS fr_a3_min_duration_matches_the_guardian_rule
+PASS fr_a3_brake_stays_on_segment
+PASS fr_a4_brake_from_full_speed_stops_within_its_braking_time
+PASS fr_a3_hold_stops_without_latching_and_brake_upgrades_it
+PASS fr_a3_new_segment_starts_from_the_given_actual_position
+PASS fr_a3_motion_depends_on_time_not_on_tick_count
+RESULT PASS test_arm_motion 11/11
+exit=0
+
+## arm_suite.sh — arb-arm on QNX alone and end to end with arb-guardian: loop period, telemetry, sender binding, lease, disconnect brake, HOLD (FR-A1..A6, FR-G5, FR-G6, NFR-I3)
+$ cd /data/home/root/arbiter/bin && ./arm_suite.sh
+## FR-C4: the arm refuses to start on a bad contract table
+arb-arm: contract contract-corpus/crc.bin refused (load code 6); not starting
+PASS fr_c4_arm_refuses_corrupted_contract (exit 2)
+## the arm alone (test_arm plays the guardian)
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry
+nrw-rw-rw-  1 root root      0 2026-11-13 20:45 /dev/name/local/arbiter_arm
+nrw-r--r--  2 root root 327736 2026-11-13 20:45 /dev/shmem/arbiter_arm_telemetry
+     pid tid prio name                                                                         
+14037014   1  70f ./arb-arm                                                                       
+PASS nfr_i3_arm_runs_fifo_at_its_documented_priority (70, FIFO)
+PASS fr_g6_arm_binds_to_the_first_guardian_connection
+info telemetry: 1001 samples in 1 s
+PASS fr_a6_telemetry_published_every_cycle
+info control loop period (QEMU, function only): n=2020 min 0.020 ms median 0.999 ms p99.9 1.579 ms max 1.703 ms
+PASS fr_a1_control_loop_period_measured
+PASS fr_g6_arm_rejects_setpoints_from_another_process
+info fastest joint 1000000 urad/s (vmax 1000000), max distance from the line 0.4 urad
+PASS fr_a3_arm_enforces_vmax_itself_and_moves_in_a_straight_line
+PASS fr_a3_arm_rejects_targets_beyond_joint_limits
+PASS fr_a3_stale_start_rejected
+info largest per-cycle step across the switch 1620 urad
+PASS fr_a3_new_setpoint_mid_move_starts_from_actual_position
+info no renewal: braking began 11.00 ms after the setpoint (lease 10 ms)
+PASS fr_a4_lease_expires_without_renewal_and_brakes
+PASS fr_a4_renewal_after_expiry_does_not_resume
+PASS fr_a4_renewal_from_another_process_ignored
+info disconnect: braking began 1.00 ms after the connection closed (lease would take 10 ms)
+PASS fr_a4_guardian_disconnect_brakes_at_once
+PASS fr_g5_hold_pulse_stops_without_latching
+PASS fr_g5_brake_pulse_latches
+RESULT PASS test_arm 14/14
+## guardian and arm end to end
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f18...
+PASS fr_a3_guardian_approved_command_moves_the_arm
+info silence: the arm was stopped 311.9 ms after the last command (timeout 250 ms + braking)
+PASS fr_g5_guardian_silence_holds_the_arm
+RESULT PASS test_e2e move 2/2
+## guardian killed mid-move
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f18...
+info guardian killed: the arm began braking 1.93 ms later
+PASS fr_a4_guardian_killed_arm_brakes
+RESULT PASS test_e2e killed 1/1
+## guardian stopped mid-move
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f18...
+info guardian stopped: the arm began braking 10.88 ms later
+PASS fr_a4_lease_expires_when_guardian_stopped
+RESULT PASS test_e2e stopped 1/1
+RESULT PASS arm_suite
+exit=0
+
+## guardian_suite.sh — arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)
+$ cd /data/home/root/arbiter/bin && ./guardian_suite.sh
+## FR-C4: the guardian refuses to start on a bad contract table
+arb-guardian: contract contract-corpus/crc.bin refused (load code 6); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/crc.bin (exit 2, no /dev/arbiter)
+arb-guardian: contract contract-corpus/truncated.bin refused (load code 2); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/truncated.bin (exit 2, no /dev/arbiter)
+arb-guardian: contract contract-corpus/version.bin refused (load code 4); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/version.bin (exit 2, no /dev/arbiter)
+arb-guardian: cannot open contract contract-corpus/no-such-file.bin: No such file or directory
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/no-such-file.bin (exit 2, no /dev/arbiter)
+## well-behaved arm
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f18...
+nrw-rw-rw-  1 root root 0 2026-11-13 20:46 /dev/arbiter
+nrw-rw-rw-  1 root root 0 2026-11-13 20:46 /dev/name/local/arbiter_arm
+PASS nfr_q3_guardian_is_a_resource_manager_in_the_path_namespace
+     pid tid prio name                                                                         
+14344215   1  64f ./arb-guardian                                                                  
+PASS nfr_i3_guardian_runs_fifo_at_its_documented_priority (64, FIFO)
+PASS fr_g1_dev_arbiter_exists_in_path_namespace
+PASS fr_g1_command_round_trip_over_devctl
+PASS fr_g3_clamp_and_denials_over_devctl
+PASS fr_g4_replay_denied_over_devctl
+PASS fr_g2_zero_duration_denied_over_devctl
+PASS fr_g4_rate_limit_over_devctl
+PASS nfr_i6_devctl_wrong_size_rejected
+PASS nfr_i6_unknown_devctl_command_rejected
+PASS nfr_i6_read_only_descriptor_cannot_submit
+PASS nfr_i6_random_payloads_never_crash_the_guardian
+PASS fr_g5_silence_enters_hold_over_devctl
+PASS fr_g5_last_client_close_enters_hold
+RESULT PASS test_guardian normal 12/12
+## arm receives setpoints and never replies (REPLY-blocked guardian)
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f18...
+info devctl with a faulty arm returned after 2.793 ms (send timeout 2 ms, 1 ms tick)
+PASS fr_g9_arm_never_replies_times_out_and_safe_stops
+RESULT PASS test_guardian hang 1/1
+## arm process stopped (SEND-blocked guardian)
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f18...
+info devctl with a faulty arm returned after 2.833 ms (send timeout 2 ms, 1 ms tick)
+PASS fr_g9_arm_not_receiving_times_out_and_safe_stops
+RESULT PASS test_guardian stopped 1/1
+## arm rejects the start position
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f18...
+PASS fr_g3_stale_start_reported_as_deny
+RESULT PASS test_guardian stale 1/1
+RESULT PASS guardian_suite
+exit=0
+
+SUMMARY 8/8 tests passed on qemu (each run 1 time(s))
