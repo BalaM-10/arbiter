@@ -33,7 +33,7 @@ pkg_version() {   # installed version of one SDP package, from its metadata dire
     echo "host gcc: $(gcc --version | head -1)"
     echo "kvm: $( [ -w /dev/kvm ] && echo '/dev/kvm writable' || echo '/dev/kvm NOT writable')"
     echo
-    echo "## QNX SDP at ${SDP/#$HOME/~}"
+    echo "## QNX SDP at ${SDP/#"$HOME"/\~}"
     echo "qcc variants:"
     qcc -V 2>&1 | sed -n 's/^[[:space:]]*\(12\.[^ ]*\).*/  \1/p'
     for p in com.qnx.qnx800 \
