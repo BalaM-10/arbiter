@@ -9,7 +9,8 @@ Arbiter guardian; rows for the guardian, arm controller and watchdog are added
 as those components land.
 
 Target for all proofs below: QEMU x86_64 image built with `mkqnximage`,
-QNX SDP 8.0.4 (see `docs/TARGETS.md`).
+QNX SDP 8.0.4 (see `docs/TARGETS.md`). Requirement IDs in parentheses are
+defined in `docs/REQUIREMENTS_SUMMARY.md`.
 
 ## Message passing
 
@@ -19,7 +20,7 @@ QNX SDP 8.0.4 (see `docs/TARGETS.md`).
 | Connections (`ConnectAttach`, `ConnectDetach`) | Clients reach a server's channel only through an explicit connection; fork() does not carry it over, so each process attaches its own | `qnx/samples/msgpass/msgpass.c` | `run_client()` | [ConnectAttach](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectattach.html), [ConnectDetach](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectdetach.html), [fork](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/fork.html) | `run-090143.log`, M0-MSG-1 |
 | Synchronous send/receive/reply (`MsgSend`, `MsgReceive`, `MsgReply`) | The sender blocks until the server answers, so a command is never acted on before its verdict and a flooding client throttles itself (NFR-Q2) | `qnx/samples/msgpass/msgpass.c` | `send_req()`, `serve()` | [MsgSend](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsend.html), [MsgReceive](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgreceive.html), [MsgReply](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgreply.html) | `run-090143.log`, M0-MSG-1 |
 | Rejecting a message (`MsgError`) | Malformed input is refused with an error status and no payload, after a length check made before any field is read (NFR-I6) | `qnx/samples/msgpass/msgpass.c` | `serve()` | [MsgError](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgerror.html) | `run-090143.log`, M0-MSG-3, -4, -5 |
-| Sender identity (`struct _msg_info`) | The arm controller must accept setpoints only from the guardian (FR-G6); the kernel-filled sender pid is the basis | `qnx/samples/msgpass/msgpass.c` | `serve()` | [_msg_info](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/_msg_info.html) | `run-090143.log`, M0-MSG-2 |
+| Sender identity (`struct _msg_info`) | The arm controller must accept setpoints only from the guardian (FR-G6). The sample shows the kernel, not the sender, reports who is calling. A pid alone is not enough (pids are reused), so the arm will also use a private or policy-typed channel and per-connection identity (M1/M2) | `qnx/samples/msgpass/msgpass.c` | `serve()` | [_msg_info](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/_msg_info.html) | `run-090143.log`, M0-MSG-2 |
 | Pulses (`MsgSendPulse`, `struct _pulse`) | Heartbeats and timer ticks must not block the sender (NFR-Q2) | `qnx/samples/msgpass/msgpass.c`, `qnx/common/arb_pulses.h` | `run_client()`, `serve()` | [MsgSendPulse](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsendpulse.html), [_pulse](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/_pulse.html) | `run-090143.log`, M0-MSG-6 |
 
 ## Resource manager

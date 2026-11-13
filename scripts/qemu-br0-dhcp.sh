@@ -19,7 +19,7 @@
 #                           br0 has no NAT to the outside, so the guest has no
 #                           use for a DNS server here.
 #
-# Run once per WSL boot, before `mkqnximage --run`:
+# Run once per WSL boot (and once before the very first `mkqnximage --run`):
 #   sudo ./scripts/qemu-br0-dhcp.sh
 # mkqnximage's check (qemu/check-net) then finds br0 and a dnsmasq with
 # "interface=br0" running and does not start its own.
@@ -40,18 +40,28 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# qemu-bridge-helper must be allowed to use br0 and be setuid root.
-# mkqnximage's net.sh normally does this once; check it here so a failure is
-# reported instead of a VM booting without a network.
+# qemu-bridge-helper must be allowed to use br0 and be setuid root, so QEMU
+# (run as you) can attach the guest to br0. These are the same two steps
+# mkqnximage's net.sh performs; doing them here means no failing first run.
+if [ ! -x "$BRIDGE_HELPER" ]; then
+    echo "error: ${BRIDGE_HELPER} not found; install QEMU: sudo apt install qemu-system-x86" >&2
+    exit 1
+fi
 if ! grep -qs "^allow ${BR}\$" "$BRIDGE_CONF"; then
     mkdir -p "$(dirname "$BRIDGE_CONF")"
     echo "allow ${BR}" >> "$BRIDGE_CONF"
     echo "added 'allow ${BR}' to ${BRIDGE_CONF}"
 fi
-if [ ! -u "$BRIDGE_HELPER" ]; then
-    echo "error: ${BRIDGE_HELPER} is not setuid root; run 'mkqnximage --run' once so its net.sh sets it" >&2
-    exit 1
+if [ "$(stat -c %u "$BRIDGE_HELPER")" != 0 ]; then
+    chown 0 "$BRIDGE_HELPER"
 fi
+if [ ! -u "$BRIDGE_HELPER" ]; then
+    chmod u+s "$BRIDGE_HELPER"
+    echo "made ${BRIDGE_HELPER} setuid root"
+fi
+for tool in dnsmasq ip ss; do
+    command -v "$tool" >/dev/null || { echo "error: '$tool' missing; sudo apt install dnsmasq-base iproute2" >&2; exit 1; }
+done
 
 # Bridge and host address (same values as net.sh).
 if ! ip link show "$BR" >/dev/null 2>&1; then

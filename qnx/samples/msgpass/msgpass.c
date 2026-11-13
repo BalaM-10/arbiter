@@ -17,8 +17,15 @@
  * pulses) and the length-first validation rule for trusted code. It is a
  * sample, not Arbiter code: it runs as root and uses a public channel.
  *
- * Exit status 0 means every check passed. A hang is impossible by design:
- * the server loop is bounded, and alarm() kills the run after RUN_TIMEOUT_S.
+ * Exit status 0 means every check passed. Every run is bounded: the server
+ * loop has a fixed iteration limit, and alarm() ends the run (as a failure)
+ * after RUN_TIMEOUT_S. That bound is what catches a dead client here: if the
+ * client exits just before the server blocks in MsgReceive(), the SIGCHLD
+ * handler does not unblock it and only the alarm ends the run. The guardian
+ * will detect client death through the kernel instead (M1).
+ *
+ * Output goes to stdout with printf(), which can block on a slow terminal.
+ * Acceptable in a sample; Arbiter's trusted processes log through slog2.
  */
 #include <errno.h>
 #include <signal.h>

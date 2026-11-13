@@ -1,7 +1,9 @@
 # Targets and toolchain
 
-The exact host, SDP and target versions this project was built and tested with.
-The README's build steps must match this file.
+The exact host, SDP and target versions this project was built and tested with,
+and the steps to reproduce the setup. The README's quick start must match this
+file. Versions below are recorded by `scripts/record-host.sh` in
+[`evidence/host/2026-11-13-host.txt`](../evidence/host/2026-11-13-host.txt).
 
 ## Development host
 
@@ -12,107 +14,122 @@ The README's build steps must match this file.
 | Why this host | Ubuntu Desktop 22.04 LTS is a supported SDP 8.0 development host ([SDP 8.0 release notes](https://www.qnx.com/developers/docs/relnotes8.0/com.qnx.doc.release_notes/topic/sdp8_rn.html)); QEMU is the documented virtualization for Ubuntu hosts ([mkqnximage](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/m/mkqnximage.html)) |
 | QEMU | 6.2.0 (`qemu-system-x86` 1:6.2+dfsg-2ubuntu6.31, `qemu-utils`), `bridge-utils` 1.7-1ubuntu3 |
 | KVM | `/dev/kvm` available in WSL2; user in group `kvm`. `mkqnximage`'s QEMU run script uses `--enable-kvm --cpu host` when `/dev/kvm` is writable |
-| Host C compiler | gcc 11.4.0, GNU Make 4.3 (`build-essential`), for host unit tests of `libcontract` |
+| Host C compiler | gcc 11.4.0, GNU Make 4.3 (`build-essential`), for host-side unit tests (from M1) |
+| DHCP for the QEMU bridge | dnsmasq 2.91 (`dnsmasq-base`); `net-tools` provides `arp`/`ifconfig` used by `mkqnximage` |
 
 ## QNX software
 
 | Item | Value |
 | --- | --- |
 | QNX Software Center | 2.0.4, installed at `~/qnx/qnxsoftwarecenter/` |
-| SDP | **QNX SDP 8.0.4**: base `com.qnx.qnx800` 8.0.0.00141T202311271501L (Build 141) at `~/qnx800`, updated in place on 2026-11-12 with patch set `com.qnx.qnx800.patchset804` 8.0.4.00384T202603311511L from the Software Center's Available tab (log: "Installing Software is done: OK") |
-| How to tell the level on disk | The patch set is not listed under `~/qnx800/.packages/metadata` and the base package keeps its 8.0.0 version string. Key packages after the patch: `target.microkernel.core` 2.4.0.00111T202602271127L, `host...qcc` 8.0.0.00121T202510081309L, `host...gcc` 12.2.0.00301T202506091801L, `host.mkqnximage` 0.3.0.00600T202507302003L. `procnto-smp-instr` (x86_64) carries build stamp `2026/02/27-11:02:56EST`. The target's `uname` reports `8.0.0` for every 8.0.x level |
+| SDP | **QNX SDP 8.0.4**: base `com.qnx.qnx800` 8.0.0.00141T202311271501L (Build 141) at `~/qnx800`, updated in place on 2026-11-12 with patch set `com.qnx.qnx800.patchset804` 8.0.4.00384T202603311511L from the Software Center's Available tab |
+| How to tell the level on disk | The patch set is not listed under `~/qnx800/.packages/metadata`, and the base package keeps its 8.0.0 version string. Look instead at the key packages (`target.microkernel.core` 2.4.0.00111T202602271127L, `host...qcc` 8.0.0.00121T202510081309L, `host...gcc` 12.2.0.00301T202506091801L, `host.mkqnximage` 0.3.0.00600T202507302003L) and the `procnto-smp-instr` build stamp `2026/02/27-11:02:56EST`. The target's `uname` reports `8.0.0` for every 8.0.x level. All recorded in `evidence/host/2026-11-13-host.txt` |
 | Why 8.0.4 | 8.0.4 fixes an aarch64 delay/hang when sending or receiving messages or pulses (ref 3007752) and several kernel priority-inheritance issues; 8.0.3 added `mkqnximage` images for physical boards such as the Pi ([8.0.4 notes](https://www.qnx.com/developers/docs/relnotes8.0/com.qnx.doc.release_notes/topic/8.0.4_prod_release_notes/8.0.4_rn.html), [8.0.3 notes](https://www.qnx.com/developers/docs/relnotes8.0/com.qnx.doc.release_notes/topic/8.0.3_prod_release_notes/8.0.3_rn.html)) |
-| Target architectures | `x86_64`, `aarch64le` |
-| Compiler | `qcc` with GCC 12.2.0 (`QNX8.0.0-rc240b01...-102`): variants `gcc_ntox86_64`, `gcc_ntoaarch64le` (and `_gpp`) |
-| Image tool | `mkqnximage` (`~/qnx800/host/common/bin/mkqnximage`); QEMU networking is a host bridge `br0` (172.31.1.1/24) with `dnsmasq` DHCP, set up by its `net.sh` via sudo on first run. Host needs `ifconfig` (`net-tools`) and `dnsmasq` (`dnsmasq-base`) |
+| Target architectures | `x86_64` (QEMU), `aarch64le` (Raspberry Pi 5, from M3) |
+| Compiler | `qcc` with GCC 12.2.0: variants `gcc_ntox86_64`, `gcc_ntoaarch64le` |
+| Image tool | `mkqnximage` (`~/qnx800/host/common/bin/mkqnximage`) |
 | Security policy tools in this install | `secpolcompile` (host and target), `secpolpush`, `secpol`, `secpolgenerate` (target) |
 | Tracing and logging in this install | `tracelogger`, `traceprinter`, `slogger2`, `slog2info` |
 | Not in this install | High Availability Manager (`ham`, `hamctrl`) |
 
-## Every shell
+## First-time setup (Ubuntu 22.04, native or WSL2)
+
+Do these once, in order. Steps 3 to 5 need a myQNX account.
+
+1. **Host packages.**
+   ```sh
+   sudo apt update
+   sudo apt install -y qemu-system-x86 qemu-utils bridge-utils build-essential net-tools dnsmasq-base
+   ```
+2. **KVM access** (QEMU is much faster with it). Join the `kvm` group, then
+   restart the shell; on WSL2, run `wsl --terminate Ubuntu-22.04` in PowerShell
+   and reopen Ubuntu.
+   ```sh
+   sudo usermod -aG kvm $USER
+   test -w /dev/kvm && echo "KVM OK"      # after the restart
+   ```
+3. **License.** Get the free non-commercial QNX SDP 8.0 license at
+   <https://www.qnx.com/getqnx> and deploy it in your myQNX account.
+4. **QNX Software Center.** From myQNX, download the **Linux hosts** installer
+   (`qnx-setup-<build>-lin.run`), check its checksum against the download page,
+   and run it **without sudo**:
+   ```sh
+   chmod a+x qnx-setup-*-lin.run && ./qnx-setup-*-lin.run
+   ```
+5. **SDP 8.0.4.** In the Software Center: **Add Installation → QNX Software
+   Development Platform 8.0**, install to `~/qnx800` with the `x86_64` and
+   `aarch64le` targets. Then, for that installation, open **Available → QNX
+   Software Development Platform – Minor Release → Patchset** and install the
+   8.0.4 patch set.
+6. **SSH key for the targets** (no passphrase, so the test scripts run unattended;
+   it only unlocks your own local targets):
+   ```sh
+   mkdir -p ~/.ssh && chmod 700 ~/.ssh
+   ssh-keygen -t ed25519 -N "" -C "arbiter-qnx-target" -f ~/.ssh/qnx_target_ed25519
+   ```
+7. **Build the QEMU image** (QNX-licensed, so it stays in the git-ignored `targets/`):
+   ```sh
+   source ~/qnx800/qnxsdp-env.sh
+   mkdir -p targets/qemu-x86_64 && cd targets/qemu-x86_64
+   mkqnximage --type=qemu --arch=x86_64 --hostname=arbiter-qemu \
+     --ssh-ident=$HOME/.ssh/qnx_target_ed25519.pub --build
+   cd ../..
+   ```
+
+## Every session
 
 ```sh
-source ~/qnx800/qnxsdp-env.sh
-which qcc            # ~/qnx800/host/linux/x86_64/usr/bin/qcc
-echo $QNX_TARGET     # ~/qnx800/target/qnx
+source ~/qnx800/qnxsdp-env.sh                  # puts qcc and mkqnximage on PATH
+sudo ./scripts/qemu-br0-dhcp.sh                # once per boot (WSL restart); see below
+(cd targets/qemu-x86_64 && mkqnximage --run=-h && mkqnximage --getip)   # boot QEMU in the background
+./scripts/run-tests.sh qemu                    # build, deploy, run, save the log
+(cd targets/qemu-x86_64 && mkqnximage --stop)  # when finished
 ```
 
-## Toolchain smoke test (2026-11-12, re-run after the 8.0.4 patch set)
+`run-tests.sh` builds both architectures, records each binary's SHA-256, copies
+the x86_64 binaries to the target over SSH, prints the target's `uname -a`, runs
+every test, and saves the whole output under `evidence/runs/<date>-qemu/`.
+`REPEAT=N ./scripts/run-tests.sh qemu` runs each test N times.
+The guest's address comes from DHCP and can change between boots; the scripts
+always look it up with `mkqnximage --getip`.
 
-```sh
-qcc -Vgcc_ntox86_64    -std=c11 -Wall -Wextra -Werror -O2 -o hello-x86_64    hello.c
-qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -o hello-aarch64le hello.c
-```
+## QEMU networking: `scripts/qemu-br0-dhcp.sh`
 
-Both produced 64-bit ELF executables with interpreter `/usr/lib/ldqnx-64.so.2`
-(x86-64 and ARM aarch64). Not yet run on a target.
-
-## QEMU target (x86_64)
-
-Built in `targets/qemu-x86_64/` (ignored by git; the image is QNX-licensed):
-
-```sh
-source ~/qnx800/qnxsdp-env.sh
-mkdir -p targets/qemu-x86_64 && cd targets/qemu-x86_64
-mkqnximage --type=qemu --arch=x86_64 --hostname=arbiter-qemu \
-  --ssh-ident=$HOME/.ssh/qnx_target_ed25519.pub --build
-```
-
-First boot (2026-11-12): `output/qemu.out` ends with `Startup complete` and
-`QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64`.
-
-### WSL2 networking workaround: `scripts/qemu-br0-dhcp.sh`
-
-**Problem.** `mkqnximage --run` networks the guest through a host bridge `br0`
-(172.31.1.1/24) and a `dnsmasq` DHCP server, both started by the SDP's
-`host/common/mkqnximage/qemu/net.sh`:
+**How `mkqnximage --run` networks the guest.** Through a host bridge `br0`
+(172.31.1.1/24), QEMU's setuid `qemu-bridge-helper`, and a `dnsmasq` DHCP
+server, all set up by the SDP's `host/common/mkqnximage/qemu/net.sh`, which runs:
 
 ```sh
 dnsmasq --interface=br0 --bind-interfaces --except-interface=lo0 --dhcp-range=172.31.1.2,172.31.1.254
 ```
 
-dnsmasq adds the loopback interface itself whenever `--interface` is given
-(dnsmasq(8), `--interface`). The Linux loopback is `lo`, not `lo0`, so the
-exclusion has no effect and dnsmasq tries to listen for DNS on every loopback
-address. WSL2's DNS tunnel already holds port 53 on `10.255.255.254` (on `lo`),
-so dnsmasq exits with `failed to create listening socket for 10.255.255.254:
-Address already in use`. The guest gets no lease, and `mkqnximage --getip`
-reports `Failed to find address`.
+**The problem on Linux, visible under WSL2.** dnsmasq adds the loopback
+interface itself whenever `--interface` is given (dnsmasq(8), `--interface`).
+The Linux loopback is `lo`, not `lo0`, so the exclusion has no effect and
+dnsmasq tries to listen for DNS on every loopback address. WSL2's DNS tunnel
+already holds port 53 on `10.255.255.254` (on `lo`), so dnsmasq exits with
+`failed to create listening socket for 10.255.255.254: Address already in use`.
+The guest gets no lease, and `mkqnximage --getip` reports `Failed to find address`.
 
 **How `--getip` finds the guest.** It does not read DHCP leases. It reads the
 host ARP table (`arp -an`) for the guest's MAC (`OPT_MACADDR` in
 `local/options`) and pings each match. The image's `pinger.sh`, run by the
 guest's DHCP hook, pings the host to put the guest in that table. Without a
-lease there is no entry, so `--getip` fails.
+lease there is no entry.
 
-**Fix.** `scripts/qemu-br0-dhcp.sh` sets up the same bridge, address and DHCP
-range, and starts dnsmasq with two changes:
+**The fix.** `scripts/qemu-br0-dhcp.sh` performs the same setup as `net.sh`
+(allow `br0` in `/etc/qemu/bridge.conf`, make `qemu-bridge-helper` setuid root,
+create `br0` at 172.31.1.1/24) and starts dnsmasq with two changes:
 
-- `--except-interface=lo`: the Linux loopback name, which is what `net.sh`
-  intended.
-- `--port=0`: no DNS at all, DHCP only (dnsmasq(8), `--port`). `br0` has no
-  NAT to the outside, so the guest does not need a DNS server here.
+- `--except-interface=lo`: the Linux loopback name, which is what `net.sh` intended.
+- `--port=0`: no DNS at all, DHCP only (dnsmasq(8), `--port`). `br0` has no NAT
+  to the outside, so the guest does not need a DNS server here.
 
-The SDP is not modified. `mkqnximage`'s check (`qemu/check-net`) sees `br0` and
-a dnsmasq with `interface=br0` already running, and does not start its own.
-
-**Use, once per WSL boot, before `mkqnximage --run`:**
-
-```sh
-sudo ./scripts/qemu-br0-dhcp.sh
-cd targets/qemu-x86_64
-mkqnximage --run=-h      # restarts the VM if it is already running
-mkqnximage --getip
-ssh -i ~/.ssh/qnx_target_ed25519 root@<ip> uname -a
-```
-
-Leases are written to `/var/lib/misc/dnsmasq.br0.leases`. To undo:
+The SDP is not modified. `mkqnximage`'s own check (`qemu/check-net`) then finds
+everything in place and does not run `net.sh`. Leases are written to
+`/var/lib/misc/dnsmasq.br0.leases`. To undo:
 `sudo kill "$(cat /run/dnsmasq-br0.pid)"; sudo ip link del br0`.
 
-Host versions: dnsmasq 2.91 (`dnsmasq-base`), `net-tools` for `ifconfig`.
-
-Verified 2026-11-13: dnsmasq listens only on `0.0.0.0%br0:67` (no port 53),
-the guest (MAC `52:54:00:fe:5e:a8`) leased `172.31.1.174`, `--getip` returned
-it, and `ssh -i ~/.ssh/qnx_target_ed25519 root@172.31.1.174 uname -a` printed
-`QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64`. The address is
-assigned by DHCP and can change between boots; always use `--getip`.
+Recorded state with the fix in place (dnsmasq on `br0:67` only, the guest's
+lease): `evidence/host/2026-11-13-host.txt`. Target output (`uname -a` over
+SSH): the header of every run log in `evidence/runs/`.
