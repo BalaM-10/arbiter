@@ -419,6 +419,17 @@ arm.
    `STALE_START`, and the extra keep-out margin (section 5).
 6. The flood test design and the "not covered" list; **F3 includes a pulse flood
    as well as a message flood** (section 6).
+
+**Found while implementing the watchdog (2026-11-13, observed on QEMU).**
+- A death notice can arrive while the dead process is still a zombie, and
+  `kill(pid, 0)` then reports it as existing; checking that way rejected real
+  notices. The watchdog instead accepts a death pulse only if it carries the
+  `scoid` of its own connection, through which it asked the process manager to
+  deliver them; a forged pulse carries the forger's. The 8.0 pages do not state
+  which `scoid` a process-manager pulse carries, so this is verified on target by
+  `fr_w3_forged_death_notice_ignored` and `fr_w3_death_detected_by_death_notice`.
+- When a client exits, its disconnect pulse usually arrives before the death
+  notice; the watchdog trips on the first and records the cause from the second.
 7. **Channel discovery:** the arm registers an internal name with `name_attach()`
    for the guardian only; the guardian stays a resource manager at
    `/dev/arbiter`. With a NULL dispatch handle `name_attach()` would create its

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""FR-G9 source check: every MsgSend() in the guardian is bounded by TimerTimeout().
+"""FR-G9 source check: every MsgSend() in trusted code is bounded by TimerTimeout().
 
 TimerTimeout() applies only to "the next kernel call made by the same thread"
 (QNX 8.0 TimerTimeout() page), so it must come immediately before MsgSend(),
@@ -36,12 +36,12 @@ def fr_g9_timer_timeout_immediately_precedes_send(sources: list[Path]) -> list[s
             if j < 0 or "TimerTimeout(" not in lines[j]:
                 problems.append(f"{path.relative_to(ROOT)}:{i + 1}: MsgSend() not directly preceded by TimerTimeout()")
     if sends == 0:
-        problems.append("no MsgSend() found in qnx/guardian: the check would prove nothing")
+        problems.append("no MsgSend() found in trusted code: the check would prove nothing")
     return problems
 
 
 def main() -> int:
-    sources = sorted((ROOT / "qnx" / "guardian").glob("*.c"))
+    sources = sorted(p for d in ("guardian", "arm", "watchdog", "common") for p in (ROOT / "qnx" / d).glob("*.c"))
     problems = fr_g9_timer_timeout_immediately_precedes_send(sources)
     for p in problems:
         print(f"FAIL {p}")

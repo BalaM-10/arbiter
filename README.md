@@ -23,7 +23,7 @@ do. What Arbiter defends against, and what it does not, is in
 
 | Works today, on QNX 8.0 in QEMU | Not built yet |
 | --- | --- |
-| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Watchdog |
+| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Fault bench (M1 day 7) |
 | QEMU x86_64 target built with `mkqnximage`, reached over SSH | Evidence logger, gateway |
 | Message-passing sample: two processes, send/receive/reply, rejection of malformed messages, pulses, sender identity (7 checks) | Planner, fault bench, dashboard |
 | Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target and timing measurements |
@@ -31,6 +31,7 @@ do. What Arbiter defends against, and what it does not, is in
 | Contract compiler (`arbiter contract`): strict YAML validation, binary table, checked against the C loader on the host and on QNX | |
 | Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link | |
 | Arm controller (`arb-arm`): 1 kHz loop on its own timer, simulated 2-joint arm, its own speed and limit checks, guardian-only sender binding, 10 ms motion lease, brake on guardian loss, read-only telemetry; end to end with the guardian | |
+| Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred | |
 
 ## Quick start (QEMU)
 
@@ -49,7 +50,7 @@ sudo ./scripts/qemu-br0-dhcp.sh                                        # QEMU ne
 ```
 
 Expected: `RESULT PASS test_libcontract 64/64`, `RESULT PASS test_contract_file 11/11`,
-`RESULT PASS arm_suite`, `RESULT PASS guardian_suite` and `SUMMARY 8/8 tests passed on qemu`,
+`RESULT PASS watchdog_suite`, `RESULT PASS arm_suite`, `RESULT PASS guardian_suite` and `SUMMARY 9/9 tests passed on qemu`,
 then `SUMMARY host-checks: PASS`.
 
 To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/default.yaml -o build/contract.bin`.

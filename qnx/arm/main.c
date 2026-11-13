@@ -10,7 +10,10 @@
  *
  *   arb-arm <contract.bin> [guardian-uid]     (default uid 0 in M1, where all run as root)
  *
- * Exit status: 2 contract refused, 3 scheduling, 5 setup.
+ * Exit status: 2 contract refused, 3 scheduling, 5 setup, 6 no watchdog.
+ * The watchdog must be running first: the arm registers with it, sends a
+ * heartbeat every cycle, and brakes (latched) when the watchdog says the guardian
+ * died or is stuck (FR-W2).
  *
  * Sender binding (M1): the first connection whose effective user ID is the
  * guardian's becomes the only authorized one; others are refused and counted.
@@ -41,6 +44,8 @@
 #include "arb_prio.h"
 #include "arb_pulses.h"
 #include "arb_telemetry.h"
+#include "arb_watchdog_proto.h"
+#include "arb_wd_client.h"
 #include "arm_backend.h"
 #include "arm_motion.h"
 
@@ -56,6 +61,7 @@ static uid_t                g_guardian_uid;
 static int                  g_lease_valid;
 static int64_t              g_lease_until_ns;
 static uint32_t             g_segment;
+static arb_wd_client_t      g_wd;
 
 static int64_t now_ns(void)
 {
@@ -106,6 +112,7 @@ static void control_cycle(int64_t now)
     arm_motion_sample(&g_motion, now, &s);
     g_backend.apply(&g_backend, s.pos_urad, s.vel_urad_s);
     publish(&s);
+    arb_wd_client_heartbeat(&g_wd);
 }
 
 static void brake_latched(int64_t now)
@@ -202,6 +209,15 @@ static void handle_setpoint(rcvid_t rcvid, const arb_arm_setpoint_t *sp, int64_t
 
 static void handle_pulse(const struct _pulse *p, int64_t now)
 {
+    if (p->code == ARB_PULSE_ARM_WD_BRAKE) {
+        if (arb_wd_client_is_trip(&g_wd, p, ARB_PULSE_ARM_WD_BRAKE)) {
+            brake_latched(now);          /* FR-W2: the watchdog says the guardian is gone */
+            count(&g_telem->wd_brakes);
+        } else {
+            count(&g_telem->rejected);   /* the code without our token: forged */
+        }
+        return;
+    }
     switch (p->code) {
     case ARB_PULSE_ARM_TICK:
         control_cycle(now);            /* motion is time-based: an extra tick cannot speed it up */
@@ -381,6 +397,10 @@ int main(int argc, char **argv)
     coid = ConnectAttach(0, 0, chid, _NTO_SIDE_CHANNEL, 0);
     if (coid == -1) {
         return 5;
+    }
+    if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_ARM, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_WD_BRAKE) != 0) {
+        fprintf(stderr, "arb-arm: cannot register with the watchdog: %s; not starting\n", strerror(errno));
+        return 6;
     }
     SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_TICK, 0);
     if (timer_create(CLOCK_MONOTONIC, &ev, &timer) == -1) {

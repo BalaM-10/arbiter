@@ -64,9 +64,9 @@ Test references are `file::test`. On-target results point at a saved run log in
 
 | Requirement | Implemented in | Test | Passes on QEMU | Passes on Pi 5 | Notes |
 | --- | --- | --- | --- | --- | --- |
-| FR-W1 | — | — | — | — | Planned: M1 day 6 |
-| FR-W2 | — | — | — | — | Planned: M1 day 6 |
-| FR-W3 | — | — | — | — | Planned: M1 day 6 |
+| FR-W1 | `qnx/watchdog/main.c` (FIFO 66), `qnx/common/arb_prio.h` | `qnx/tests/watchdog_suite.sh::fr_w1_watchdog_runs_above_the_guardian_and_below_the_arm`<br>`qnx/tests/arm_suite.sh::fr_w1_trusted_processes_refuse_to_start_without_the_watchdog` | pending (run after commit) | — | Reworded Nov 13: above the guardian, below only the arm's loop. Arm and guardian refuse to start without the watchdog |
+| FR-W2 | `qnx/watchdog/main.c` `trip()` (`MsgDeliverEvent`); `qnx/arm/main.c` (brake on the watchdog's event); `qnx/common/arb_wd_client.c` | `qnx/tests/test_watchdog.c::fr_w2_missed_guardian_heartbeat_brakes_the_arm`<br>`qnx/tests/test_watchdog.c::fr_w2_heartbeats_from_another_connection_ignored`<br>`qnx/tests/test_e2e.c::fr_w2_watchdog_records_a_stuck_guardian_and_brakes_the_arm`<br>`qnx/tests/test_e2e.c::fr_w2_arm_death_puts_the_guardian_in_safe_stop` | pending (run after commit) | — | Guardian stuck or dead -> the arm's registered brake event; arm dead or stuck -> the guardian's event (SAFE_STOP, cause WATCHDOG) |
+| FR-W3 | `qnx/watchdog/main.c` (`procmgr_event_notify_add` death notices; heartbeat timeout; status record) | `qnx/tests/test_watchdog.c::fr_w3_stuck_detected_by_missed_heartbeat`<br>`qnx/tests/test_watchdog.c::fr_w3_death_detected_by_death_notice`<br>`qnx/tests/test_watchdog.c::fr_w3_forged_death_notice_ignored`<br>`qnx/tests/test_watchdog.c::fr_w3_live_role_cannot_be_registered_twice`<br>`qnx/tests/test_e2e.c::fr_w3_watchdog_records_that_the_guardian_died` | pending (run after commit) | — | Records died / stuck / disconnected; death notices authenticated by the watchdog's own connection (forged ones ignored); heartbeats only from the role's connection |
 | FR-W4 | — | — | — | — | Planned: M2 |
 
 ## Gateway (FR-N)

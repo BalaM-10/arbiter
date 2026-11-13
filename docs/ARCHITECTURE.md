@@ -2,9 +2,11 @@
 
 Status: M1 in progress. This page describes what is built: the decision logic
 in `qnx/libcontract/`, the guardian in `qnx/guardian/` and the arm controller in
-`qnx/arm/`. The full M1 design (scheduling, motion leases, timeouts, fault
-containment) is in `docs/DESIGN_M1_ADDENDUM.md`; the watchdog is added here once
-implemented. Requirement IDs are defined in
+`qnx/arm/` and the watchdog in `qnx/watchdog/`. The full M1 design (scheduling,
+motion leases, timeouts, fault containment) is in `docs/DESIGN_M1_ADDENDUM.md`.
+
+**Startup order: watchdog, arm, guardian.** Each later process refuses to start
+if the one before it is not there. Requirement IDs are defined in
 `docs/REQUIREMENTS_SUMMARY.md`.
 
 ## Components and trust
@@ -186,6 +188,33 @@ by the kernel), loads the contract table, and runs a 1 ms timer pulse.
   ring that only the arm writes; readers map it read-only and never block it.
 - **Backend** (`arm_backend.h`): the loop calls only `init`, `apply` and `read`;
   M1's backend is the simulation.
+
+## The watchdog (`arb-watchdog`)
+
+A single thread at FIFO priority 66: above the guardian, so a guardian spinning
+in a loop cannot starve it (TM-C3), and below only the arm's control loop. It never
+sends a message to a client, so no client can block it.
+
+- **Registration.** The arm and the guardian each register a role with it, and
+  hand it a pulse event aimed at their own channel, carrying a random token and
+  registered with `MsgRegisterEvent()` so that only the watchdog may deliver it.
+  A role held by a live process cannot be taken over (`EBUSY`; TM-C4).
+- **Stuck.** Each client sends a heartbeat pulse every cycle; no heartbeat for
+  10 ms from that role's own connection means stuck. Heartbeats sent on any
+  other connection are ignored.
+- **Died.** The process manager sends a death notice for every process
+  (`procmgr_event_notify_add`). The notice is delivered through the watchdog's
+  own connection, whose server connection ID it learns from its first timer
+  pulse before its name exists; a pulse with the same code from any other
+  connection is a forgery and is ignored. When a client exits, its disconnect
+  pulse often arrives first and trips at once; the death notice then records the
+  cause as `DIED`.
+- **Trip.** A dead or stuck guardian: the watchdog delivers the arm's event and
+  the arm brakes and latches (FR-W2). A dead or stuck arm: it delivers the
+  guardian's event and the guardian enters `SAFE_STOP` with cause `WATCHDOG`.
+  Every trip is recorded in a read-only status record: role, cause, pid, time.
+- The watchdog cannot physically stop anything; a hung arm controller with <!-- not a claim -->
+  powered motors needs a hardware cut-off (`docs/THREAT_MODEL.md`, O3).
 
 ## What is not covered by `libcontract`
 

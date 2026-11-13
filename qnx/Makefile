@@ -40,7 +40,8 @@ LIBCONTRACT_HDR := libcontract/arb_contract.h common/arb_contract_table.h common
 
 BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract_file $(OUT)/test_send_timeout \
         $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh \
-        $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/arm_suite.sh
+        $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/arm_suite.sh \
+        $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh
 
 .PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
@@ -71,8 +72,9 @@ $(OUT)/test_contract_file: tests/test_contract_file.c $(LIBCONTRACT_SRC) $(LIBCO
 $(OUT)/test_send_timeout: tests/test_send_timeout.c | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
-GUARDIAN_SRC := guardian/main.c guardian/arm_link.c
-GUARDIAN_HDR := guardian/arm_link.h common/arb_arm_proto.h common/arb_devctl.h common/arb_prio.h common/arb_pulses.h
+GUARDIAN_SRC := guardian/main.c guardian/arm_link.c common/arb_wd_client.c
+GUARDIAN_HDR := guardian/arm_link.h common/arb_arm_proto.h common/arb_devctl.h common/arb_prio.h common/arb_pulses.h \
+                common/arb_wd_client.h common/arb_watchdog_proto.h
 
 $(OUT)/arb-guardian: $(GUARDIAN_SRC) $(GUARDIAN_HDR) $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -Iguardian -o $@ $(GUARDIAN_SRC) $(LIBCONTRACT_SRC) $(LDLIBS)
@@ -86,9 +88,9 @@ $(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h common/arb_devctl.h
 $(OUT)/guardian_suite.sh: tests/guardian_suite.sh | $(OUT)
 	install -m 755 $< $@
 
-ARM_SRC := arm/main.c arm/arm_motion.c arm/arm_backend_sim.c
+ARM_SRC := arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c
 ARM_HDR := arm/arm_motion.h arm/arm_backend.h common/arb_arm_model.h common/arb_arm_proto.h \
-           common/arb_telemetry.h common/arb_prio.h common/arb_pulses.h
+           common/arb_telemetry.h common/arb_prio.h common/arb_pulses.h common/arb_wd_client.h common/arb_watchdog_proto.h
 
 $(OUT)/arb-arm: $(ARM_SRC) $(ARM_HDR) $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $(ARM_SRC) $(LIBCONTRACT_SRC) $(LDLIBS)
@@ -103,6 +105,18 @@ $(OUT)/test_e2e: tests/test_e2e.c tests/arb_test.h $(ARM_HDR) common/arb_devctl.
 	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
 
 $(OUT)/arm_suite.sh: tests/arm_suite.sh | $(OUT)
+	install -m 755 $< $@
+
+WATCHDOG_SRC := watchdog/main.c
+WATCHDOG_HDR := common/arb_watchdog_proto.h common/arb_prio.h common/arb_pulses.h
+
+$(OUT)/arb-watchdog: $(WATCHDOG_SRC) $(WATCHDOG_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $(WATCHDOG_SRC)
+
+$(OUT)/test_watchdog: tests/test_watchdog.c tests/arb_test.h common/arb_wd_client.c common/arb_wd_client.h $(WATCHDOG_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/test_watchdog.c common/arb_wd_client.c
+
+$(OUT)/watchdog_suite.sh: tests/watchdog_suite.sh | $(OUT)
 	install -m 755 $< $@
 
 # --------------------------------------------------------------- host checks
@@ -127,9 +141,9 @@ analyze: | $(HOST_OUT)
 analyze-qnx: qnx-env
 	$(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -Iguardian -c guardian/main.c -o /dev/null
 	$(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -Iguardian -c guardian/arm_link.c -o /dev/null
-	for f in $(ARM_SRC); do $(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -c $$f -o /dev/null || exit 1; done
+	for f in $(ARM_SRC) $(WATCHDOG_SRC); do $(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -c $$f -o /dev/null || exit 1; done
 	cppcheck --std=c11 --enable=warning,style,performance,portability --inline-suppr \
-	         --error-exitcode=1 --quiet -D_QNX_SOURCE $(INCLUDES) -Iguardian $(GUARDIAN_SRC) $(ARM_SRC)
+	         --error-exitcode=1 --quiet -D_QNX_SOURCE $(INCLUDES) -Iguardian $(GUARDIAN_SRC) $(ARM_SRC) $(WATCHDOG_SRC)
 
 # Purity (NFR-K2): compile the library alone and list every symbol it needs from
 # outside. Anything beyond the allowed C library set fails.

@@ -66,7 +66,7 @@ its left is assumed hostile.
 | TM-C1 | No command from the untrusted side moves the arm outside the contract: joint limits, speed limit, keep-out zones along the whole path, move duration | A1, A2, A3 | The guardian decides every command with `libcontract`; the arm independently enforces the speed limit, the start tolerance and the motion lease | F1, F4, F5, F6, F9; `qnx/tests/test_libcontract.c` | Decision logic tested on host and QEMU; end to end from M1 day 7 |
 | TM-C2 | No untrusted process can get the arm to act on a setpoint | A3 | The arm binds to the first connection with the guardian's user ID and refuses every other connection's setpoints and pulses (M1); the kernel security policy refuses the connection itself (M2) | F11 with the policy on and off; `fr_g6_arm_*` | Arm-side check tested on QEMU; F11 and the policy in M2 |
 | TM-C3 | Untrusted message content, pulse floods, rate or CPU use cannot starve the arm's control loop, the watchdog or any stop path; their delays are measured, not assumed | A1, A3 | Strict fixed priorities with every trusted thread in the privileged range (64 and above) that no untrusted process can use; `_NTO_CHF_FIXED_PRIORITY` on trusted channels; synchronous sends that block the sender; bounded work per command (`docs/DESIGN_M1_ADDENDUM.md` sections 4 and 6) | F3 (message and pulse floods), F12 | Designed |
-| TM-C4 | Losing the untrusted side leaves the arm safe: planner or gateway silence, death or hang leads to `HOLD`; guardian death or hang leads to a brake | A1, A3, A4 | Silence timeout; the resource manager's close handler; the arm's motion lease, disconnect pulse and the watchdog (addendum section 2) | F2, F10, F13; `fr_a4_*`, `fr_g5_guardian_silence_holds_the_arm` | Tested on QEMU without the watchdog: silence holds the arm; guardian killed or stopped brakes it. Watchdog: M1 day 6 |
+| TM-C4 | Losing the untrusted side leaves the arm safe: planner or gateway silence, death or hang leads to `HOLD`; guardian death or hang leads to a brake | A1, A3, A4 | Silence timeout; the resource manager's close handler; the arm's motion lease, disconnect pulse and the watchdog (addendum section 2) | F2, F10, F13; `fr_a4_*`, `fr_g5_guardian_silence_holds_the_arm` | Tested on QEMU: silence holds the arm; guardian killed or stopped brakes it (lease, disconnect and watchdog); arm killed puts the guardian in SAFE_STOP. F2, F10, F13 in the bench |
 | TM-C5 | Replayed, reordered or out-of-date commands are refused; the sender's clock is never trusted | A1, A3 | Sequence numbers with wrap-safe comparison; rate limit on the guardian's own clock | F9; `fr_g4_sequence_*`, `fr_g4_rate_limit_uses_guardian_clock_not_sender_clock` | Tested on host and QEMU (decision logic) |
 | TM-C6 | Editing, removing or reordering records in a saved evidence log is detected | Someone with write access to a saved log, but not to the anchor hash recorded elsewhere | SHA-256 hash chain, verified from a published anchor (M2) | F15 | Designed. A party who can rewrite a whole log **and** its anchor can forge it (O1) |
 | TM-C7 | A corrupted or truncated contract table is never used | Accidental corruption, not an attacker (T4) | Version, size and CRC-32 checks at load; the guardian refuses to start | `fr_c4_*`, `test_contract_file` on QNX | Tested on host and QEMU |
@@ -86,8 +86,11 @@ its left is assumed hostile.
   to the first connection whose user ID is the guardian's, and with every
   process running as root, any root process that connected before the guardian
   would be bound instead. The startup order (arm, then guardian at once) narrows
-  this; the M2 security policy removes it, because no other type may connect to
-  the arm at all.
+  this in M1. M2 removes it without relying on order: every process runs under
+  its own user ID and security type, the arm binds only the guardian's user ID,
+  and the policy lets only the guardian's type connect to the arm. F11 tests the
+  case of an untrusted process started before the guardian, with the policy on
+  (refused at connect) and off (refused by the arm's user-ID check).
 - `name_open()` does not authenticate the server. A process that registered the
   arm's internal name first could receive the guardian's setpoints. It still
   could not move the real arm, whose motion lease would expire (TM-C4); from M2

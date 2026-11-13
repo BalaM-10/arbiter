@@ -43,6 +43,7 @@ typedef struct {
     _Atomic uint64_t lease_expiries;
     _Atomic uint64_t disconnects;      /* bound guardian connection lost */
     _Atomic int64_t  bound_pid;        /* process the arm accepts commands from, or -1 */
+    _Atomic uint64_t wd_brakes;        /* brakes commanded by the watchdog */
     arb_telem_sample_t s[ARB_TELEM_SLOTS];
 } arb_telem_t;
 

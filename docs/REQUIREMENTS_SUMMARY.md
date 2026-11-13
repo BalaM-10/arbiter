@@ -185,7 +185,7 @@ measurement, and timing is claimed only from Pi 5 runs saved in `evidence/`.
 | F8 | Malformed input: truncated, oversized and random frames rejected; nothing trusted crashes or stalls |
 | F9 | Replay: old sequence numbers `DENY` by the sequence rule |
 | F10 | AI process killed: `HOLD`, then safe; trusted processes unaffected |
-| F11 | Bypass attempt: a direct setpoint to the arm is blocked by the security policy, and rejected by the arm with the policy off (TM-C2) |
+| F11 | Bypass attempt: a direct setpoint to the arm, also from a process started before the guardian, is blocked by the security policy, and rejected by the arm with the policy off, whatever the startup order (TM-C2) |
 | F12 | CPU starvation attempt: latency and jitter stay within NFR-T2 and NFR-T6 |
 | F13 | Guardian killed: the arm brakes within NFR-T5 and the watchdog records the cause |
 | F14 | Emergency stop: `SAFE_STOP` within 2 control cycles |

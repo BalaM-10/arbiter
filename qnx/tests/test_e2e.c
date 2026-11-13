@@ -6,6 +6,7 @@
  *   test_e2e move                   an approved command moves the arm; silence holds it
  *   test_e2e killed  <guardian-pid> the guardian is killed mid-move: the arm brakes
  *   test_e2e stopped <guardian-pid> the guardian is stopped mid-move: the lease expires
+ *   test_e2e armkilled <arm-pid>    the arm is killed: the watchdog puts the guardian in SAFE_STOP
  *
  * QEMU proves function; the times printed are QEMU measurements, not claims.
  */
@@ -26,10 +27,12 @@
 #include "arb_contract.h"
 #include "arb_devctl.h"
 #include "arb_telemetry.h"
+#include "arb_watchdog_proto.h"
 #include "arm_motion.h"
 #include "arb_test.h"
 
 static const arb_telem_t *g_tm;
+static const arb_wd_status_t *g_wd;
 static int g_fd = -1;
 static uint32_t g_seq = 1000;
 static pid_t g_guardian;
@@ -189,23 +192,67 @@ static void guardian_lost_mid_move(int sig, const char *what, double limit_ms)
     (void)clock_gettime(CLOCK_MONOTONIC, &ts);
 }
 
+static uint32_t wd_cause(void) { return atomic_load((_Atomic uint32_t *)&g_wd->last_cause); }
+static uint32_t wd_role(void)  { return atomic_load((_Atomic uint32_t *)&g_wd->last_role); }
+
 static void fr_a4_guardian_killed_arm_brakes(void)
 {
     guardian_lost_mid_move(SIGKILL, "killed", (double)ARB_LEASE_MS + 5.0);
 }
 
+static void fr_w3_watchdog_records_that_the_guardian_died(void)
+{
+    ms_sleep(50);
+    CHECK_EQ_INT(wd_role(), ARB_WD_ROLE_GUARDIAN);
+    CHECK_EQ_INT(wd_cause(), ARB_WD_CAUSE_DIED);
+    CHECK(atomic_load((_Atomic uint64_t *)&g_wd->death_notices) >= 1u);
+}
+
 static void fr_a4_lease_expires_when_guardian_stopped(void)
 {
     guardian_lost_mid_move(SIGSTOP, "stopped", (double)ARB_LEASE_MS + 5.0);
+}
+
+static void fr_w2_watchdog_records_a_stuck_guardian_and_brakes_the_arm(void)
+{
+    ms_sleep(50);
+    CHECK_EQ_INT(wd_role(), ARB_WD_ROLE_GUARDIAN);
+    CHECK_EQ_INT(wd_cause(), ARB_WD_CAUSE_STUCK);      /* alive but silent: stuck, not dead */
+    CHECK(atomic_load((_Atomic uint64_t *)&g_tm->wd_brakes) >= 1u);
     (void)kill(g_guardian, SIGCONT);
+}
+
+static void fr_w2_arm_death_puts_the_guardian_in_safe_stop(void)
+{
+    arb_status_t st;
+    arb_verdict_wire_t w;
+
+    CHECK(kill(g_guardian, SIGKILL) == 0);              /* here g_guardian holds the arm's pid */
+    ms_sleep(100);
+    CHECK_EQ_INT(wd_role(), ARB_WD_ROLE_ARM);
+    CHECK(wd_cause() == ARB_WD_CAUSE_DIED);
+    memset(&st, 0, sizeof st);
+    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_GET_STATUS, &st, sizeof st, NULL), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    CHECK_EQ_INT(st.stop_cause, ARB_STOP_WATCHDOG);
+    CHECK_EQ_INT(st.watchdog_trips, 1);
+    CHECK_EQ_INT(submit(-100000, 0, 1000, &w), EOK);    /* nothing moves until a reset */
+    CHECK(w.verdict == ARB_VERDICT_DENY && w.rule == ARB_RULE_STATE);
 }
 
 static const arb_test_case_t move_cases[] = {
     ARB_TEST_CASE(fr_a3_guardian_approved_command_moves_the_arm),
     ARB_TEST_CASE(fr_g5_guardian_silence_holds_the_arm),
 };
-static const arb_test_case_t killed_cases[] = { ARB_TEST_CASE(fr_a4_guardian_killed_arm_brakes) };
-static const arb_test_case_t stopped_cases[] = { ARB_TEST_CASE(fr_a4_lease_expires_when_guardian_stopped) };
+static const arb_test_case_t killed_cases[] = {
+    ARB_TEST_CASE(fr_a4_guardian_killed_arm_brakes),
+    ARB_TEST_CASE(fr_w3_watchdog_records_that_the_guardian_died),
+};
+static const arb_test_case_t stopped_cases[] = {
+    ARB_TEST_CASE(fr_a4_lease_expires_when_guardian_stopped),
+    ARB_TEST_CASE(fr_w2_watchdog_records_a_stuck_guardian_and_brakes_the_arm),
+};
+static const arb_test_case_t armkilled_cases[] = { ARB_TEST_CASE(fr_w2_arm_death_puts_the_guardian_in_safe_stop) };
 
 int main(int argc, char **argv)
 {
@@ -220,8 +267,15 @@ int main(int argc, char **argv)
     }
     g_tm = mmap(NULL, sizeof(arb_telem_t), PROT_READ, MAP_SHARED, fd, 0);
     (void)close(fd);
+    fd = shm_open(ARB_WD_STATUS_NAME, O_RDONLY, 0);
+    if (fd == -1) {
+        printf("FAIL cannot open watchdog status: %s\n", strerror(errno));
+        return 1;
+    }
+    g_wd = mmap(NULL, sizeof(arb_wd_status_t), PROT_READ, MAP_SHARED, fd, 0);
+    (void)close(fd);
     g_fd = open(ARB_DEV_PATH, O_RDWR);
-    if (g_tm == MAP_FAILED || g_fd < 0) {
+    if (g_tm == MAP_FAILED || g_wd == MAP_FAILED || g_fd < 0) {
         printf("FAIL cannot map telemetry or open %s\n", ARB_DEV_PATH);
         return 1;
     }
@@ -231,10 +285,13 @@ int main(int argc, char **argv)
     if (argc == 3) {
         g_guardian = (pid_t)strtol(argv[2], NULL, 10);
         if (strcmp(mode, "killed") == 0) {
-            return arb_test_run("test_e2e killed", killed_cases, 1);
+            return arb_test_run("test_e2e killed", killed_cases, 2);
         }
         if (strcmp(mode, "stopped") == 0) {
-            return arb_test_run("test_e2e stopped", stopped_cases, 1);
+            return arb_test_run("test_e2e stopped", stopped_cases, 2);
+        }
+        if (strcmp(mode, "armkilled") == 0) {
+            return arb_test_run("test_e2e armkilled", armkilled_cases, 1);
         }
     }
     printf("usage: test_e2e move | killed <pid> | stopped <pid>\n");

@@ -23,9 +23,15 @@
 #define ARB_PULSE_ARM_RENEW     (_PULSE_CODE_MINAVAIL + 3)   /* renew the motion lease */
 #define ARB_PULSE_ARM_HOLD      (_PULSE_CODE_MINAVAIL + 4)   /* stop along the segment, not latched (HOLD) */
 #define ARB_PULSE_ARM_BRAKE     (_PULSE_CODE_MINAVAIL + 5)   /* stop along the segment and latch (SAFE_STOP) */
+/* Watchdog (FR-W1..W3): */
+#define ARB_PULSE_WD_TICK          (_PULSE_CODE_MINAVAIL + 6)   /* watchdog's own 1 ms timer */
+#define ARB_PULSE_WD_HEARTBEAT     (_PULSE_CODE_MINAVAIL + 7)   /* client -> watchdog, value = role */
+#define ARB_PULSE_WD_DEATH         (_PULSE_CODE_MINAVAIL + 8)   /* process manager -> watchdog, value = pid */
+#define ARB_PULSE_ARM_WD_BRAKE     (_PULSE_CODE_MINAVAIL + 9)   /* watchdog -> arm (registered event), value = token */
+#define ARB_PULSE_GUARDIAN_WD_TRIP (_PULSE_CODE_MINAVAIL + 10)  /* watchdog -> guardian (registered event), value = token */
 
 _Static_assert(ARB_PULSE_DEMO >= _PULSE_CODE_MINAVAIL && ARB_PULSE_DEMO <= _PULSE_CODE_MAXAVAIL,
                "pulse code outside the user range");
-_Static_assert(ARB_PULSE_ARM_BRAKE <= _PULSE_CODE_MAXAVAIL, "pulse code outside the user range");
+_Static_assert(ARB_PULSE_GUARDIAN_WD_TRIP <= _PULSE_CODE_MAXAVAIL, "pulse code outside the user range");
 
 #endif /* ARB_PULSES_H */

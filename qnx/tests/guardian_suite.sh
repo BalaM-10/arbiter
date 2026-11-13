@@ -8,7 +8,10 @@ fail=0
 STUB=
 GUARD=
 
-arb_start() {    # arb_start <stub mode>
+arb_start() {    # arb_start <stub mode>   (watchdog, stand-in arm, guardian)
+    ./arb-watchdog &
+    WD=$!
+    sleep 1
     ./arb_arm_stub "$1" &
     STUB=$!
     sleep 1
@@ -18,9 +21,10 @@ arb_start() {    # arb_start <stub mode>
 }
 
 arb_stop() {
-    kill "$GUARD" "$STUB" 2>/dev/null
+    kill "$GUARD" "$STUB" "$WD" 2>/dev/null
     wait "$GUARD" 2>/dev/null
     wait "$STUB" 2>/dev/null
+    wait "$WD" 2>/dev/null
     sleep 1
 }
 

@@ -4,9 +4,9 @@ Every QNX 8.0 feature this repository uses, why it is needed, where it is used,
 the 8.0 documentation page, and the saved output that shows it running on QNX.
 
 Status: milestone M1, in progress. The guardian (`qnx/guardian/`) and the arm
-controller (`qnx/arm/`) run on QNX, alone and end to end; the guardian's fault
-tests also use a stand-in arm (`qnx/tests/arb_arm_stub.c`). The watchdog is
-added as it lands. Rows marked "sample" come from the M0
+controller (`qnx/arm/`) and the watchdog (`qnx/watchdog/`) run on QNX, alone
+and end to end; the guardian's fault tests also use a stand-in arm
+(`qnx/tests/arb_arm_stub.c`). Rows marked "sample" come from the M0
 message-passing sample, a toolchain check that is not part of the guardian.
 Why each feature matters in the scenario: `docs/WHY_QNX.md`.
 
@@ -45,6 +45,15 @@ defined in `docs/REQUIREMENTS_SUMMARY.md`.
 | Motion lease renewed by pulses (`MsgSendPulse`, `struct _pulse` `scoid`) | Every authorization expires inside the arm unless the guardian renews it; renewals count only from the guardian's connection (FR-A4, TM-C4) | `qnx/arm/main.c`, `qnx/guardian/main.c` | `handle_pulse()`, `on_tick()` | [MsgSendPulse](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsendpulse.html), [_pulse](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/_pulse.html) | `evidence/runs/2026-11-13-qemu/run-144326.log`: `fr_a4_*` |
 | Memory locking (`mlockall`) | Trusted processes state the intent; in 8.0 "all memory is locked for the entire duration of the process" (NFR-I2) | `qnx/arm/main.c` | `main()` | [mlockall](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/mlockall.html) | — (a no-op in 8.0, by the page) |
 | Clock period and cycle counter (`ClockPeriod`, `clock_getres`, `ClockCycles`) | Timing is measured, not assumed: the tick decides how a 2 ms timeout behaves (NFR-Q4 groundwork) | `qnx/tests/test_send_timeout.c` | `main()` | [ClockPeriod](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/clockperiod.html), [ClockCycles](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/clockcycles.html) | `run-133305.log` (tick 1000000 ns) |
+
+## Supervision
+
+| QNX feature | Why Arbiter needs it | File | Function | 8.0 doc page | Proof |
+| --- | --- | --- | --- | --- | --- |
+| Process-manager death notices (`procmgr_event_notify_add`, `PROCMGR_EVENT_PROCESS_DEATH`, `SIGEV_MAKE_UPDATEABLE`) | The watchdog learns that the guardian or the arm died, and which one (FR-W3, TM-C4) | `qnx/watchdog/main.c` | `main()`, `handle_pulse()` | [procmgr_event_notify_add](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/procmgr_event_notify_add.html), [detecting termination](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.prog/topic/process_Termination_of_daemons.html) | pending (run after commit): `fr_w3_death_detected_by_death_notice`, `fr_w3_watchdog_records_that_the_guardian_died` |
+| Registered events (`MsgRegisterEvent` with `SYSMGR_COID` and with the watchdog's connection) | 8.0 delivers another process's event only if it was registered; each client lets only the watchdog fire its trip event (FR-W2, TM-C4) | `qnx/watchdog/main.c`, `qnx/common/arb_wd_client.c` | `main()`, `arb_wd_client_register()` | [MsgRegisterEvent](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgregisterevent.html) | pending (run after commit): `fr_w2_*` |
+| Server-to-client notification (`MsgDeliverEvent`) | The watchdog tells the arm to brake, or the guardian to stop, without ever sending them a message that could block it (FR-W2) | `qnx/watchdog/main.c` | `trip()` | [MsgDeliverEvent](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgdeliverevent.html) | pending (run after commit): `fr_w2_missed_guardian_heartbeat_brakes_the_arm`, `fr_w2_arm_death_puts_the_guardian_in_safe_stop` |
+| Heartbeat pulses checked against the sender's connection (`struct _pulse` `scoid`) | A stuck process is caught even though it is alive; heartbeats or death notices forged by another process are ignored (FR-W3, TM-C4) | `qnx/watchdog/main.c` | `handle_pulse()` | [_pulse](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/_pulse.html), [MsgSendPulse](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsendpulse.html) | pending (run after commit): `fr_w3_stuck_*`, `fr_w2_heartbeats_from_another_connection_ignored`, `fr_w3_forged_death_notice_ignored` |
 
 ## Security policies
 

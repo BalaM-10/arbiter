@@ -10,7 +10,10 @@
  *
  *   arb-guardian <contract.bin>
  *
- * Exit status: 2 contract refused (FR-C4), 3 scheduling, 4 no arm, 5 setup.
+ * Exit status: 2 contract refused (FR-C4), 3 scheduling, 4 no arm, 5 setup, 6 no watchdog.
+ * Startup order: watchdog, then arm, then guardian. The guardian registers with
+ * the watchdog, sends a heartbeat every tick, and enters SAFE_STOP when the
+ * watchdog says the arm died or is stuck.
  * Design: docs/DESIGN_M1_ADDENDUM.md. Threat model: docs/THREAT_MODEL.md.
  * Toward the arm (docs/DESIGN_M1_ADDENDUM.md section 2): a lease renewal pulse
  * every tick unless in SAFE_STOP; a hold pulse on entering HOLD; a latching brake
@@ -38,6 +41,8 @@
 #include "arb_prio.h"
 #include "arb_pulses.h"
 #include "arm_link.h"
+#include "arb_watchdog_proto.h"
+#include "arb_wd_client.h"
 
 #define TICK_NS 1000000L
 
@@ -52,6 +57,7 @@ static arb_contract_table_t g_contract;
 static arb_guard_t          g_guard;
 static arm_link_t           g_arm;
 static arb_status_t         g_status;
+static arb_wd_client_t      g_wd;
 
 static uint64_t now_ns(void)
 {
@@ -258,6 +264,23 @@ static int on_tick(message_context_t *ctp, int code, unsigned flags, void *handl
     if (g_guard.state != ARB_STATE_SAFE_STOP) {
         arm_pulse(ARB_PULSE_ARM_RENEW);   /* HOLD is an authorized state too */
     }
+    arb_wd_client_heartbeat(&g_wd);
+    return 0;
+}
+
+/* The watchdog says the arm died or is stuck: SAFE_STOP (FR-W2, FR-G5). */
+static int on_wd_trip(message_context_t *ctp, int code, unsigned flags, void *handle)
+{
+    const uint8_t before = g_guard.state;
+
+    (void)code; (void)flags; (void)handle;
+    if (!arb_wd_client_is_trip(&g_wd, &ctp->msg->pulse, ARB_PULSE_GUARDIAN_WD_TRIP)) {
+        g_status.bad_messages++;          /* the code without our token: forged */
+        return 0;
+    }
+    g_status.watchdog_trips++;
+    arb_guard_fault(&g_guard, ARB_STOP_WATCHDOG);
+    follow_state(before);
     return 0;
 }
 
@@ -372,7 +395,8 @@ int main(int argc, char **argv)
     }
 
     /* Everything attached before dispatch_context_alloc() (DISPATCH_FLAG_NOLOCK). */
-    if (pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_TICK, on_tick, NULL) == -1) {
+    if (pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_TICK, on_tick, NULL) == -1 ||
+        pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_WD_TRIP, on_wd_trip, NULL) == -1) {
         fprintf(stderr, "arb-guardian: pulse_attach: %s\n", strerror(errno));
         return 5;
     }
@@ -386,6 +410,10 @@ int main(int argc, char **argv)
     if (coid == -1) {
         fprintf(stderr, "arb-guardian: ConnectAttach: %s\n", strerror(errno));
         return 5;
+    }
+    if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_GUARDIAN, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_WD_TRIP) != 0) {
+        fprintf(stderr, "arb-guardian: cannot register with the watchdog: %s; not starting\n", strerror(errno));
+        return 6;
     }
     SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_TICK, 0);
     if (timer_create(CLOCK_MONOTONIC, &ev, &timer) == -1) {
