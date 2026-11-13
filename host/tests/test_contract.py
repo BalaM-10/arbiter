@@ -32,7 +32,7 @@ def _contract(**overrides: str) -> bytes:
         "ai_silence_timeout_ms": "ai_silence_timeout_ms: 250",
         "command_rate": "command_rate: {per_second: 50, burst: 10}",
         "violations": "violations: {threshold: 3, window_ms: 1000}",
-        "keep_out_zones": "keep_out_zones:\n  - {name: person, x_mm: [200, 400], y_mm: [150, 350]}",
+        "keep_out_zones": "keep_out_zones:\n  - {name: operator_hand_area, x_mm: [200, 400], y_mm: [150, 350]}",
     }
     sections.update(overrides)
     return ("\n".join(v for v in sections.values() if v) + "\n").encode()
@@ -95,7 +95,7 @@ def fr_c2_wrong_types_rejected() -> None:
         ai_silence_timeout_ms="ai_silence_timeout_ms: true")))
     assert "joints: must be a mapping" in _problems(_contract(joints="joints: [1, 2]"))
     assert "keep_out_zones: must be a list (use [] for none)" in _problems(_contract(
-        keep_out_zones="keep_out_zones: person"))
+        keep_out_zones="keep_out_zones: hands"))
     assert ": must be a mapping" in _problems(b"- just\n- a list\n")
 
 

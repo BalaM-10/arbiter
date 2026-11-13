@@ -1,4 +1,11 @@
-# Arbiter safety contract (FR-C1). Compiled on the host with
+# Arbiter safety contract (FR-C1).
+#
+# Scenario: a tabletop arm moves parts on a shared workbench while a person
+# works next to it. An AI planner decides where the parts go. The keep-out zone
+# is the area of the bench where the person's hands work; the arm must never
+# reach into it, whatever the planner asks.
+#
+# Compiled on the host with
 #   arbiter contract compile contracts/default.yaml -o build/contract/default.bin
 # The guardian only ever loads the compiled binary table (FR-C5).
 #
@@ -8,7 +15,8 @@
 
 contract_version: 1
 
-# Two joints of the simulated planar arm (shoulder, then elbow).
+# Two joints of the simulated planar arm (shoulder, then elbow), seen from
+# above the bench. Link lengths: 0.30 m and 0.25 m (qnx/common/arb_arm_model.h).
 joints:
   shoulder: {min_deg: -150, max_deg: 150}
   elbow:    {min_deg: -135, max_deg: 135}
@@ -33,9 +41,10 @@ violations:
   threshold: 3
   window_ms: 1000
 
-# Rectangles in the workspace (base at the origin, x along the arm at rest).
-# Neither the elbow nor the tip may enter one, anywhere along a move.
+# Rectangles on the bench, seen from above (arm base at the origin, x along
+# the arm at rest). Neither the elbow nor the tip may enter one, anywhere along
+# a move.
 keep_out_zones:
-  - name: person
+  - name: operator_hand_area      # where the person's hands work, 0.2 x 0.2 m
     x_mm: [200, 400]
     y_mm: [150, 350]

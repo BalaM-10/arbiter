@@ -47,7 +47,7 @@ static arb_contract_table_t make_table(int with_zone)
     t.max_duration_ms = 10000;        /* a full-range move needs 5200 ms at vmax */
     if (with_zone) {
         t.zone_count = 1;
-        t.zones[0].x_min_um = 200000;   /* person zone: x 0.20..0.40 m, y 0.15..0.35 m */
+        t.zones[0].x_min_um = 200000;   /* operator's hand area: x 0.20..0.40 m, y 0.15..0.35 m */
         t.zones[0].y_min_um = 150000;
         t.zones[0].x_max_um = 400000;
         t.zones[0].y_max_um = 350000;

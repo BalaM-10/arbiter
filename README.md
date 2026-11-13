@@ -10,6 +10,14 @@ It runs on **QNX OS 8.0**, between an untrusted AI planner and a (simulated)
 robot arm. It is a safety-oriented design built for the QNX Global Hackathon; it
 is not certified and not intended for production use.
 
+**The scenario.** A tabletop arm moves parts on a shared workbench while a
+person works next to it. An AI planner decides where each part goes. The
+contract ([`contracts/default.yaml`](contracts/default.yaml)) marks the area
+where the person's hands work as a keep-out zone, together with joint limits,
+a speed limit and timing rules. Whatever the planner proposes, and whether it is
+right, wrong, silent, flooding or dead, Arbiter decides on QNX what the arm may
+do.
+
 ## Status: milestone M1 (safety core), in progress
 
 | Works today, on QNX 8.0 in QEMU | Not built yet |
