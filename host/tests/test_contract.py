@@ -32,7 +32,8 @@ def _contract(**overrides: str) -> bytes:
         "ai_silence_timeout_ms": "ai_silence_timeout_ms: 250",
         "command_rate": "command_rate: {per_second: 50, burst: 10}",
         "violations": "violations: {threshold: 3, window_ms: 1000}",
-        "keep_out_zones": "keep_out_zones:\n  - {name: operator_hand_area, x_mm: [200, 400], y_mm: [150, 350]}",
+        "keep_out_zones": ("keep_out_zones:\n"
+                           "  - {name: operator_hand_area, x_mm: [200, 400], y_mm: [150, 350]}"),
     }
     sections.update(overrides)
     return ("\n".join(v for v in sections.values() if v) + "\n").encode()

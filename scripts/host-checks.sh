@@ -20,7 +20,7 @@ mkdir -p "$OUTDIR"
 fail=0
 step() {   # step <title> <command...>
     local title="$1"; shift
-    echo; echo "## $title"; echo "\$ $*"
+    echo; echo "## $title"; echo "\$ ${*//$REPO_ROOT/.}"   # repo-relative: no local paths in the log
     if "$@" 2>&1 | grep -v -E '^make(\[[0-9]+\])?: (Entering|Leaving)'; [ "${PIPESTATUS[0]}" -eq 0 ]; then
         echo "-> ok"
     else
