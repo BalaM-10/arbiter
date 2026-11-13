@@ -13,6 +13,7 @@ TESTS=(
     "test_libcontract:libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)"
     "test_contract_file contract-corpus/manifest.txt:compiled contract loads on QNX exactly as written; corrupted tables rejected (FR-C3, FR-C4)"
     "test_send_timeout:2 ms TimerTimeout on MsgSend, SEND and REPLY states, measured (FR-G9 design check)"
+    "guardian_suite.sh:arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)"
 )
 ALL_ARCHS=(x86_64 aarch64le)
 

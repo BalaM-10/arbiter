@@ -28,4 +28,46 @@ typedef struct {
 
 _Static_assert(sizeof(arb_cmd_t) == 32, "arb_cmd_t layout");
 
+/* The guardian's answer to one command (FR-G3). 32 bytes. */
+typedef struct {
+    uint16_t version;                  /* ARB_PROTO_VERSION */
+    uint8_t  verdict;                  /* ALLOW=1, CLAMP=2, DENY=3 */
+    uint8_t  rule;                     /* rule that decided (arb_rule_t in libcontract) */
+    uint8_t  state;                    /* guardian state after the decision */
+    uint8_t  flags;                    /* e.g. keep-out exit move */
+    uint16_t reserved0;
+    uint32_t seq;                      /* echoed */
+    int32_t  target_urad[ARB_JOINTS];  /* forwarded setpoint (ALLOW/CLAMP), else 0 */
+    uint32_t duration_ms;              /* forwarded duration (stretched on CLAMP), else 0 */
+    uint32_t requested_ms;             /* as sent */
+    uint32_t reserved1;
+} arb_verdict_wire_t;
+
+_Static_assert(sizeof(arb_verdict_wire_t) == 32, "arb_verdict_wire_t layout");
+
+/* Guardian status (for tests and the dashboard). 32 bytes. */
+typedef struct {
+    uint16_t version;
+    uint8_t  state;                    /* HOLD=1, NORMAL=2, SAFE_STOP=3 */
+    uint8_t  stop_cause;               /* 0 none, 1 violations, 2 arm timeout, 3 watchdog, 4 e-stop */
+    uint32_t clients;                  /* open connections to /dev/arbiter */
+    uint32_t decisions;                /* commands decided */
+    uint32_t arm_faults;               /* arm sends that failed or timed out */
+    uint32_t ticks;                    /* 1 ms ticks handled */
+    uint32_t bad_messages;             /* devctl messages rejected before decision */
+    uint32_t reserved[2];
+} arb_status_t;
+
+_Static_assert(sizeof(arb_status_t) == 32, "arb_status_t layout");
+
+/* devctl() payload for a command: the command in, the verdict out (same buffer). */
+typedef union {
+    arb_cmd_t          cmd;
+    arb_verdict_wire_t verdict;
+} arb_submit_t;
+
+_Static_assert(sizeof(arb_submit_t) == 32, "arb_submit_t layout");
+
+/* devctl() command codes for these payloads: qnx/common/arb_devctl.h (QNX only). */
+
 #endif /* ARB_PROTO_H */

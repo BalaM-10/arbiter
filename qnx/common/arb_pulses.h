@@ -13,9 +13,13 @@
 #include <sys/neutrino.h>
 
 /* M0 message-passing sample (qnx/samples/msgpass). Not used by the guardian. */
-#define ARB_PULSE_DEMO (_PULSE_CODE_MINAVAIL + 0)
+#define ARB_PULSE_DEMO          (_PULSE_CODE_MINAVAIL + 0)
+/* Guardian's own 1 ms timer tick (silence timeout; later heartbeats and lease renewals). */
+#define ARB_PULSE_GUARDIAN_TICK (_PULSE_CODE_MINAVAIL + 1)
 
 _Static_assert(ARB_PULSE_DEMO >= _PULSE_CODE_MINAVAIL && ARB_PULSE_DEMO <= _PULSE_CODE_MAXAVAIL,
+               "pulse code outside the user range");
+_Static_assert(ARB_PULSE_GUARDIAN_TICK >= _PULSE_CODE_MINAVAIL && ARB_PULSE_GUARDIAN_TICK <= _PULSE_CODE_MAXAVAIL,
                "pulse code outside the user range");
 
 #endif /* ARB_PULSES_H */

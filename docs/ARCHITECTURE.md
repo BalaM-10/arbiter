@@ -1,9 +1,10 @@
 # Architecture
 
-Status: M1 in progress. This page describes what is built (the decision logic in
-`qnx/libcontract/`). The guardian-to-arm design (scheduling, motion leases,
-timeouts, fault containment) is in `docs/DESIGN_M1_ADDENDUM.md` and is added
-here once implemented. Requirement IDs are defined in
+Status: M1 in progress. This page describes what is built: the decision logic
+in `qnx/libcontract/` and the guardian in `qnx/guardian/`. The full M1 design
+(scheduling, motion leases, timeouts, fault containment) is in
+`docs/DESIGN_M1_ADDENDUM.md`; the arm controller and watchdog are added here once
+implemented. Requirement IDs are defined in
 `docs/REQUIREMENTS_SUMMARY.md`.
 
 ## Components and trust
@@ -49,12 +50,19 @@ than the contract allows.
 | 1 | Exactly 32 bytes; version 1; flags and reserved zero | `MALFORMED` | no |
 | 1 | Requested duration ≥ 1 ms and ≤ the contract's `max_duration_ms` | `DURATION` | no |
 | 2 | Not in `SAFE_STOP` | `STATE` | no |
-| — | The arm's reported position is a sane angle | `INTERNAL` | no |
 | 3 | Sequence number newer than the last (32-bit wrap-safe) | `SEQUENCE` | no |
 | 4 | Token bucket on the guardian's own clock (the sender's timestamp is never used) | `RATE` | no |
 | 5 | Every target within its joint limits | `JOINT_LIMIT` | **yes** |
+| — | The arm's reported position is a sane angle (first check that needs it) | `INTERNAL` | no |
 | 6 | Velocity: if any joint would exceed `vmax`, the duration is stretched to the minimum that keeps every joint at or under `vmax` (verdict `CLAMP`) | — | no |
 | 7 | Keep-out zones along the whole path (below) | `KEEPOUT` | **yes** |
+
+Checks 1 to 5 need no arm position, so a flood of invalid commands never causes
+a query to the arm; the guardian asks the arm for its position only for commands
+that pass them, which the rate limit bounds. A command counts as accepted only
+once the arm has accepted its setpoint (`arb_guard_commit_accept()`); if the arm
+refuses it (`STALE_START`) or does not answer in time (`ARM_FAULT`, which also
+enters `SAFE_STOP`), it is reported as a DENY and is not a violation.
 
 Only joint-limit and keep-out denials count toward the violation threshold: N
 of them within W ms enter `SAFE_STOP` (owner decision, Nov 13). A DENY never
@@ -63,7 +71,8 @@ carries a setpoint.
 **States (FR-G5).** The guardian starts in `HOLD`. An accepted command (ALLOW or
 CLAMP) moves `HOLD` to `NORMAL`. No accepted command for longer than the
 silence timeout moves `NORMAL` to `HOLD`; denied commands do not count as
-activity. `SAFE_STOP` is entered on the violation threshold or an external fault
+activity. When the last client of `/dev/arbiter` closes or dies, `NORMAL` moves to
+`HOLD` at once (`arb_guard_client_lost()`). `SAFE_STOP` is entered on the violation threshold or an external fault
 (arm-send timeout, watchdog, emergency stop) and is left only by an explicit
 operator reset, which returns to `HOLD`. Replay protection survives a reset.
 
@@ -105,6 +114,40 @@ Tests: `fr_g4_keepout_exit_only_move_from_inside_allowed`,
 `fr_g4_keepout_from_inside_not_ending_outside_denied`,
 `fr_g4_keepout_exit_through_another_zone_denied` in
 `qnx/tests/test_libcontract.c`.
+
+## The guardian process (`arb-guardian`)
+
+A single-threaded resource manager at `/dev/arbiter`, at FIFO priority 64
+(`qnx/common/arb_prio.h`). It loads the contract table once and refuses to start
+on any problem (exit 2, FR-C4); it also refuses to start if the arm's internal
+name is not there. Clients send each command as a `devctl(ARB_DCMD_SUBMIT)` and
+get the verdict back in the same call; `ARB_DCMD_GET_STATUS` reports state and
+counters.
+
+For each devctl the handler checks, before deciding: the descriptor was opened
+for writing; the message is not part of a combine message; the size actually
+sent (`ctp->info.srcmsglen`, `ctp->size`, never the client's own `nbytes`) is
+exactly one command; the client's reply buffer can take the whole verdict.
+Anything else is refused with `EBADF`, `EBADMSG` or `ENOTTY` and counted. Then:
+
+```
+checks 1-5 (no arm needed) --deny--> reply DENY
+   | pass
+ask the arm for its position     (TimerTimeout-bounded; failure -> SAFE_STOP, DENY ARM_FAULT)
+checks 6-7 from that position --deny--> reply DENY
+   | ALLOW or CLAMP
+send the setpoint to the arm     (TimerTimeout-bounded; timeout -> SAFE_STOP, DENY ARM_FAULT;
+   |                              arm says start is stale -> DENY STALE_START)
+   | arm accepted
+commit: AI not silent, HOLD -> NORMAL; reply ALLOW/CLAMP
+```
+
+A 1 ms timer pulse runs the silence timeout. When the last client closes or
+dies, the close handler moves `NORMAL` to `HOLD` at once.
+
+Not yet in the guardian (M1 days 4 to 6): motion-lease renewals and heartbeats,
+the HOLD setpoint on silence, system logging through `slog2`, and the operator
+reset.
 
 ## What is not covered by `libcontract`
 

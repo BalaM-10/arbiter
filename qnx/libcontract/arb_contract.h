@@ -40,8 +40,10 @@ typedef enum {
     ARB_RULE_KEEPOUT     = 6,
     ARB_RULE_STATE       = 7,  /* DENY: guardian is in SAFE_STOP */
     ARB_RULE_INTERNAL    = 8,  /* DENY: caller passed an impossible arm state or contract */
-    ARB_RULE_DURATION    = 9   /* DENY: requested duration 0, above the contract max, or
+    ARB_RULE_DURATION    = 9,  /* DENY: requested duration 0, above the contract max, or
                                   a CLAMP that would need more than the max */
+    ARB_RULE_ARM_FAULT   = 10, /* DENY: approved, but the arm did not answer in time (FR-G9) */
+    ARB_RULE_STALE_START = 11  /* DENY: approved, but the arm had moved from the checked start */
 } arb_rule_t;
 
 /* Verdict flags. */
@@ -116,11 +118,37 @@ arb_load_result_t arb_contract_load(const void *buf, size_t len, arb_contract_ta
 /* Start a guard on a contract that arb_contract_load() accepted. Starts in HOLD. */
 void arb_guard_init(arb_guard_t *g, const arb_contract_table_t *contract, uint64_t now_ns);
 
-/* Decide one command (FR-G3, FR-G4, FR-G5). msg/len are untrusted bytes.
- * current_urad is the arm's position, used as the start of the path. */
+/* Decide one command in one call (FR-G3, FR-G4, FR-G5): the three steps below
+ * run back to back, as if the arm accepted the setpoint. msg/len are untrusted
+ * bytes; current_urad is the arm's position, the start of the path. */
 void arb_guard_check(arb_guard_t *g, const void *msg, size_t len,
                      const int32_t current_urad[ARB_JOINTS], uint64_t now_ns,
                      arb_verdict_t *out);
+
+/* The same decision in three steps, as the guardian runs it:
+ *
+ * 1. arb_guard_check_pre(): checks 1 to 5 (well-formed, state, sequence, rate,
+ *    joint limits), which need no arm position. Returns 1 and fills *cmd if the
+ *    command passed them; otherwise returns 0 with the final DENY in *out. A
+ *    flood of invalid commands therefore never causes a query to the arm.
+ * 2. arb_guard_check_motion(): checks 6 and 7 (velocity, keep-out along the path)
+ *    from the arm's current position. Records keep-out violations, but does not
+ *    yet count the command as accepted.
+ * 3. arb_guard_commit_accept(): call once the arm has accepted the setpoint;
+ *    this is what makes the AI "not silent" and moves HOLD to NORMAL. If the arm
+ *    refuses or times out, call arb_guard_reject_after_approval() instead. */
+int  arb_guard_check_pre(arb_guard_t *g, const void *msg, size_t len, uint64_t now_ns,
+                         arb_cmd_t *cmd, arb_verdict_t *out);
+void arb_guard_check_motion(arb_guard_t *g, const arb_cmd_t *cmd,
+                            const int32_t current_urad[ARB_JOINTS], uint64_t now_ns,
+                            arb_verdict_t *out);
+void arb_guard_commit_accept(arb_guard_t *g, uint64_t now_ns, arb_verdict_t *out);
+void arb_guard_reject_after_approval(arb_guard_t *g, arb_rule_t rule, arb_verdict_t *out);
+
+/* The last client disconnected or died (resource manager close handler):
+ * NORMAL -> HOLD at once, without waiting for the silence timeout (TM-C4).
+ * Returns 1 on a change. */
+int arb_guard_client_lost(arb_guard_t *g);
 
 /* Periodic tick: NORMAL -> HOLD after the silence timeout. Returns 1 on a change. */
 int arb_guard_tick(arb_guard_t *g, uint64_t now_ns);

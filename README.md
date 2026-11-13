@@ -23,12 +23,13 @@ do. What Arbiter defends against, and what it does not, is in
 
 | Works today, on QNX 8.0 in QEMU | Not built yet |
 | --- | --- |
-| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Guardian (resource manager at `/dev/arbiter`) |
-| QEMU x86_64 target built with `mkqnximage`, reached over SSH | Arm controller, watchdog, evidence logger, gateway |
+| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Arm controller (the guardian is tested against a stand-in) |
+| QEMU x86_64 target built with `mkqnximage`, reached over SSH | Watchdog, evidence logger, gateway |
 | Message-passing sample: two processes, send/receive/reply, rejection of malformed messages, pulses, sender identity (7 checks) | Planner, fault bench, dashboard |
 | Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target and timing measurements |
-| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 58 tests on the host and on QNX | |
+| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 63 tests on the host and on QNX | |
 | Contract compiler (`arbiter contract`): strict YAML validation, binary table, checked against the C loader on the host and on QNX | |
+| Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link; tested on QNX against a stand-in arm | |
 
 ## Quick start (QEMU)
 
@@ -46,8 +47,8 @@ sudo ./scripts/qemu-br0-dhcp.sh                                        # QEMU ne
 ./scripts/host-checks.sh                                               # host unit tests, analyzers, traceability
 ```
 
-Expected: `RESULT PASS test_libcontract 58/58`, `RESULT PASS test_contract_file 11/11` and
-`SUMMARY 4/4 tests passed on qemu`, then `SUMMARY host-checks: PASS`.
+Expected: `RESULT PASS test_libcontract 63/63`, `RESULT PASS test_contract_file 11/11`,
+`RESULT PASS guardian_suite` and `SUMMARY 6/6 tests passed on qemu`, then `SUMMARY host-checks: PASS`.
 
 To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/default.yaml -o build/contract.bin`.
 The full log is saved under `evidence/runs/`.

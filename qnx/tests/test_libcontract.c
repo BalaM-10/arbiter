@@ -1081,6 +1081,123 @@ static void fr_g9_arm_send_timeout_fault_enters_safe_stop(void)
     CHECK_EQ_INT(g.stop_cause, ARB_STOP_ARM_TIMEOUT);
 }
 
+/* ------------------------------------------- three-step decision (guardian) */
+
+static void fr_g4_three_step_decision_matches_one_call(void)
+{
+    /* The guardian runs pre -> motion -> commit; it must decide exactly as the
+     * single call does, over a mix of commands. */
+    const arb_contract_table_t t = make_table(1);
+    arb_guard_t a, b;
+    uint64_t seed = 777u;
+
+    arb_guard_init(&a, &t, T0);
+    arb_guard_init(&b, &t, T0);
+    for (uint32_t i = 0; i < 2000; i++) {
+        const int32_t q0 = (int32_t)(xorshift64(&seed) % 6000001u) - 3000000;
+        const int32_t q1 = (int32_t)(xorshift64(&seed) % 6000001u) - 3000000;
+        const uint32_t ms = (uint32_t)(xorshift64(&seed) % 12000u);
+        const uint32_t seq = (uint32_t)(xorshift64(&seed) % 3000u);
+        const uint64_t now = T0 + MS(i * 7u);
+        const arb_cmd_t c = make_cmd(seq, q0, q1, ms);
+        arb_verdict_t va, vb;
+        arb_cmd_t parsed;
+
+        arb_guard_check(&a, &c, sizeof c, HOME, now, &va);
+        if (arb_guard_check_pre(&b, &c, sizeof c, now, &parsed, &vb)) {
+            arb_guard_check_motion(&b, &parsed, HOME, now, &vb);
+            if (vb.verdict != ARB_VERDICT_DENY) {
+                arb_guard_commit_accept(&b, now, &vb);
+            }
+        }
+        if (memcmp(&va, &vb, sizeof va) != 0 || a.state != b.state) {
+            printf("  command %u decided differently\n", (unsigned)i);
+            CHECK(0);
+            break;
+        }
+    }
+}
+
+static void fr_g4_pre_check_rejects_without_arm_position(void)
+{
+    /* Steps 1-5 decide malformed, replayed, rate-limited and out-of-limit
+     * commands without the arm's position: the guardian never asks the arm. */
+    const arb_contract_table_t t = make_table(0);
+    arb_guard_t g;
+    arb_verdict_t v;
+    arb_cmd_t parsed, c;
+    uint8_t junk[5] = { 0 };
+
+    arb_guard_init(&g, &t, T0);
+    CHECK_EQ_INT(arb_guard_check_pre(&g, junk, sizeof junk, T0, &parsed, &v), 0);
+    CHECK(v.rule == ARB_RULE_MALFORMED);
+    c = make_cmd(1, 2600001, 0, 100);
+    CHECK_EQ_INT(arb_guard_check_pre(&g, &c, sizeof c, T0, &parsed, &v), 0);
+    CHECK(v.rule == ARB_RULE_JOINT_LIMIT);
+    c = make_cmd(1, 0, 0, 100);                           /* replay of seq 1 */
+    CHECK_EQ_INT(arb_guard_check_pre(&g, &c, sizeof c, T0, &parsed, &v), 0);
+    CHECK(v.rule == ARB_RULE_SEQUENCE);
+    c = make_cmd(2, 0, 0, 100);
+    CHECK_EQ_INT(arb_guard_check_pre(&g, &c, sizeof c, T0, &parsed, &v), 1);
+    CHECK_EQ_INT(parsed.seq, 2);
+}
+
+static void fr_g5_approval_refused_by_arm_is_not_activity(void)
+{
+    const arb_contract_table_t t = make_table(0);
+    const arb_cmd_t c = make_cmd(1, 100000, 0, 1000);
+    arb_guard_t g;
+    arb_verdict_t v;
+    arb_cmd_t parsed;
+
+    arb_guard_init(&g, &t, T0);
+    CHECK_EQ_INT(arb_guard_check_pre(&g, &c, sizeof c, T0 + MS(10), &parsed, &v), 1);
+    arb_guard_check_motion(&g, &parsed, HOME, T0 + MS(10), &v);
+    CHECK(v.verdict == ARB_VERDICT_ALLOW);
+    arb_guard_reject_after_approval(&g, ARB_RULE_STALE_START, &v);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_STALE_START);
+    CHECK_EQ_INT(v.target_urad[0], 0);                     /* a DENY carries no setpoint */
+    CHECK_EQ_INT(g.state, ARB_STATE_HOLD);                 /* still HOLD: nothing was accepted */
+    CHECK_EQ_INT(g.last_accept_ns, T0);
+    CHECK_EQ_INT(g.violation_fill, 0);                     /* and not a violation */
+}
+
+static void fr_g9_arm_fault_denial_carries_no_setpoint(void)
+{
+    const arb_contract_table_t t = make_table(0);
+    const arb_cmd_t c = make_cmd(1, 100000, 0, 1000);
+    arb_guard_t g;
+    arb_verdict_t v;
+    arb_cmd_t parsed;
+
+    arb_guard_init(&g, &t, T0);
+    CHECK_EQ_INT(arb_guard_check_pre(&g, &c, sizeof c, T0, &parsed, &v), 1);
+    arb_guard_check_motion(&g, &parsed, HOME, T0, &v);
+    arb_guard_fault(&g, ARB_STOP_ARM_TIMEOUT);
+    arb_guard_reject_after_approval(&g, ARB_RULE_ARM_FAULT, &v);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_ARM_FAULT);
+    CHECK_EQ_INT(v.duration_ms, 0);
+    CHECK_EQ_INT(v.state_after, ARB_STATE_SAFE_STOP);
+}
+
+static void fr_g5_last_client_lost_enters_hold(void)
+{
+    const arb_contract_table_t t = make_table(0);
+    const arb_cmd_t c = make_cmd(1, 0, 0, 10);
+    arb_guard_t g;
+    arb_verdict_t v;
+
+    arb_guard_init(&g, &t, T0);
+    CHECK_EQ_INT(arb_guard_client_lost(&g), 0);           /* already HOLD */
+    arb_guard_check(&g, &c, sizeof c, HOME, T0, &v);
+    CHECK_EQ_INT(g.state, ARB_STATE_NORMAL);
+    CHECK_EQ_INT(arb_guard_client_lost(&g), 1);           /* at once, no timeout */
+    CHECK_EQ_INT(g.state, ARB_STATE_HOLD);
+    arb_guard_fault(&g, ARB_STOP_ESTOP);
+    CHECK_EQ_INT(arb_guard_client_lost(&g), 0);           /* never leaves SAFE_STOP */
+    CHECK_EQ_INT(g.state, ARB_STATE_SAFE_STOP);
+}
+
 /* ------------------------------------------------------------- kinematics */
 
 static void fr_g4_forward_kinematics_reference_poses(void)
@@ -1156,6 +1273,11 @@ static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_g5_safe_stop_denies_until_operator_reset),
     ARB_TEST_CASE(fr_g5_replay_protection_survives_reset),
     ARB_TEST_CASE(fr_g9_arm_send_timeout_fault_enters_safe_stop),
+    ARB_TEST_CASE(fr_g4_three_step_decision_matches_one_call),
+    ARB_TEST_CASE(fr_g4_pre_check_rejects_without_arm_position),
+    ARB_TEST_CASE(fr_g5_approval_refused_by_arm_is_not_activity),
+    ARB_TEST_CASE(fr_g9_arm_fault_denial_carries_no_setpoint),
+    ARB_TEST_CASE(fr_g5_last_client_lost_enters_hold),
 };
 
 int main(void)

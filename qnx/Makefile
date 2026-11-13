@@ -6,6 +6,7 @@
 #   make -C qnx ARCH=aarch64le     # Raspberry Pi 5
 #   make -C qnx host-test          # libcontract unit tests on the host, with sanitizers
 #   make -C qnx analyze            # gcc -fanalyzer and cppcheck over libcontract
+#   make -C qnx analyze-qnx        # qcc -fanalyzer and cppcheck over the guardian
 #   make -C qnx check-pure         # libcontract calls nothing outside the allowed C library set
 #
 # Output goes to build/$(ARCH)/ and build/host/ at the repo root (ignored by git).
@@ -37,9 +38,10 @@ HOST_OUT    := ../build/host
 LIBCONTRACT_SRC := libcontract/arb_contract.c
 LIBCONTRACT_HDR := libcontract/arb_contract.h common/arb_contract_table.h common/arb_proto.h common/arb_arm_model.h
 
-BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract_file $(OUT)/test_send_timeout
+BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract_file $(OUT)/test_send_timeout \
+        $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh
 
-.PHONY: all clean qnx-env host-test analyze check-pure
+.PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
 
 qnx-env:
@@ -68,6 +70,21 @@ $(OUT)/test_contract_file: tests/test_contract_file.c $(LIBCONTRACT_SRC) $(LIBCO
 $(OUT)/test_send_timeout: tests/test_send_timeout.c | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
+GUARDIAN_SRC := guardian/main.c guardian/arm_link.c
+GUARDIAN_HDR := guardian/arm_link.h common/arb_arm_proto.h common/arb_devctl.h common/arb_prio.h common/arb_pulses.h
+
+$(OUT)/arb-guardian: $(GUARDIAN_SRC) $(GUARDIAN_HDR) $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -Iguardian -o $@ $(GUARDIAN_SRC) $(LIBCONTRACT_SRC) $(LDLIBS)
+
+$(OUT)/arb_arm_stub: tests/arb_arm_stub.c common/arb_arm_proto.h | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $<
+
+$(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $<
+
+$(OUT)/guardian_suite.sh: tests/guardian_suite.sh | $(OUT)
+	install -m 755 $< $@
+
 # --------------------------------------------------------------- host checks
 
 $(HOST_OUT)/test_libcontract: tests/test_libcontract.c tests/arb_test.h $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(HOST_OUT)
@@ -80,6 +97,14 @@ analyze: | $(HOST_OUT)
 	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -fanalyzer $(INCLUDES) -c $(LIBCONTRACT_SRC) -o $(HOST_OUT)/arb_contract.analyze.o
 	cppcheck --std=c11 --enable=warning,style,performance,portability --inline-suppr \
 	         --error-exitcode=1 --quiet $(INCLUDES) $(LIBCONTRACT_SRC)
+
+# Trusted QNX code (rt-c-review): qcc's gcc 12 static analyzer with extra
+# warnings, and cppcheck. Needs the SDP environment.
+analyze-qnx: qnx-env
+	$(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -Iguardian -c guardian/main.c -o /dev/null
+	$(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -Iguardian -c guardian/arm_link.c -o /dev/null
+	cppcheck --std=c11 --enable=warning,style,performance,portability --inline-suppr \
+	         --error-exitcode=1 --quiet -D_QNX_SOURCE $(INCLUDES) -Iguardian $(GUARDIAN_SRC)
 
 # Purity (NFR-K2): compile the library alone and list every symbol it needs from
 # outside. Anything beyond the allowed C library set fails.

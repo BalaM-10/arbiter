@@ -35,10 +35,12 @@ step() {   # step <title> <command...>
     echo "# host: $(lsb_release -ds 2>/dev/null || uname -sr); $(gcc --version | head -1); $(cppcheck --version)"
     step "libcontract unit tests (host, ASan + UBSan)" make -C "$REPO_ROOT/qnx" -B host-test
     step "static analysis (gcc -fanalyzer, cppcheck)"   make -C "$REPO_ROOT/qnx" analyze
+    step "static analysis, trusted QNX code (qcc)"      make -C "$REPO_ROOT/qnx" analyze-qnx
     step "purity, x86_64"                                make -C "$REPO_ROOT/qnx" check-pure ARCH=x86_64
     step "purity, aarch64le"                             make -C "$REPO_ROOT/qnx" check-pure ARCH=aarch64le
     step "traceability"                                  python3 -I "$REPO_ROOT/scripts/check-traceability.py"
     step "threat-model references"                       python3 -I "$REPO_ROOT/scripts/check-claims.py"
+    step "bounded sends (FR-G9 source check)"           python3 -I "$REPO_ROOT/scripts/check-bounded-sends.py"
     step "python tests (pytest)"                         "$REPO_ROOT/.venv/bin/python" -m pytest -q "$REPO_ROOT/host/tests"
     step "nfr_k4_python_lint_and_types: ruff"            "$REPO_ROOT/.venv/bin/ruff" check "$REPO_ROOT/host"
     step "nfr_k4_python_lint_and_types: mypy --strict"   "$REPO_ROOT/.venv/bin/mypy" --config-file "$REPO_ROOT/pyproject.toml"

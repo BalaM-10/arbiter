@@ -345,85 +345,98 @@ static void deny(arb_verdict_t *out, arb_rule_t rule)
     out->duration_ms = 0;
 }
 
-void arb_guard_check(arb_guard_t *g, const void *msg, size_t len,
-                     const int32_t current_urad[ARB_JOINTS], uint64_t now_ns,
-                     arb_verdict_t *out)
+/* Steps 1-5: no arm position needed. Returns 1 if the command may proceed. */
+int arb_guard_check_pre(arb_guard_t *g, const void *msg, size_t len, uint64_t now_ns,
+                        arb_cmd_t *cmd, arb_verdict_t *out)
 {
     const arb_contract_table_t *c = g->contract;
-    arb_cmd_t cmd;
-    uint64_t max_delta = 0;
-    uint64_t min_ms;
 
     memset(out, 0, sizeof *out);
+    memset(cmd, 0, sizeof *cmd);
     out->state_before = g->state;
+    out->state_after = g->state;
 
     if (!contract_usable(c)) {
         deny(out, ARB_RULE_INTERNAL);
-        goto done;
+        return 0;
     }
 
     /* 1. Well-formed. Length first, then every field, before any use. */
-    if (msg == NULL || len != sizeof cmd) {
+    if (msg == NULL || len != sizeof *cmd) {
         deny(out, ARB_RULE_MALFORMED);
-        goto done;
+        return 0;
     }
-    memcpy(&cmd, msg, sizeof cmd);
-    if (cmd.version != ARB_PROTO_VERSION || cmd.flags != 0u || cmd.reserved != 0u) {
+    memcpy(cmd, msg, sizeof *cmd);
+    if (cmd->version != ARB_PROTO_VERSION || cmd->flags != 0u || cmd->reserved != 0u) {
         deny(out, ARB_RULE_MALFORMED);
-        goto done;
+        return 0;
     }
-    out->seq = cmd.seq;
-    out->requested_ms = cmd.duration_ms;
+    out->seq = cmd->seq;
+    out->requested_ms = cmd->duration_ms;
     /* Duration bounds: never zero, never above the contract's maximum. */
-    if (cmd.duration_ms < ARB_DURATION_MIN_MS || cmd.duration_ms > c->max_duration_ms) {
+    if (cmd->duration_ms < ARB_DURATION_MIN_MS || cmd->duration_ms > c->max_duration_ms) {
         deny(out, ARB_RULE_DURATION);
-        goto done;
+        return 0;
     }
 
     /* 2. State gate: nothing moves in SAFE_STOP until an operator reset. */
     if (g->state == ARB_STATE_SAFE_STOP) {
         deny(out, ARB_RULE_STATE);
-        goto done;
-    }
-    /* The arm's reported position must itself be sane; otherwise fail closed. */
-    if (current_urad == NULL ||
-        !in_range_i32(current_urad[0], -ARB_ANGLE_LIMIT_URAD, ARB_ANGLE_LIMIT_URAD) ||
-        !in_range_i32(current_urad[1], -ARB_ANGLE_LIMIT_URAD, ARB_ANGLE_LIMIT_URAD)) {
-        deny(out, ARB_RULE_INTERNAL);
-        goto done;
+        return 0;
     }
 
     /* 3. Sequence: strictly newer than the last well-formed command (replay, F9). */
-    if (g->have_seq && !seq_newer(cmd.seq, g->last_seq)) {
+    if (g->have_seq && !seq_newer(cmd->seq, g->last_seq)) {
         deny(out, ARB_RULE_SEQUENCE);
-        goto done;
+        return 0;
     }
     g->have_seq = 1;
-    g->last_seq = cmd.seq;
+    g->last_seq = cmd->seq;
 
     /* 4. Rate limit: token bucket on the guardian's clock, not the sender's. */
     refill(g, now_ns);
     if (g->tokens_milli < MILLI_PER_TOKEN) {
         deny(out, ARB_RULE_RATE);
-        goto done;
+        return 0;
     }
     g->tokens_milli -= MILLI_PER_TOKEN;
 
     /* 5. Joint limits (counted toward the violation threshold). */
     for (int j = 0; j < ARB_JOINTS; j++) {                 /* bound: ARB_JOINTS */
-        if (cmd.target_urad[j] < c->joint_min_urad[j] || cmd.target_urad[j] > c->joint_max_urad[j]) {
+        if (cmd->target_urad[j] < c->joint_min_urad[j] || cmd->target_urad[j] > c->joint_max_urad[j]) {
             deny(out, ARB_RULE_JOINT_LIMIT);
             if (count_violation(g, now_ns)) {
                 enter_safe_stop(g, ARB_STOP_VIOLATIONS);
             }
-            goto done;
+            out->state_after = g->state;
+            return 0;
         }
+    }
+    return 1;
+}
+
+/* Steps 6-7: from the arm's position. Does not count the command as accepted. */
+void arb_guard_check_motion(arb_guard_t *g, const arb_cmd_t *cmd,
+                            const int32_t current_urad[ARB_JOINTS], uint64_t now_ns,
+                            arb_verdict_t *out)
+{
+    const arb_contract_table_t *c = g->contract;
+    uint64_t max_delta = 0;
+    uint64_t min_ms;
+
+    out->state_after = g->state;
+    /* The arm's reported position must itself be sane; otherwise fail closed. */
+    if (current_urad == NULL ||
+        !in_range_i32(current_urad[0], -ARB_ANGLE_LIMIT_URAD, ARB_ANGLE_LIMIT_URAD) ||
+        !in_range_i32(current_urad[1], -ARB_ANGLE_LIMIT_URAD, ARB_ANGLE_LIMIT_URAD)) {
+        deny(out, ARB_RULE_INTERNAL);
+        return;
     }
 
     /* 6. Velocity: the shortest duration that keeps every joint at or under vmax.
      *    Widened to 64 bits: |delta| <= 2 * ARB_ANGLE_LIMIT_URAD. */
     for (int j = 0; j < ARB_JOINTS; j++) {                 /* bound: ARB_JOINTS */
-        const uint64_t d = (uint64_t)abs64((int64_t)cmd.target_urad[j] - (int64_t)current_urad[j]);
+        const uint64_t d = (uint64_t)abs64((int64_t)cmd->target_urad[j] - (int64_t)current_urad[j]);
         if (d > max_delta) {
             max_delta = d;
         }
@@ -433,12 +446,12 @@ void arb_guard_check(arb_guard_t *g, const void *msg, size_t len,
     if (min_ms < ARB_DURATION_MIN_MS) {
         min_ms = ARB_DURATION_MIN_MS;
     }
-    out->target_urad[0] = cmd.target_urad[0];
-    out->target_urad[1] = cmd.target_urad[1];
-    if ((uint64_t)cmd.duration_ms >= min_ms) {
+    out->target_urad[0] = cmd->target_urad[0];
+    out->target_urad[1] = cmd->target_urad[1];
+    if ((uint64_t)cmd->duration_ms >= min_ms) {
         out->verdict = ARB_VERDICT_ALLOW;
         out->rule = ARB_RULE_NONE;
-        out->duration_ms = cmd.duration_ms;
+        out->duration_ms = cmd->duration_ms;
     } else if (min_ms <= (uint64_t)c->max_duration_ms) {
         out->verdict = ARB_VERDICT_CLAMP;
         out->rule = ARB_RULE_VELOCITY;
@@ -446,12 +459,12 @@ void arb_guard_check(arb_guard_t *g, const void *msg, size_t len,
     } else {
         /* Only possible if the arm is outside its joint limits; fail closed. */
         deny(out, ARB_RULE_DURATION);
-        goto done;
+        return;
     }
 
     /* 7. Keep-out zones along the whole path (counted toward the threshold).
      *    A keep-out failure overrides an ALLOW or CLAMP. */
-    switch (path_keepout(c, current_urad, cmd.target_urad)) {
+    switch (path_keepout(c, current_urad, cmd->target_urad)) {
     case KEEPOUT_CLEAR:
         break;
     case KEEPOUT_EXIT_ONLY:
@@ -463,15 +476,50 @@ void arb_guard_check(arb_guard_t *g, const void *msg, size_t len,
         if (count_violation(g, now_ns)) {
             enter_safe_stop(g, ARB_STOP_VIOLATIONS);
         }
-        goto done;
+        out->state_after = g->state;
+        return;
     }
+}
 
-    /* Accepted: the AI is not silent, and HOLD returns to NORMAL. */
-    g->last_accept_ns = now_ns;
-    if (g->state == ARB_STATE_HOLD) {
-        g->state = ARB_STATE_NORMAL;
+void arb_guard_commit_accept(arb_guard_t *g, uint64_t now_ns, arb_verdict_t *out)
+{
+    /* Only an ALLOW or CLAMP that the arm accepted counts as activity. */
+    if (out->verdict == ARB_VERDICT_ALLOW || out->verdict == ARB_VERDICT_CLAMP) {
+        g->last_accept_ns = now_ns;
+        if (g->state == ARB_STATE_HOLD) {
+            g->state = ARB_STATE_NORMAL;
+        }
     }
-
-done:
     out->state_after = g->state;
+}
+
+void arb_guard_reject_after_approval(arb_guard_t *g, arb_rule_t rule, arb_verdict_t *out)
+{
+    deny(out, rule);
+    out->flags = 0;
+    out->state_after = g->state;
+}
+
+int arb_guard_client_lost(arb_guard_t *g)
+{
+    if (g->state == ARB_STATE_NORMAL) {
+        g->state = ARB_STATE_HOLD;
+        return 1;
+    }
+    return 0;
+}
+
+void arb_guard_check(arb_guard_t *g, const void *msg, size_t len,
+                     const int32_t current_urad[ARB_JOINTS], uint64_t now_ns,
+                     arb_verdict_t *out)
+{
+    arb_cmd_t cmd;
+
+    if (!arb_guard_check_pre(g, msg, len, now_ns, &cmd, out)) {
+        return;
+    }
+    arb_guard_check_motion(g, &cmd, current_urad, now_ns, out);
+    if (out->verdict != ARB_VERDICT_DENY) {
+        arb_guard_commit_accept(g, now_ns, out);
+    }
 }
