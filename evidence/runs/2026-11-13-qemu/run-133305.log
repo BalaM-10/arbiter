@@ -1,0 +1,151 @@
+# run-tests qemu — 2026-11-13T13:33:05-06:00, REPEAT=1
+# commit: c80e2d0
+# host: Ubuntu 22.04.5 LTS; qcc 12.2.0,gcc_ntox86_64
+
+## contract corpus (host compiler)
+$ arbiter contract corpus contracts/default.yaml -o build/contract-corpus
+wrote /home/balam/arbiter/build/contract-corpus/manifest.txt
+  045fba7242def7e77bf3b804ca3ec2df6ecd2e50520a806fc395bbf7bb71923c  build/contract-corpus/contract.bin
+
+## build (all architectures)
+$ make -C qnx ARCH=x86_64
+  hello  sha256 e491474caa943f082c5eb613ccce073a77f6cfd2b75d39d99440d34ff4ec8d82
+    ELF 64-bit LSB pie executable, x86-64
+  msgpass  sha256 b6b20a163faa339894cdb71eb34eb3746f73486a6cd3f9a6f13a6baf5fa23c8a
+    ELF 64-bit LSB pie executable, x86-64
+  test_contract_file  sha256 01fcf1720be0b0e77ce9a4e44be8eff51abb0d618eb3562ecf46a126f1fe05ea
+    ELF 64-bit LSB pie executable, x86-64
+  test_libcontract  sha256 0825f94cf71424b3628c87273cbbcc5afe6079cf54c9bfa7daabc71f5c57887a
+    ELF 64-bit LSB pie executable, x86-64
+  test_send_timeout  sha256 ededce8cbae09b9e78aab524cb23118ed595935cb07a5c2decd482f39f1865d6
+    ELF 64-bit LSB pie executable, x86-64
+$ make -C qnx ARCH=aarch64le
+  hello  sha256 1ab74333346df2367c5a3d0ecaa885a93cd1ec9810f1dd119626d56d96859569
+    ELF 64-bit LSB pie executable, ARM aarch64
+  msgpass  sha256 caca0169357d68d3bf54f1b3e4419a94380aaca1b84aa055fa4e8e007016a72b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_contract_file  sha256 67213b986013b1fe3d32fc30e4f41be84b5564a544d1f941328a30cc77415e59
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_libcontract  sha256 73957ad1f4ee111ca2cfb5d1d2ccaa8253f4fef5aac749e1792354662e75b7c3
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_send_timeout  sha256 de256b29d535a129dd7b08400a0a7029d691147d3cd670775d3463de81142d8d
+    ELF 64-bit LSB pie executable, ARM aarch64
+deployed hello msgpass test_contract_file test_libcontract test_send_timeout to qemu (root@172.31.1.174:/data/home/root/arbiter/bin)
+
+## target: root@172.31.1.174:/data/home/root/arbiter/bin (x86_64)
+$ uname -a
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## hello — M0 toolchain: qcc-built binary runs
+$ cd /data/home/root/arbiter/bin && ./hello
+hello from Arbiter on QNX 8.0.0 2026/02/27-11:02:56EST (x86pc)
+exit=0
+
+## msgpass — M0 message passing (M0-MSG-1..7, previews NFR-Q2)
+$ cd /data/home/root/arbiter/bin && ./msgpass
+info server pid 10133525 chid 1, client pid 10137622
+PASS M0-MSG-1 round trip: sent 21, reply 42
+PASS M0-MSG-2 server saw the client's pid in _msg_info
+PASS M0-MSG-3 short message rejected with EBADMSG
+PASS M0-MSG-4 oversized message rejected with EBADMSG
+PASS M0-MSG-5 wrong version rejected with EPROTO
+info stats request answered after 1 try
+PASS M0-MSG-6 3 pulses received by the server, values summed to 7
+info server counters: replies 3, bad_length 2, bad_version 1, bad_sender 0, pulses 3, pulse_sum 7
+PASS M0-MSG-7 client exited 0 and the server's counters match every event
+RESULT PASS msgpass
+exit=0
+
+## test_libcontract — libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)
+$ cd /data/home/root/arbiter/bin && ./test_libcontract
+PASS fr_c4_crc32_matches_zlib_check_value
+PASS fr_c4_valid_table_loads
+PASS fr_c4_null_arguments_rejected
+PASS fr_c4_wrong_length_rejected
+PASS fr_c4_bad_magic_rejected
+PASS fr_c4_version_mismatch_rejected
+PASS fr_c4_table_size_field_mismatch_rejected
+PASS fr_c4_crc_mismatch_rejected
+PASS fr_c4_any_single_byte_change_rejected
+PASS fr_c4_out_of_range_values_rejected
+PASS fr_c4_max_duration_must_cover_a_full_range_move
+PASS fr_c4_output_untouched_on_error
+PASS fr_c5_text_contract_rejected
+PASS nfr_i6_command_wrong_length_rejected
+PASS nfr_i6_command_bad_fields_rejected
+PASS nfr_i6_random_bytes_never_crash_or_allow_garbage
+PASS fr_g2_command_fields_carried_through
+PASS fr_g2_duration_zero_denied
+PASS fr_g2_duration_minimum_and_contract_max_allowed
+PASS fr_g2_duration_one_over_contract_max_denied
+PASS fr_g2_clamp_beyond_contract_max_denied
+PASS fr_g3_every_verdict_names_its_rule
+PASS fr_g4_sequence_replay_and_old_denied
+PASS fr_g4_sequence_wraps_around
+PASS fr_g4_rate_limit_burst_then_deny_then_refill
+PASS fr_g4_rate_limit_uses_guardian_clock_not_sender_clock
+PASS fr_g4_rate_limit_sustained_rate_holds
+PASS fr_g4_joint_limit_exactly_at_max
+PASS fr_g4_joint_limit_just_inside
+PASS fr_g4_joint_limit_just_outside_denied
+PASS fr_g4_impossible_arm_position_fails_closed
+PASS fr_g4_unusable_contract_fails_closed
+PASS fr_g4_velocity_exactly_at_limit_allowed
+PASS fr_g4_velocity_over_limit_clamped_by_stretching_duration
+PASS fr_g4_velocity_clamped_motion_never_exceeds_vmax
+PASS fr_g4_keepout_target_inside_zone_denied
+PASS fr_g4_keepout_path_through_zone_denied_though_endpoints_clear
+PASS fr_g4_keepout_clear_path_allowed
+PASS fr_g4_keepout_just_outside_by_less_than_margin_denied
+PASS fr_g4_keepout_just_outside_by_more_than_margin_allowed
+PASS fr_g4_keepout_brief_crossing_of_thin_zone_denied
+PASS fr_g4_keepout_overrides_clamp
+PASS fr_g4_keepout_exit_only_move_from_inside_allowed
+PASS fr_g4_keepout_from_inside_going_deeper_denied
+PASS fr_g4_keepout_from_inside_not_ending_outside_denied
+PASS fr_g4_keepout_exit_through_another_zone_denied
+PASS fr_g4_keepout_normal_moves_carry_no_exit_flag
+PASS fr_g4_checks_run_in_the_specified_order
+PASS fr_g4_forward_kinematics_reference_poses
+PASS fr_g5_starts_in_hold_and_valid_command_enters_normal
+PASS fr_g5_silence_past_timeout_enters_hold
+PASS fr_g5_denied_commands_do_not_reset_silence
+PASS fr_g5_violation_threshold_enters_safe_stop
+PASS fr_g5_violations_spread_beyond_window_do_not_stop
+PASS fr_g5_only_joint_and_keepout_denials_count
+PASS fr_g5_safe_stop_denies_until_operator_reset
+PASS fr_g5_replay_protection_survives_reset
+PASS fr_g9_arm_send_timeout_fault_enters_safe_stop
+RESULT PASS test_libcontract 58/58
+exit=0
+
+## test_contract_file contract-corpus/manifest.txt — compiled contract loads on QNX exactly as written; corrupted tables rejected (FR-C3, FR-C4)
+$ cd /data/home/root/arbiter/bin && ./test_contract_file contract-corpus/manifest.txt
+PASS fr_c3_compiled_table_matches_source_dump contract.bin
+PASS fr_c4_corrupted_compiled_table_rejected truncated.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected extended.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected empty.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected magic.bin (code 3)
+PASS fr_c4_corrupted_compiled_table_rejected version.bin (code 4)
+PASS fr_c4_corrupted_compiled_table_rejected tablesize.bin (code 5)
+PASS fr_c4_corrupted_compiled_table_rejected crc.bin (code 6)
+PASS fr_c4_corrupted_compiled_table_rejected vmax0.bin (code 7)
+PASS fr_c4_corrupted_compiled_table_rejected shortmax.bin (code 7)
+PASS fr_c4_corrupted_compiled_table_rejected zones5.bin (code 7)
+RESULT PASS test_contract_file 11/11
+exit=0
+
+## test_send_timeout — 2 ms TimerTimeout on MsgSend, SEND and REPLY states, measured (FR-G9 design check)
+$ cd /data/home/root/arbiter/bin && ./test_send_timeout
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.397 ms  median 2.998 ms  p99.9 3.494 ms  max 3.494 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.545 ms  median 2.998 ms  p99.9 3.747 ms  max 3.747 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.505 ms  median 24.059 ms  p99.9 24.380 ms  max 24.380 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+
+SUMMARY 5/5 tests passed on qemu (each run 1 time(s))

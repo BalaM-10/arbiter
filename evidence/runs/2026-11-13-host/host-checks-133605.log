@@ -1,0 +1,130 @@
+# host-checks — 2026-11-13T13:36:05-06:00
+# commit: 68d20b4
+# host: Ubuntu 22.04.5 LTS; gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0; Cppcheck 2.7
+
+## libcontract unit tests (host, ASan + UBSan)
+$ make -C ./qnx -B host-test
+mkdir -p ../build/host
+gcc -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all -Icommon -Ilibcontract -Itests -o ../build/host/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+../build/host/test_libcontract
+PASS fr_c4_crc32_matches_zlib_check_value
+PASS fr_c4_valid_table_loads
+PASS fr_c4_null_arguments_rejected
+PASS fr_c4_wrong_length_rejected
+PASS fr_c4_bad_magic_rejected
+PASS fr_c4_version_mismatch_rejected
+PASS fr_c4_table_size_field_mismatch_rejected
+PASS fr_c4_crc_mismatch_rejected
+PASS fr_c4_any_single_byte_change_rejected
+PASS fr_c4_out_of_range_values_rejected
+PASS fr_c4_max_duration_must_cover_a_full_range_move
+PASS fr_c4_output_untouched_on_error
+PASS fr_c5_text_contract_rejected
+PASS nfr_i6_command_wrong_length_rejected
+PASS nfr_i6_command_bad_fields_rejected
+PASS nfr_i6_random_bytes_never_crash_or_allow_garbage
+PASS fr_g2_command_fields_carried_through
+PASS fr_g2_duration_zero_denied
+PASS fr_g2_duration_minimum_and_contract_max_allowed
+PASS fr_g2_duration_one_over_contract_max_denied
+PASS fr_g2_clamp_beyond_contract_max_denied
+PASS fr_g3_every_verdict_names_its_rule
+PASS fr_g4_sequence_replay_and_old_denied
+PASS fr_g4_sequence_wraps_around
+PASS fr_g4_rate_limit_burst_then_deny_then_refill
+PASS fr_g4_rate_limit_uses_guardian_clock_not_sender_clock
+PASS fr_g4_rate_limit_sustained_rate_holds
+PASS fr_g4_joint_limit_exactly_at_max
+PASS fr_g4_joint_limit_just_inside
+PASS fr_g4_joint_limit_just_outside_denied
+PASS fr_g4_impossible_arm_position_fails_closed
+PASS fr_g4_unusable_contract_fails_closed
+PASS fr_g4_velocity_exactly_at_limit_allowed
+PASS fr_g4_velocity_over_limit_clamped_by_stretching_duration
+PASS fr_g4_velocity_clamped_motion_never_exceeds_vmax
+PASS fr_g4_keepout_target_inside_zone_denied
+PASS fr_g4_keepout_path_through_zone_denied_though_endpoints_clear
+PASS fr_g4_keepout_clear_path_allowed
+PASS fr_g4_keepout_just_outside_by_less_than_margin_denied
+PASS fr_g4_keepout_just_outside_by_more_than_margin_allowed
+PASS fr_g4_keepout_brief_crossing_of_thin_zone_denied
+PASS fr_g4_keepout_overrides_clamp
+PASS fr_g4_keepout_exit_only_move_from_inside_allowed
+PASS fr_g4_keepout_from_inside_going_deeper_denied
+PASS fr_g4_keepout_from_inside_not_ending_outside_denied
+PASS fr_g4_keepout_exit_through_another_zone_denied
+PASS fr_g4_keepout_normal_moves_carry_no_exit_flag
+PASS fr_g4_checks_run_in_the_specified_order
+PASS fr_g4_forward_kinematics_reference_poses
+PASS fr_g5_starts_in_hold_and_valid_command_enters_normal
+PASS fr_g5_silence_past_timeout_enters_hold
+PASS fr_g5_denied_commands_do_not_reset_silence
+PASS fr_g5_violation_threshold_enters_safe_stop
+PASS fr_g5_violations_spread_beyond_window_do_not_stop
+PASS fr_g5_only_joint_and_keepout_denials_count
+PASS fr_g5_safe_stop_denies_until_operator_reset
+PASS fr_g5_replay_protection_survives_reset
+PASS fr_g9_arm_send_timeout_fault_enters_safe_stop
+RESULT PASS test_libcontract 58/58
+-> ok
+
+## static analysis (gcc -fanalyzer, cppcheck)
+$ make -C ./qnx analyze
+gcc -std=c11 -Wall -Wextra -Werror -fanalyzer -Icommon -Ilibcontract -Itests -c libcontract/arb_contract.c -o ../build/host/arb_contract.analyze.o
+cppcheck --std=c11 --enable=warning,style,performance,portability --inline-suppr \
+         --error-exitcode=1 --quiet -Icommon -Ilibcontract -Itests libcontract/arb_contract.c
+-> ok
+
+## purity, x86_64
+$ make -C ./qnx check-pure ARCH=x86_64
+mkdir -p ../build/x86_64/obj
+gcc -std=c11 -O2 -Icommon -Ilibcontract -Itests -c libcontract/arb_contract.c -o ../build/host/arb_contract.o
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -c libcontract/arb_contract.c -o ../build/x86_64/obj/arb_contract.o
+../scripts/check-pure.sh nm ../build/host/arb_contract.o
+check-pure ../build/host/arb_contract.o: external symbols: __stack_chk_fail sincos 
+PASS nfr_k2_libcontract_is_pure
+../scripts/check-pure.sh ntox86_64-nm ../build/x86_64/obj/arb_contract.o
+check-pure ../build/x86_64/obj/arb_contract.o: external symbols: _GLOBAL_OFFSET_TABLE_ __stack_chk_fail __stack_chk_guard cexp 
+PASS nfr_k2_libcontract_is_pure
+-> ok
+
+## purity, aarch64le
+$ make -C ./qnx check-pure ARCH=aarch64le
+mkdir -p ../build/aarch64le/obj
+gcc -std=c11 -O2 -Icommon -Ilibcontract -Itests -c libcontract/arb_contract.c -o ../build/host/arb_contract.o
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -c libcontract/arb_contract.c -o ../build/aarch64le/obj/arb_contract.o
+../scripts/check-pure.sh nm ../build/host/arb_contract.o
+check-pure ../build/host/arb_contract.o: external symbols: __stack_chk_fail sincos 
+PASS nfr_k2_libcontract_is_pure
+../scripts/check-pure.sh ntoaarch64-nm ../build/aarch64le/obj/arb_contract.o
+check-pure ../build/aarch64le/obj/arb_contract.o: external symbols: __stack_chk_fail __stack_chk_guard cexp 
+PASS nfr_k2_libcontract_is_pure
+-> ok
+
+## traceability
+$ python3 -I ./scripts/check-traceability.py
+RESULT PASS check-traceability: 103 requirements, 13 with tests, 85 test references
+-> ok
+
+## threat-model references
+$ python3 -I ./scripts/check-claims.py
+RESULT PASS check-claims: 0 problem(s)
+-> ok
+
+## python tests (pytest)
+$ ./.venv/bin/python -m pytest -q ./host/tests
+....................                                                     [100%]
+20 passed in 0.33s
+-> ok
+
+## nfr_k4_python_lint_and_types: ruff
+$ ./.venv/bin/ruff check ./host
+All checks passed!
+-> ok
+
+## nfr_k4_python_lint_and_types: mypy --strict
+$ ./.venv/bin/mypy --config-file ./pyproject.toml
+Success: no issues found in 6 source files
+-> ok
+
+SUMMARY host-checks: PASS

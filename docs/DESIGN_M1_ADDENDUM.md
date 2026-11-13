@@ -184,8 +184,10 @@ with `ClockPeriod()` and `clock_getres()` is 1 ms:
 So the 2 ms timeout is supported: it never fired early and fired by the second
 tick after expiry. The **effective bound is 2 to 4 ms**, and that is the value
 used when budgeting the guardian's worst case. The third row confirms on target
-why the arm's channel must not set `_NTO_CHF_UNBLOCK`. Raw output:
-`evidence/runs/` run log of `test_send_timeout`. The Pi 5 value is measured in M3.
+why the arm's channel must not set `_NTO_CHF_UNBLOCK`. The table is from the
+development run; the committed evidence run (`evidence/runs/2026-11-13-qemu/run-133305.log`)
+gave SEND 2.397 / 2.998 / 3.494 ms and REPLY 2.545 / 2.998 / 3.747 ms (min /
+median / max), consistent with it. The Pi 5 value is measured in M3.
 
 The same bound applies to the guardian's state query to the arm (section 5).
 

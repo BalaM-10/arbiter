@@ -47,7 +47,7 @@ Test references are `file::test`. On-target results point at a saved run log in
 | FR-G6 | — | — | — | — | Planned: M1 day 3-5 |
 | FR-G7 | — | — | — | — | Planned: M1 day 3-5 |
 | FR-G8 | — | — | — | — | Planned: M2 (evidence logger) |
-| FR-G9 | `qnx/libcontract/arb_contract.c` `arb_guard_fault()` | `qnx/tests/test_libcontract.c::fr_g9_arm_send_timeout_fault_enters_safe_stop`<br>`qnx/tests/test_send_timeout.c::fr_g9_send_timeout_fires_when_server_never_receives`<br>`qnx/tests/test_send_timeout.c::fr_g9_send_timeout_fires_when_server_never_replies`<br>`qnx/tests/test_send_timeout.c::fr_g9_unblock_flag_lets_server_delay_timed_out_client` | pending (run after commit) | — | Fault logic in libcontract; TimerTimeout mechanism measured on QNX (2 ms requested, 2-4 ms effective); the guardian's own send and its SAFE_STOP test: M1 day 3-4 |
+| FR-G9 | `qnx/libcontract/arb_contract.c` `arb_guard_fault()` | `qnx/tests/test_libcontract.c::fr_g9_arm_send_timeout_fault_enters_safe_stop`<br>`qnx/tests/test_send_timeout.c::fr_g9_send_timeout_fires_when_server_never_receives`<br>`qnx/tests/test_send_timeout.c::fr_g9_send_timeout_fires_when_server_never_replies`<br>`qnx/tests/test_send_timeout.c::fr_g9_unblock_flag_lets_server_delay_timed_out_client` | yes: 2026-11-13, `evidence/runs/2026-11-13-qemu/run-133305.log` (host: `evidence/runs/2026-11-13-host/host-checks-133605.log`) | — | Fault logic in libcontract; TimerTimeout mechanism measured on QNX (2 ms requested, 2-4 ms effective); the guardian's own send and its SAFE_STOP test: M1 day 3-4 |
 
 ## Arm controller (FR-A)
 
