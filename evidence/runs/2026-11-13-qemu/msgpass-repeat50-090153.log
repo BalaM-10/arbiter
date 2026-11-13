@@ -1,3 +1,0 @@
-# msgpass repeated 50 times on qemu — 2026-11-13T09:01:53-06:00, commit 5afb85f
-$ p=0; f=0; i=0; while [ $i -lt 50 ]; do if /data/home/root/arbiter/bin/msgpass >/tmp/mp.out 2>&1; then p=$((p+1)); else f=$((f+1)); cat /tmp/mp.out; fi; i=$((i+1)); done; echo "pass=$p fail=$f"
-pass=50 fail=0
