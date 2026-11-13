@@ -37,8 +37,9 @@ mkdir -p "$OUTDIR"
     echo
     echo "## contract corpus (host compiler)"
     echo "\$ arbiter contract corpus contracts/default.yaml -o build/contract-corpus"
-    "$REPO_ROOT/.venv/bin/arbiter" contract corpus "$REPO_ROOT/contracts/default.yaml" \
-        -o "$REPO_ROOT/build/contract-corpus" || die "contract corpus failed (is .venv set up? see docs/TARGETS.md)"
+    corpus_out="$("$REPO_ROOT/.venv/bin/arbiter" contract corpus "$REPO_ROOT/contracts/default.yaml" \
+        -o "$REPO_ROOT/build/contract-corpus" 2>&1)" || { printf '%s\n' "$corpus_out"; die "contract corpus failed (is .venv set up? see docs/TARGETS.md)"; }
+    printf '%s\n' "${corpus_out//$REPO_ROOT\//}"   # repo-relative: no local paths in the log
     sha256sum "$REPO_ROOT/build/contract-corpus/contract.bin" | sed "s|$REPO_ROOT/||; s|^|  |"
     echo
     echo "## build (all architectures)"
