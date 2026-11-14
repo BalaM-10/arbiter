@@ -95,8 +95,10 @@ def write(report: dict[str, Any], spec: Spec, out: Path) -> None:
             "not from the guardian's verdicts. On QEMU the bench proves function, never timing. "
             "Top views: base at the centre, operator's hand area shaded, tip path dark, elbow path grey.")
     if not m.get("tick_spacing_judged", True):
-        note += (" Timing policy for this run: " + str(m["timing_policy"]) + ". This is the rule as decided, "
-                 "not a relaxed test: the same F1 check is strict on the Pi 5.")
+        note += (" Timing policy for this run: " + str(m["timing_policy"]) + ". "
+                 "The QEMU-only change was made after a QEMU run failed on 2 late ticks "
+                 "(evidence/bench/2026-11-13-qemu/153541, kept); "
+                 "the same F1 check stays strict on the Pi 5.")
     body = "".join(_scenario_html(sc, spec) for sc in report["scenarios"])
     page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'

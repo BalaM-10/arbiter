@@ -450,11 +450,14 @@ is measured and printed in every report, with the reason, but not judged,
 because QEMU proves function, never timing (NFR-T7). The arm computes motion
 from elapsed time, so a late tick changes how often the arm looks, not how fast
 it moves; F6's speed check, which uses each sample's own time, confirms that
-independently. The rule was fixed before the evidence run and is the same
-code on both targets (`host/arbiter/bench/checks.py` `no_missed_cycle()`,
-tested by `f1_tick_spacing_*`). It is not a test relaxed after a failure.
-Before the decision, 1 of 4 F1 runs at 0db90c9 had 2 of 12,490 intervals at
-2.129 ms on QEMU; that run is kept in `evidence/bench/2026-11-13-qemu/153541`.
+independently. **History, stated plainly:** tick spacing was first judged on
+QEMU too. Run 153541 at 0db90c9 failed F1 on 2 of 12,490 intervals at
+2.129 ms (kept in `evidence/bench/2026-11-13-qemu/153541`), and the owner then
+decided that on QEMU it is reported, not judged. So this is a change made after
+a QEMU failure, for QEMU only; the rule for the Pi 5 is unchanged and is the
+same code (`host/arbiter/bench/checks.py` `no_missed_cycle()`, tested by
+`f1_tick_spacing_*`). The evidence run after the change (181350) also meets
+the strict rule: 0 intervals of 2 periods or more, longest 1.988 ms.
 
 ---
 
