@@ -41,6 +41,7 @@ step() {   # step <title> <command...>
     step "traceability"                                  python3 -I "$REPO_ROOT/scripts/check-traceability.py"
     step "threat-model references"                       python3 -I "$REPO_ROOT/scripts/check-claims.py"
     step "bounded sends (FR-G9 source check)"           python3 -I "$REPO_ROOT/scripts/check-bounded-sends.py"
+    step "native IPC only (NFR-Q2 source check)"        python3 -I "$REPO_ROOT/scripts/check-ipc.py"
     step "python tests (pytest)"                         "$REPO_ROOT/.venv/bin/python" -m pytest -q "$REPO_ROOT/host/tests"
     step "nfr_k4_python_lint_and_types: ruff"            "$REPO_ROOT/.venv/bin/ruff" check "$REPO_ROOT/host"
     step "nfr_k4_python_lint_and_types: mypy --strict"   "$REPO_ROOT/.venv/bin/mypy" --config-file "$REPO_ROOT/pyproject.toml"

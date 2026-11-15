@@ -268,9 +268,81 @@ static void fr_w2_arm_stays_braked_after_a_stuck_guardian_resumes(void)
     CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
 }
 
+static int get_status(arb_status_t *st)
+{
+    memset(st, 0, sizeof *st);
+    return devctl(g_fd, ARB_DCMD_GET_STATUS, st, sizeof *st, NULL);
+}
+
+static uint64_t wd_heartbeats(uint32_t role)
+{
+    return atomic_load(&((arb_wd_status_t *)g_wd)->heartbeats[role]);
+}
+
+/* FR-G7: the guardian emits a heartbeat every control cycle. Over one second,
+ * the guardian's own tick count (counted in its tick-pulse handler) and the
+ * heartbeats the watchdog accepted from the guardian's connection must agree
+ * tick for tick. The rate (~1 per ms) is a QEMU function check, not timing. */
+static void fr_g7_guardian_sends_a_heartbeat_every_tick(void)
+{
+    arb_status_t s0, s1;
+    uint64_t h0, h1;
+    long dt, dh;
+
+    CHECK_EQ_INT(get_status(&s0), EOK);
+    h0 = wd_heartbeats(ARB_WD_ROLE_GUARDIAN);
+    ms_sleep(1000);
+    CHECK_EQ_INT(get_status(&s1), EOK);
+    h1 = wd_heartbeats(ARB_WD_ROLE_GUARDIAN);
+    dt = (long)(s1.ticks - s0.ticks);
+    dh = (long)(h1 - h0);
+    printf("info guardian in 1 s: %ld ticks, %ld heartbeats accepted by the watchdog (QEMU, function only)\n",
+           dt, dh);
+    CHECK(dt >= 900 && dt <= 1100);                     /* a 1 ms tick */
+    CHECK(dh - dt <= 2 && dt - dh <= 2);                /* one heartbeat per tick (reads are not simultaneous) */
+}
+
+/* NFR-Q2, run-time half (the source half is scripts/check-ipc.py): a command is
+ * one synchronous request/reply. When devctl() returns, the guardian has already
+ * decided it and, for ALLOW, the arm has already accepted the setpoint (the
+ * guardian's own MsgSend() to the arm returned OK first): its decision counter
+ * has moved by exactly one, the verdict echoes the command's sequence number,
+ * and the arm's segment counter shows one new segment per ALLOW. The arm's
+ * telemetry is published once per control cycle, so it is read 5 ms later. */
+static void nfr_q2_each_command_is_one_synchronous_request_and_reply(void)
+{
+    arb_verdict_wire_t w;
+    arb_telem_sample_t s;
+    arb_status_t st0, st1;
+    uint32_t seg0;
+
+    ms_sleep(20);
+    CHECK(tm_last(&s));
+    seg0 = s.segment;
+    for (int i = 1; i <= 5; i++) {                      /* bound: 5 commands, under the burst limit */
+        int32_t q0 = s.pos_urad[0] - 10000 * i;         /* small steps away from the hand area */
+
+        CHECK_EQ_INT(get_status(&st0), EOK);
+        CHECK_EQ_INT(submit(q0, s.pos_urad[1], 100, &w), EOK);
+        CHECK_EQ_INT(get_status(&st1), EOK);
+        CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+        CHECK_EQ_INT(w.seq, g_seq);                     /* the reply is to this command */
+        CHECK_EQ_INT(st1.decisions - st0.decisions, 1); /* decided before devctl() returned */
+        ms_sleep(5);
+        {
+            arb_telem_sample_t now;
+            CHECK(tm_last(&now));
+            CHECK_EQ_INT(now.segment - seg0, i);        /* the arm took exactly this setpoint */
+        }
+        ms_sleep(25);
+    }
+}
+
 static const arb_test_case_t move_cases[] = {
     ARB_TEST_CASE(fr_a3_guardian_approved_command_moves_the_arm),
     ARB_TEST_CASE(fr_g5_guardian_silence_holds_the_arm),
+    ARB_TEST_CASE(fr_g7_guardian_sends_a_heartbeat_every_tick),
+    ARB_TEST_CASE(nfr_q2_each_command_is_one_synchronous_request_and_reply),
 };
 static const arb_test_case_t killed_cases[] = {
     ARB_TEST_CASE(fr_a4_guardian_killed_arm_brakes),
@@ -309,7 +381,7 @@ int main(int argc, char **argv)
         return 1;
     }
     if (strcmp(mode, "move") == 0) {
-        return arb_test_run("test_e2e move", move_cases, 2);
+        return arb_test_run("test_e2e move", move_cases, 4);
     }
     if (argc == 3) {
         g_guardian = (pid_t)strtol(argv[2], NULL, 10);
