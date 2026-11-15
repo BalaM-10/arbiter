@@ -138,9 +138,9 @@ arb_down
 echo "## NFR-Q6: slogger2 not running: the trusted processes still start and run"
 set -- $(pidin -P slogger2 arg | tail -1)
 SLOG_PID=$1
-shift
-SLOG_CMD="$*"
-echo "slogger2: pid $SLOG_PID, command '$SLOG_CMD'"
+shift 2 2>/dev/null                     # the pid and the program name; the rest are its arguments
+SLOG_ARGS="$*"
+echo "slogger2: pid $SLOG_PID, arguments '$SLOG_ARGS'"
 case "$SLOG_PID" in
     ''|*[!0-9]*)
         echo "FAIL nfr_q6_trusted_processes_run_without_slogger2 (slogger2 not found, cannot restore it)"
@@ -180,7 +180,9 @@ case "$SLOG_PID" in
             fail=1
         fi
         # Restore the logger and prove it works: a fresh watchdog's ready line must be readable.
-        /proc/boot/$SLOG_CMD &
+        # Detached from this session (stdin, stdout and stderr), or the SSH session that
+        # runs the suite stays open after the suite ends.
+        /proc/boot/slogger2 $SLOG_ARGS </dev/null >/dev/null 2>&1 &
         sleep 1
         ./arb-watchdog &
         WD=$!
