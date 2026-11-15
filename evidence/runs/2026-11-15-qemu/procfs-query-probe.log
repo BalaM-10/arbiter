@@ -1,0 +1,35 @@
+# DCMD_PROC_INFO on another user's /proc/<pid>/ctl, with and without XPROCESS_QUERY — qemu, 2026-11-15T16:43:06-06:00
+# commit: 75efada (scratch probe, source below; qcc -Vgcc_ntox86_64 -std=c11 -D_QNX_SOURCE)
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## source
+#include <devctl.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/procfs.h>
+#include <sys/procmgr.h>
+#include <unistd.h>
+static void q(pid_t pid){char p[64];snprintf(p,sizeof p,"/proc/%d/ctl",pid);int fd=open(p,O_RDONLY);
+ if(fd==-1){printf("  pid %d: open %s\n",pid,strerror(errno));return;}
+ procfs_info i;memset(&i,0xAB,sizeof i);int rc=devctl(fd,DCMD_PROC_INFO,&i,sizeof i,NULL);
+ printf("  pid %d: devctl %s uid %d euid %d gid %d pid %d\n",pid,rc?strerror(rc):"ok",(int)i.uid,(int)i.euid,(int)i.gid,(int)i.pid);close(fd);}
+int main(int argc,char**argv){int v=atoi(argv[1]);pid_t a=atoi(argv[2]),b=atoi(argv[3]);int rc=0;
+ if(v==1) rc=procmgr_ability(0,PROCMGR_ADN_NONROOT|PROCMGR_AOP_DENY|PROCMGR_AOP_LOCK|PROCMGR_AID_EOL);
+ if(v==2) rc=procmgr_ability(0,PROCMGR_ADN_NONROOT|PROCMGR_AOP_ALLOW|PROCMGR_AOP_SUBRANGE|PROCMGR_AOP_LOCK|PROCMGR_AID_XPROCESS_QUERY,(uint64_t)811,(uint64_t)812,
+                             PROCMGR_ADN_NONROOT|PROCMGR_AOP_DENY|PROCMGR_AOP_LOCK|PROCMGR_AID_EOL);
+ printf("variant %d (%s) rc %d\n",v,v==1?"no XPROCESS_QUERY":"XPROCESS_QUERY for uids 811-812",rc);
+ if(setreuid(810,810))perror("setreuid");
+ q(a);q(b);return 0;}
+
+## output (probe starts as root, sets abilities, switches to uid 810, queries a uid-811 and a uid-820 process)
+target pids: 82726943 (uid 811), 82726944 (uid 820)
+variant 1 (no XPROCESS_QUERY) rc 0
+  pid 82726943: open Operation not permitted
+  pid 82726944: open Operation not permitted
+variant 2 (XPROCESS_QUERY for uids 811-812) rc 0
+  pid 82726943: devctl ok uid 811 euid 811 gid 811 pid 82726943
+  pid 82726944: open Operation not permitted

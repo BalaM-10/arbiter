@@ -10,6 +10,8 @@
 #include "arb_prio.h"
 #include "arb_pulses.h"
 #include "arb_watchdog_proto.h"
+#include "arb_ids.h"
+#include "arb_server_check.h"
 #include "arb_wd_client.h"
 
 #define WD_REGISTER_TIMEOUT_NS 2000000ull   /* same bound as the guardian's arm sends */
@@ -47,6 +49,11 @@ int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_open.html */
     w->coid = name_open(ARB_WD_NAME, 0);
     if (w->coid == -1) {
+        return -1;
+    }
+    /* F11 case 4: before anything is registered with it, the server behind the
+     * name must be the watchdog's user; a squatter gets nothing (EPERM). */
+    if (arb_server_check(w->coid, ARB_UID_WATCHDOG, &w->server_pid, &w->server_uid) != 0) {
         return -1;
     }
     memset(&msg, 0, sizeof msg);

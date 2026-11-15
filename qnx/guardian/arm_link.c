@@ -9,6 +9,8 @@
 #include <sys/dispatch.h>
 #include <sys/neutrino.h>
 
+#include "arb_ids.h"
+#include "arb_server_check.h"
 #include "arm_link.h"
 
 int arm_link_open(arm_link_t *l)
@@ -17,7 +19,12 @@ int arm_link_open(arm_link_t *l)
     /* name_open() returns a side-channel coid usable with MsgSend().
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_open.html */
     l->coid = name_open(ARB_ARM_NAME, 0);
-    return l->coid == -1 ? -1 : 0;
+    if (l->coid == -1) {
+        return -1;
+    }
+    /* F11 case 4: the server behind the name must be the arm's user before the
+     * guardian sends it anything; a squatter gets no message (EPERM). */
+    return arb_server_check(l->coid, ARB_UID_ARM, &l->server_pid, &l->server_uid);
 }
 
 /*

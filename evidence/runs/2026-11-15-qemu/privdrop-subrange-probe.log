@@ -1,0 +1,95 @@
+# procmgr_ability() PRIORITY subrange probe on qemu — 2026-11-15T16:11:28-06:00
+# commit: 75efada (probe is a scratch program, source below; built with qcc -Vgcc_ntox86_64 -std=c11 -D_QNX_SOURCE)
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## source
+#include <errno.h>
+#include <pthread.h>
+#include <sched.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/procmgr.h>
+#include <unistd.h>
+static void tryp(int p){int rc=pthread_setschedprio(pthread_self(),p);printf("  prio %3d -> %s\n",p,rc?strerror(rc):"ok");}
+int main(int argc,char**argv){
+  int v=atoi(argv[1]); int rc=-1;
+  struct sched_param sp={0}; sp.sched_priority=40; pthread_setschedparam(pthread_self(),SCHED_FIFO,&sp);
+  switch(v){
+  case 1: rc=procmgr_ability(0, PROCMGR_ADN_NONROOT|PROCMGR_AOP_ALLOW|PROCMGR_AID_PRIORITY,
+     PROCMGR_ADN_NONROOT|PROCMGR_AOP_SUBRANGE|PROCMGR_AOP_LOCK|PROCMGR_AID_PRIORITY,(uint64_t)1,(uint64_t)70,
+     PROCMGR_ADN_NONROOT|PROCMGR_AOP_DENY|PROCMGR_AOP_LOCK|PROCMGR_AID_EOL); break;
+  case 2: rc=procmgr_ability(0, PROCMGR_ADN_NONROOT|PROCMGR_AOP_ALLOW|PROCMGR_AID_PRIORITY,
+     PROCMGR_ADN_NONROOT|PROCMGR_AOP_SUBRANGE|PROCMGR_AID_PRIORITY,(uint64_t)1,(uint64_t)70,
+     PROCMGR_ADN_NONROOT|PROCMGR_AOP_DENY|PROCMGR_AOP_LOCK|PROCMGR_AID_EOL); break;
+  case 3: rc=procmgr_ability(0, PROCMGR_ADN_NONROOT|PROCMGR_AOP_SUBRANGE|PROCMGR_AID_PRIORITY,(uint64_t)1,(uint64_t)70,
+     PROCMGR_ADN_NONROOT|PROCMGR_AOP_ALLOW|PROCMGR_AID_PRIORITY,
+     PROCMGR_ADN_NONROOT|PROCMGR_AOP_DENY|PROCMGR_AOP_LOCK|PROCMGR_AID_EOL); break;
+  case 4: rc=procmgr_ability(0, PROCMGR_ADN_NONROOT|PROCMGR_AOP_ALLOW|PROCMGR_AOP_SUBRANGE|PROCMGR_AID_PRIORITY,(uint64_t)1,(uint64_t)70,
+     PROCMGR_ADN_NONROOT|PROCMGR_AOP_DENY|PROCMGR_AOP_LOCK|PROCMGR_AID_EOL); break;
+  case 5: rc=procmgr_ability(0, PROCMGR_ADN_NONROOT|PROCMGR_AOP_DENY|PROCMGR_AOP_LOCK|PROCMGR_AID_EOL); break;
+  case 6: rc=procmgr_ability(0, PROCMGR_ADN_NONROOT|PROCMGR_AOP_ALLOW|PROCMGR_AID_PRIORITY,
+     PROCMGR_ADN_NONROOT|PROCMGR_AOP_DENY|PROCMGR_AOP_LOCK|PROCMGR_AID_EOL); break;
+  }
+  printf("variant %d procmgr_ability rc %d (%s)\n",v,rc,rc?strerror(rc):"EOK");
+  if(setreuid(811,811)) perror("setreuid");
+  printf("  euid %d\n",(int)geteuid());
+  tryp(40); tryp(63); tryp(64); tryp(70); tryp(71); tryp(100); tryp(200);
+  return 0;}
+
+## output (run as root; each variant sets its abilities, switches to uid 811, then tries priorities)
+variant 1 procmgr_ability rc 0 (EOK)
+  euid 811
+  prio  40 -> ok
+  prio  63 -> ok
+  prio  64 -> ok
+  prio  70 -> ok
+  prio  71 -> ok
+  prio 100 -> ok
+  prio 200 -> ok
+variant 2 procmgr_ability rc 0 (EOK)
+  euid 811
+  prio  40 -> ok
+  prio  63 -> ok
+  prio  64 -> ok
+  prio  70 -> ok
+  prio  71 -> ok
+  prio 100 -> ok
+  prio 200 -> ok
+variant 3 procmgr_ability rc 0 (EOK)
+  euid 811
+  prio  40 -> ok
+  prio  63 -> ok
+  prio  64 -> ok
+  prio  70 -> ok
+  prio  71 -> ok
+  prio 100 -> ok
+  prio 200 -> ok
+variant 4 procmgr_ability rc 0 (EOK)
+  euid 811
+  prio  40 -> ok
+  prio  63 -> ok
+  prio  64 -> ok
+  prio  70 -> ok
+  prio  71 -> Operation not permitted
+  prio 100 -> Operation not permitted
+  prio 200 -> Operation not permitted
+variant 5 procmgr_ability rc 0 (EOK)
+  euid 811
+  prio  40 -> ok
+  prio  63 -> ok
+  prio  64 -> Operation not permitted
+  prio  70 -> Operation not permitted
+  prio  71 -> Operation not permitted
+  prio 100 -> Operation not permitted
+  prio 200 -> Operation not permitted
+variant 6 procmgr_ability rc 0 (EOK)
+  euid 811
+  prio  40 -> ok
+  prio  63 -> ok
+  prio  64 -> ok
+  prio  70 -> ok
+  prio  71 -> ok
+  prio 100 -> ok
+  prio 200 -> ok

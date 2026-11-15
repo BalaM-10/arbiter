@@ -5,7 +5,7 @@ cd "$(dirname "$0")" || exit 1
 fail=0
 
 echo "## watchdog priority"
-./arb-watchdog &
+./arb-watchdog 0 0 &     # test_watchdog plays both roles as root
 WD=$!
 sleep 1
 ls -l /dev/name/local/arbiter_watchdog /dev/shmem/arbiter_watchdog_status
@@ -20,7 +20,7 @@ kill "$WD"; wait "$WD" 2>/dev/null; sleep 1
 
 for t in $(./test_watchdog list); do
     echo "## $t"
-    ./arb-watchdog &
+    ./arb-watchdog 0 0 &     # test_watchdog plays both roles as root
     WD=$!
     sleep 1
     ./test_watchdog "$t" || fail=1

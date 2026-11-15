@@ -10,7 +10,13 @@
  *
  *   arb-guardian <contract.bin> [operator-uid]   (no operator uid: reset refused to everyone)
  *
- * Exit status: 2 contract refused (FR-C4), 3 scheduling, 4 no arm, 5 setup, 6 no watchdog.
+ * Exit status: 2 contract refused (FR-C4), 3 scheduling, 4 no arm, 5 setup, 6 no watchdog,
+ * 8 privilege drop failed.
+ * Privileges (NFR-I5): started as root; once /dev/arbiter is attached it switches
+ * to user ARB_UID_GUARDIAN for good, keeping only PRIORITY (up to its own 64) and
+ * CONNECTION (pulses to the arm and the watchdog, other users), before it
+ * registers with the watchdog or queries the arm, so both see the guardian's own
+ * user (arb_privdrop.h).
  * Startup order: watchdog, then arm, then guardian. The guardian registers with
  * the watchdog, sends a heartbeat every tick, and enters SAFE_STOP when the
  * watchdog says the arm died or is stuck. It also enters SAFE_STOP (cause
@@ -48,9 +54,11 @@
 #include "arb_contract.h"
 #include "arb_devctl.h"
 #include "arb_hex.h"
+#include "arb_ids.h"
 #include "arb_log.h"
 #include "arb_own_pulse.h"
 #include "arb_prio.h"
+#include "arb_privdrop.h"
 #include "arb_pulses.h"
 #include "arm_link.h"
 #include "arb_watchdog_proto.h"
@@ -573,21 +581,6 @@ int main(int argc, char **argv)
         return 3;
     }
 
-    if (arm_link_open(&g_arm) != 0) {
-        arb_log_fail("find the arm controller " ARB_ARM_NAME, errno);
-        return 4;
-    }
-    /* One bounded query before serving anyone: proves the arm answers, and makes
-     * the arm bind this connection as the guardian's (FR-G6) before the first
-     * lease renewal is sent. */
-    {
-        int32_t pos[ARB_JOINTS];
-        if (arm_link_get_state(&g_arm, pos) != ARM_LINK_OK) {
-            arb_log_fail("first state query to the arm", g_arm.last_errno);
-            return 4;
-        }
-    }
-
     /* Our own channel, so its flags are ours: no priority inheritance from clients,
      * plus the unblock and disconnect pulses the dispatch page asks a resource
      * manager's channel to have.
@@ -643,9 +636,46 @@ int main(int argc, char **argv)
         arb_log_fail("ConnectAttach", errno);
         return 5;
     }
+    /* NFR-I5: root is needed no further (the path is attached); the watchdog and
+     * the arm must see the guardian's own user. */
+    {
+        char report[ARB_PRIVDROP_REPORT_LEN];
+        const char *what;
+        int err;
+
+        if (arb_privdrop(ARB_UID_GUARDIAN, ARB_PRIO_GUARDIAN, 1, ARB_UID_ARM, ARB_UID_WATCHDOG, &what, &err, report) != 0) {
+            arb_log_fail(what, err);
+            return 8;
+        }
+        printf("arb-guardian: %s\n", report);
+        arb_log_s(ARB_LOG_START, SLOG2_INFO, "%s", report);
+    }
+    if (arm_link_open(&g_arm) != 0) {
+        const int e = errno;
+        if (e == EPERM && g_arm.server_pid != -1) {
+            arb_log_impostor(ARB_ARM_NAME, g_arm.server_pid, g_arm.server_uid, ARB_UID_ARM);   /* F11 case 4 */
+        }
+        arb_log_fail("find the arm controller " ARB_ARM_NAME, e);
+        return 4;
+    }
+    /* One bounded query before serving anyone: proves the arm answers, and makes
+     * the arm bind this connection as the guardian's (FR-G6) before the first
+     * lease renewal is sent. Clients that open /dev/arbiter meanwhile wait: the
+     * channel is not received on until the server loop. */
+    {
+        int32_t pos[ARB_JOINTS];
+        if (arm_link_get_state(&g_arm, pos) != ARM_LINK_OK) {
+            arb_log_fail("first state query to the arm", g_arm.last_errno);
+            return 4;
+        }
+    }
     if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_GUARDIAN, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_WD_TRIP,
                                ARB_PULSE_GUARDIAN_WD_BEAT) != 0) {
-        arb_log_fail("register with the watchdog", errno);
+        const int e = errno;
+        if (e == EPERM && g_wd.server_pid != -1) {
+            arb_log_impostor(ARB_WD_NAME, g_wd.server_pid, g_wd.server_uid, ARB_UID_WATCHDOG);   /* F11 case 4 */
+        }
+        arb_log_fail("register with the watchdog", e);
         return 6;
     }
     SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_TICK, 0);

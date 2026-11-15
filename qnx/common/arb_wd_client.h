@@ -15,6 +15,8 @@ typedef struct {
     uint32_t hb_errors;     /* heartbeats the kernel refused */
     uint32_t ticks_since_beat;  /* own 1 ms ticks handled since the watchdog's last beat (FR-W6) */
     int      self_coid;     /* kept for arb_wd_client_reregister() */
+    pid_t    server_pid;    /* who serves ARB_WD_NAME, and as which user (-1: unknown); F11 case 4 */
+    int      server_uid;
     int      prio, code, beat_code;
 } arb_wd_client_t;
 

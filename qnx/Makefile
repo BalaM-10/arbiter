@@ -76,9 +76,9 @@ $(OUT)/test_contract_file: tests/test_contract_file.c $(LIBCONTRACT_SRC) $(LIBCO
 $(OUT)/test_send_timeout: tests/test_send_timeout.c | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
-GUARDIAN_SRC := guardian/main.c guardian/arm_link.c common/arb_wd_client.c
+GUARDIAN_SRC := guardian/main.c guardian/arm_link.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c
 GUARDIAN_HDR := common/arb_log.h common/arb_own_pulse.h common/arb_hex.h guardian/arm_link.h common/arb_arm_proto.h common/arb_devctl.h common/arb_prio.h common/arb_pulses.h \
-                common/arb_wd_client.h common/arb_watchdog_proto.h
+                common/arb_wd_client.h common/arb_watchdog_proto.h common/arb_ids.h common/arb_privdrop.h common/arb_server_check.h
 
 $(OUT)/arb-guardian: $(GUARDIAN_SRC) $(GUARDIAN_HDR) $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -Iguardian -o $@ $(GUARDIAN_SRC) $(LIBCONTRACT_SRC) $(LDLIBS) $(SLOG2_LIBS)
@@ -92,9 +92,10 @@ $(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h common/arb_devctl.h
 $(OUT)/guardian_suite.sh: tests/guardian_suite.sh | $(OUT)
 	install -m 755 $< $@
 
-ARM_SRC := arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c
+ARM_SRC := arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c
 ARM_HDR := common/arb_log.h common/arb_own_pulse.h common/arb_hex.h arm/arm_motion.h arm/arm_backend.h common/arb_arm_model.h common/arb_arm_proto.h \
-           common/arb_telemetry.h common/arb_prio.h common/arb_pulses.h common/arb_wd_client.h common/arb_watchdog_proto.h
+           common/arb_telemetry.h common/arb_prio.h common/arb_pulses.h common/arb_wd_client.h common/arb_watchdog_proto.h \
+           common/arb_ids.h common/arb_privdrop.h common/arb_server_check.h
 
 $(OUT)/arb-arm: $(ARM_SRC) $(ARM_HDR) $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $(ARM_SRC) $(LIBCONTRACT_SRC) $(LDLIBS) $(SLOG2_LIBS)
@@ -111,14 +112,15 @@ $(OUT)/test_e2e: tests/test_e2e.c tests/arb_test.h $(ARM_HDR) common/arb_devctl.
 $(OUT)/arm_suite.sh: tests/arm_suite.sh | $(OUT)
 	install -m 755 $< $@
 
-WATCHDOG_SRC := watchdog/main.c
-WATCHDOG_HDR := common/arb_log.h common/arb_own_pulse.h common/arb_watchdog_proto.h common/arb_prio.h common/arb_pulses.h
+WATCHDOG_SRC := watchdog/main.c common/arb_privdrop.c
+WATCHDOG_HDR := common/arb_log.h common/arb_own_pulse.h common/arb_watchdog_proto.h common/arb_prio.h common/arb_pulses.h \
+                common/arb_ids.h common/arb_privdrop.h
 
 $(OUT)/arb-watchdog: $(WATCHDOG_SRC) $(WATCHDOG_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $(WATCHDOG_SRC) $(SLOG2_LIBS)
 
-$(OUT)/test_watchdog: tests/test_watchdog.c tests/arb_test.h common/arb_wd_client.c common/arb_wd_client.h $(WATCHDOG_HDR) | $(OUT)
-	$(CC) $(CFLAGS) -o $@ tests/test_watchdog.c common/arb_wd_client.c
+$(OUT)/test_watchdog: tests/test_watchdog.c tests/arb_test.h common/arb_wd_client.c common/arb_wd_client.h common/arb_server_check.c common/arb_server_check.h $(WATCHDOG_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/test_watchdog.c common/arb_wd_client.c common/arb_server_check.c
 
 $(OUT)/watchdog_suite.sh: tests/watchdog_suite.sh | $(OUT)
 	install -m 755 $< $@

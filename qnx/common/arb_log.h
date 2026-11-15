@@ -159,6 +159,19 @@ static inline void arb_log_fail(const char *what, int err)
     }
 }
 
+/* F11 case 4: the server behind a name is not the expected user (uid -1: a user
+ * this process may not even query). Only before the server loop starts. */
+static inline void arb_log_impostor(const char *name, int64_t pid, int64_t uid, int64_t want)
+{
+    fprintf(stderr, "%s: the server of %s is pid %lld, user %lld, not user %lld: refused, not starting\n",
+            arb_log_prog, name, (long long)pid, (long long)uid, (long long)want);
+    if (arb_log_buf != NULL) {
+        arb_log_ret(slog2fa(arb_log_buf, ARB_LOG_REFUSED, SLOG2_ERROR,
+                            "the server of %s is pid %lld, user %lld, not user %lld: refused", SLOG2_FA_STRING(name),
+                            SLOG2_FA_SIGNED(pid), SLOG2_FA_SIGNED(uid), SLOG2_FA_SIGNED(want), SLOG2_FA_END));
+    }
+}
+
 /* A startup refusal with a code rather than an errno (e.g. the contract load result). */
 static inline void arb_log_fail_code(const char *what, int64_t code)
 {

@@ -15,7 +15,15 @@
  * FR-W6: every ARB_WD_BEAT_PERIOD_MS it also delivers each registered client's
  * beat event, so a client notices when the watchdog itself stops.
  *
- *   arb-watchdog [trusted-uid]      (default uid 0 in M1, where all run as root)
+ *   arb-watchdog [guardian-uid arm-uid]   (defaults ARB_UID_GUARDIAN, ARB_UID_ARM; tests
+ *                                          that play a role as root pass 0)
+ *
+ * Each role is accepted only from that role's user ID (ConnectClientInfo()).
+ * Exit status: 3 scheduling, 5 setup, 8 privilege drop failed.
+ * Privileges (NFR-I5): started as root; once its name and the death notices are
+ * set up it switches to user ARB_UID_WATCHDOG for good, keeping only PRIORITY up
+ * to 70: it delivers the arm's events at the arm's priority, and MsgDeliverEvent()
+ * needs PRIORITY for a pulse above the unprivileged range (arb_privdrop.h).
  *
  * FIFO 66: above the guardian, so a guardian spinning in a loop cannot starve it;
  * below only the arm's control loop (owner decision 2026-11-13, arb_prio.h).
@@ -43,9 +51,11 @@
 #include <sys/procmgr.h>
 #include <sys/syspage.h>
 
+#include "arb_ids.h"
 #include "arb_log.h"
 #include "arb_own_pulse.h"
 #include "arb_prio.h"
+#include "arb_privdrop.h"
 #include "arb_pulses.h"
 #include "arb_watchdog_proto.h"
 
@@ -70,7 +80,7 @@ static pid_t            g_last_pid[ROLES];   /* last process that held each role
 static int              g_self_scoid = -1;   /* our own connection, learned before the name exists */
 static uint32_t         g_ticks;             /* own ticks handled, for the beat period */
 static arb_wd_status_t *g_st;
-static uid_t            g_trusted_uid;
+static uid_t            g_role_uid[ROLES];      /* the user ID each role must register from */
 
 /* What the system log last said (NFR-Q6). Owner: the watchdog's single thread. */
 static struct {
@@ -158,7 +168,7 @@ static void handle_register(rcvid_t rcvid, const struct _msg_info *info, const a
         return;
     }
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectclientinfo.html */
-    if (ConnectClientInfo(info->scoid, &ci, 0) == -1 || ci.cred.euid != g_trusted_uid) {
+    if (ConnectClientInfo(info->scoid, &ci, 0) == -1 || ci.cred.euid != g_role_uid[m->role]) {
         count(&g_st->rejected);
         reply(rcvid, EPERM);
         return;
@@ -383,11 +393,12 @@ int main(int argc, char **argv)
     int recv_errors = 0;
 
     (void)arb_log_init("arb_watchdog", "arb-watchdog");   /* first: startup failures are logged too */
-    if (argc > 2) {
-        fprintf(stderr, "usage: arb-watchdog [trusted-uid]\n");
+    if (argc != 1 && argc != 3) {
+        fprintf(stderr, "usage: arb-watchdog [guardian-uid arm-uid]\n");
         return 5;
     }
-    g_trusted_uid = argc == 2 ? (uid_t)strtoul(argv[1], NULL, 10) : 0;
+    g_role_uid[ARB_WD_ROLE_GUARDIAN] = argc == 3 ? (uid_t)strtoul(argv[1], NULL, 10) : ARB_UID_GUARDIAN;
+    g_role_uid[ARB_WD_ROLE_ARM] = argc == 3 ? (uid_t)strtoul(argv[2], NULL, 10) : ARB_UID_ARM;
 
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/pthread_setschedparam.html */
     memset(&sp, 0, sizeof sp);
@@ -473,6 +484,20 @@ int main(int argc, char **argv)
     if (attach == NULL || attach->chid != chid) {
         arb_log_fail("name_attach " ARB_WD_NAME " (or it did not keep our channel)", attach == NULL ? errno : EINVAL);
         return 5;
+    }
+    /* NFR-I5: root is needed no further. CONNECTION is not kept: the watchdog sends
+     * no pulse to another user; it only delivers events its clients registered. */
+    {
+        char report[ARB_PRIVDROP_REPORT_LEN];
+        const char *what;
+        int err;
+
+        if (arb_privdrop(ARB_UID_WATCHDOG, ARB_PRIO_ARM, 0, 0, 0, &what, &err, report) != 0) {
+            arb_log_fail(what, err);
+            return 8;
+        }
+        printf("arb-watchdog: %s\n", report);
+        arb_log_s(ARB_LOG_START, SLOG2_INFO, "%s", report);
     }
     printf("arb-watchdog: ready as %s, priority %d, timeout %d ms, status %s\n", ARB_WD_NAME,
            ARB_PRIO_WATCHDOG, ARB_WD_TIMEOUT_MS, ARB_WD_STATUS_NAME);

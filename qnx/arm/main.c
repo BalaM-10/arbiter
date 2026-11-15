@@ -8,9 +8,16 @@
  * renews it (the motion lease); the guardian's disconnect brakes the arm at once.
  * Design: docs/DESIGN_M1_ADDENDUM.md sections 2, 4 and 5.
  *
- *   arb-arm <contract.bin> [guardian-uid]     (default uid 0 in M1, where all run as root)
+ *   arb-arm <contract.bin> [guardian-uid]     (default ARB_UID_GUARDIAN; tests that
+ *                                              play the guardian as root pass 0)
  *
- * Exit status: 2 contract refused, 3 scheduling, 5 setup, 6 no watchdog.
+ * Exit status: 2 contract refused, 3 scheduling, 5 setup, 6 no watchdog,
+ * 8 privilege drop failed.
+ *
+ * Privileges (NFR-I5): started as root; after its channel, name and telemetry
+ * exist it switches to user ARB_UID_ARM for good, keeping only PRIORITY (up to
+ * its own 70) and CONNECTION (heartbeat pulses to the watchdog, another user),
+ * before it registers with the watchdog (arb_privdrop.h).
  * The watchdog must be running first: the arm registers with it, sends a
  * heartbeat every cycle, and brakes (latched) when the watchdog says the guardian
  * died or is stuck (FR-W2). The arm also brakes and latches on its own when the
@@ -18,11 +25,10 @@
  * (_PULSE_CODE_COIDDEATH, FR-W5) or its beat stops for ARB_WD_BEAT_TIMEOUT_MS
  * control cycles (FR-W6).
  *
- * Sender binding (M1): the first connection whose effective user ID is the
- * guardian's becomes the only authorized one; others are refused and counted.
- * While every process runs as root the user ID alone cannot tell them apart, so
- * the binding is what separates them until the M2 security policy
- * (docs/THREAT_MODEL.md, known gaps).
+ * Sender binding: the first connection whose effective user ID is the guardian's
+ * becomes the only authorized one; others are refused and counted. Since M2 the
+ * guardian runs as its own user, so a process of any other user, root included,
+ * cannot bind, whatever the startup order (F11).
  *
  * Logs go to slogger2 (arb_log.h, NFR-Q6): startup, brakes and their cause,
  * bindings and refused senders, written by the loop after each message or
@@ -49,9 +55,11 @@
 #include "arb_arm_proto.h"
 #include "arb_contract.h"
 #include "arb_hex.h"
+#include "arb_ids.h"
 #include "arb_log.h"
 #include "arb_own_pulse.h"
 #include "arb_prio.h"
+#include "arb_privdrop.h"
 #include "arb_pulses.h"
 #include "arb_telemetry.h"
 #include "arb_watchdog_proto.h"
@@ -513,7 +521,7 @@ int main(int argc, char **argv)
     if (load_contract(argv[1]) != 0) {
         return 2;
     }
-    g_guardian_uid = argc == 3 ? (uid_t)strtoul(argv[2], NULL, 10) : 0;
+    g_guardian_uid = argc == 3 ? (uid_t)strtoul(argv[2], NULL, 10) : ARB_UID_GUARDIAN;
 
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/pthread_setschedparam.html */
     memset(&sp, 0, sizeof sp);
@@ -571,9 +579,26 @@ int main(int argc, char **argv)
         arb_log_fail("ConnectAttach", errno);
         return 5;
     }
+    /* NFR-I5: root is needed no further; the watchdog must see the arm's own user. */
+    {
+        char report[ARB_PRIVDROP_REPORT_LEN];
+        const char *what;
+        int err;
+
+        if (arb_privdrop(ARB_UID_ARM, ARB_PRIO_ARM, 1, ARB_UID_WATCHDOG, ARB_UID_WATCHDOG, &what, &err, report) != 0) {
+            arb_log_fail(what, err);
+            return 8;
+        }
+        printf("arb-arm: %s\n", report);
+        arb_log_s(ARB_LOG_START, SLOG2_INFO, "%s", report);
+    }
     if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_ARM, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_WD_BRAKE,
                                ARB_PULSE_ARM_WD_BEAT) != 0) {
-        arb_log_fail("register with the watchdog", errno);
+        const int e = errno;
+        if (e == EPERM && g_wd.server_pid != -1) {
+            arb_log_impostor(ARB_WD_NAME, g_wd.server_pid, g_wd.server_uid, ARB_UID_WATCHDOG);   /* F11 case 4 */
+        }
+        arb_log_fail("register with the watchdog", e);
         return 6;
     }
     SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_TICK, 0);

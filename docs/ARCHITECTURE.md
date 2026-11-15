@@ -251,6 +251,54 @@ sends a message to a client, so no client can block it.
 - The watchdog cannot physically stop anything; a hung arm controller with <!-- not a claim -->
   powered motors needs a hardware cut-off (`docs/THREAT_MODEL.md`, O3).
 
+## Users, privileges and who serves a name (NFR-I5, FR-G6, F11)
+
+Every Arbiter process runs as its own user (`qnx/common/arb_ids.h`; each user
+ID is also the process's only group). The trusted processes start as root, do
+the setup that needs root, then call `arb_privdrop()` (`qnx/common/arb_privdrop.c`)
+once, on the main thread, before they talk to any other Arbiter process. It
+keeps a short list of abilities for the non-root user, denies and locks every
+other one with `procmgr_ability()`, switches real, effective and saved user and
+group IDs, and then checks itself: `setuid(0)`, a priority one above the kept
+range and `fork()` must each be refused with `EPERM`, and setting its own
+priority must still work. If any check fails, the process exits (status 8)
+rather than run half-dropped.
+
+| Process | User | Done as root, before the drop | Kept after the drop | Why each kept ability |
+| --- | --- | --- | --- | --- |
+| `arb-watchdog` | 812 | FIFO 66, status memory, channel, death-notice registration, name `arbiter_watchdog` | PRIORITY 1-70 | Keeps its own 66; `MsgDeliverEvent()` needs PRIORITY to deliver the arm's events at 70. No CONNECTION: delivering events its clients registered needs none (measured: FR-W2 passes without it) |
+| `arb-arm` | 811 | FIFO 70, telemetry memory, channel, name `arbiter_arm` | PRIORITY 1-70, CONNECTION, XPROCESS_QUERY for user 812 | Keeps its own 70; heartbeat pulses to the watchdog, another user (`MsgSendPulse()` needs CONNECTION); reading the watchdog's `/proc/<pid>/ctl` to check who serves its name |
+| `arb-guardian` | 810 | FIFO 64, channel, `/dev/arbiter` (`resmgr_attach()` needs PATHSPACE) | PRIORITY 1-64, CONNECTION, XPROCESS_QUERY for users 811-812 | Keeps its own 64; lease, hold and brake pulses to the arm and heartbeats to the watchdog, other users; checking who serves the arm's and the watchdog's names |
+
+Two facts were measured on QEMU before being relied on: `procmgr_ability()`
+applies a range only when ALLOW and SUBRANGE are in one entry (an ALLOW entry
+followed by a separate SUBRANGE entry left every priority allowed), and the range
+is inclusive (`evidence/runs/2026-11-15-qemu/privdrop-subrange-probe.log`);
+XPROCESS_QUERY limited to users 811-812 lets a process read a uid-811 process's
+`/proc/<pid>/ctl` and still refuses a uid-820 one
+(`evidence/runs/2026-11-15-qemu/procfs-query-probe.log`).
+
+**Whose connection the arm accepts.** The arm binds the first connection whose
+effective user ID is the guardian's (810), through the guardian's first state
+query, and refuses every other connection. The guardian drops to 810 before it
+sends that query, so neither root nor a process that connects first can bind
+the arm. The watchdog accepts the guardian's role only from 810 and the arm's
+only from 811.
+
+**Who serves a name (F11 case 4).** Any process may register a name such as
+`arbiter_arm` before the real one starts, and `name_open()` then reaches it.
+So before a trusted client sends anything over a connection it opened by name
+(`arm_link_open()`; `arb_wd_client_register()`, also used on operator reset),
+`arb_server_check()` asks the kernel which process owns the channel
+(`ConnectServerInfo()`), reads that process's user IDs from `/proc/<pid>/ctl`
+(`DCMD_PROC_INFO`), and accepts the server only if its real and effective user
+IDs are the expected one. A server of another user cannot even be queried (TM-C2)
+(XPROCESS_QUERY covers exactly the users checked), so it fails the check, the
+client logs who it found and refuses to start, and the impostor receives no
+message. On the operator-reset path this runs only in SAFE_STOP, with the arm
+braked. With the security policy loaded, the name itself can be attached only
+by the process's own type (M2 P5, the security-policy image).
+
 ## What is not covered by `libcontract`
 
 - It decides commands; it does not move anything. Whether the arm follows the

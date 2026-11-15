@@ -6,6 +6,7 @@
 #define ARM_LINK_H
 
 #include <stdint.h>
+#include <sys/types.h>
 
 #include "arb_arm_proto.h"
 
@@ -28,6 +29,8 @@ typedef struct {
     int      coid;
     uint32_t seq;
     int      last_errno;    /* errno of the last failed send, for the status log */
+    pid_t    server_pid;    /* who serves ARB_ARM_NAME, and as which user (-1: unknown); F11 case 4 */
+    int      server_uid;
 } arm_link_t;
 
 /* Connect to the arm's internal name. Returns 0, or -1 with errno set. */
