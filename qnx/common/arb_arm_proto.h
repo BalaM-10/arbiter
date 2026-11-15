@@ -19,7 +19,8 @@
 
 enum {
     ARB_ARM_MSG_GET_STATE = _IO_MAX + 1,
-    ARB_ARM_MSG_SETPOINT  = _IO_MAX + 2
+    ARB_ARM_MSG_SETPOINT  = _IO_MAX + 2,
+    ARB_ARM_MSG_RESET     = _IO_MAX + 3    /* FR-G5: operator reset, from the bound guardian only */
 };
 
 typedef struct {
@@ -34,6 +35,10 @@ typedef struct {
 
 typedef struct {
     arb_arm_hdr_t hdr;
+} arb_arm_reset_t;
+
+typedef struct {
+    arb_arm_hdr_t hdr;
     int32_t  start_urad[ARB_JOINTS];   /* the position the guardian checked from */
     int32_t  target_urad[ARB_JOINTS];
     uint32_t duration_ms;
@@ -43,7 +48,8 @@ typedef struct {
 enum {
     ARB_ARM_OK          = 0,
     ARB_ARM_STALE_START = 1,           /* the arm had moved too far from start_urad */
-    ARB_ARM_REJECTED    = 2            /* refused (sender, size, version, ...) */
+    ARB_ARM_REJECTED    = 2,           /* refused (sender, size, version, ...) */
+    ARB_ARM_NO_WATCHDOG = 3            /* reset refused: the arm could not register with a watchdog */
 };
 
 typedef struct {
@@ -57,6 +63,7 @@ typedef struct {
 } arb_arm_reply_t;
 
 _Static_assert(sizeof(arb_arm_get_state_t) == 8, "layout");
+_Static_assert(sizeof(arb_arm_reset_t) == 8, "layout");
 _Static_assert(sizeof(arb_arm_setpoint_t) == 32, "layout");
 _Static_assert(sizeof(arb_arm_reply_t) == 32, "layout");
 

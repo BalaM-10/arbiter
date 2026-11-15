@@ -10,6 +10,8 @@
  *   test_e2e wdkilled <watchdog-pid>  FR-W5: the watchdog is killed mid-move
  *   test_e2e wdstopped <watchdog-pid> FR-W6: the watchdog is stopped mid-move, then resumed
  *   test_e2e wdforged <watchdog-pid>  FR-W6: the watchdog is stopped while its beat is forged
+ *   test_e2e operator <watchdog-pid> FR-W4 e-stop, FR-G5 operator reset (guardian started
+ *                                   with operator uid 800), reset refused without a watchdog
  *   test_e2e log <guardian-pid> <arm-pid> <watchdog-pid>
  *                                   NFR-Q6: state changes, a refused sender, a brake and a
  *                                   watchdog trip are in the system log (slog2info)
@@ -494,6 +496,221 @@ static void fr_w6_forged_watchdog_beats_are_ignored(void)
     (void)kill(g_watchdog, SIGCONT);
 }
 
+/* ------------------------------------------------- e-stop and operator reset */
+
+#define OPERATOR_UID 800                    /* arm_suite.sh starts arb-guardian with it */
+#define OTHER_UID    801
+
+/* Run one devctl on /dev/arbiter as another user, in a forked child (the test runs
+ * as root; setuid() then drops to `uid`). Returns the devctl result (an errno
+ * value, EOK on success), or 255 if the child could not get that far. If
+ * t_after is not NULL, it receives ClockCycles() taken right after the devctl.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/setuid.html */
+static int devctl_as(uid_t uid, int oflag, unsigned dcmd, uint64_t *t_after)
+{
+    int fds[2];
+    pid_t child;
+    int status = 0;
+
+    if (pipe(fds) == -1) {
+        return 255;
+    }
+    child = fork();
+    if (child == 0) {
+        uint64_t t = 0;
+        int fd, rc = 255;
+
+        (void)close(fds[0]);
+        if (setuid(uid) == 0 && (fd = open(ARB_DEV_PATH, oflag)) != -1) {
+            rc = devctl(fd, dcmd, NULL, 0, NULL);
+            t = ClockCycles();
+        }
+        (void)write(fds[1], &t, sizeof t);
+        _exit(rc > 254 ? 254 : rc);
+    }
+    (void)close(fds[1]);
+    if (child < 0) {
+        (void)close(fds[0]);
+        return 255;
+    }
+    {
+        uint64_t t = 0;
+        if (read(fds[0], &t, sizeof t) == (ssize_t)sizeof t && t_after != NULL) {
+            *t_after = t;
+        }
+    }
+    (void)close(fds[0]);
+    (void)waitpid(child, &status, 0);
+    return WIFEXITED(status) ? WEXITSTATUS(status) : 255;
+}
+
+/* Index of the first telemetry sample at or after `after` cycles that is not MOVING. */
+static int64_t first_stop_index_after(uint64_t after, uint64_t *last_before)
+{
+    const uint64_t h = tm_head();
+    uint64_t lo = h > ARB_TELEM_SLOTS ? h - ARB_TELEM_SLOTS : 0;
+
+    *last_before = UINT64_MAX;
+    for (uint64_t i = lo; i < h; i++) {                 /* bound: ARB_TELEM_SLOTS */
+        const arb_telem_sample_t *e = &g_tm->s[i % ARB_TELEM_SLOTS];
+        if (e->index != i) {
+            continue;
+        }
+        if (e->t_cycles < after) {
+            *last_before = i;
+        } else if (e->state != ARM_STATE_MOVING) {
+            return (int64_t)i;
+        }
+    }
+    return -1;
+}
+
+/* FR-W4 / F14: an e-stop from any client, even an unprivileged user with a
+ * read-only descriptor, puts the guardian in SAFE_STOP (cause ESTOP) and the arm
+ * is braking within 2 control cycles of the devctl() returning: the guardian
+ * sends the brake pulse before it replies. Counted in telemetry samples (one per
+ * cycle), so QEMU's timing does not decide it; the time is printed, function only. */
+static void fr_w4_estop_from_any_client_safe_stops_within_2_cycles(void)
+{
+    arb_verdict_wire_t w;
+    arb_telem_sample_t s;
+    arb_status_t st;
+    uint64_t t_after = 0, before = 0;
+    int64_t stop;
+
+    CHECK_EQ_INT(submit(-2000000, 0, 3000, &w), EOK);
+    CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+    ms_sleep(150);
+    CHECK(tm_last(&s) && s.state == ARM_STATE_MOVING);
+    CHECK_EQ_INT(devctl_as(OTHER_UID, O_RDONLY, ARB_DCMD_ESTOP, &t_after), EOK);
+    ms_sleep(20);
+    stop = first_stop_index_after(t_after, &before);
+    CHECK(stop >= 0 && before != UINT64_MAX);
+    if (stop >= 0 && before != UINT64_MAX) {
+        const arb_telem_sample_t *e = &g_tm->s[(uint64_t)stop % ARB_TELEM_SLOTS];
+        printf("info e-stop: braking in control cycle %lld after the devctl returned (%.2f ms; QEMU, function only)\n",
+               (long long)((uint64_t)stop - before), ms_between(t_after, e->t_cycles));
+        CHECK((uint64_t)stop - before <= 2u);
+    }
+    CHECK(wait_state(ARM_STATE_BRAKED, 500) != 0);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    CHECK_EQ_INT(st.stop_cause, ARB_STOP_ESTOP);
+    CHECK_EQ_INT(st.estops, 1);
+    CHECK_EQ_INT(submit(-1900000, 0, 500, &w), EOK);   /* nothing moves until a reset */
+    CHECK(w.verdict == ARB_VERDICT_DENY && w.rule == ARB_RULE_STATE);
+}
+
+/* FR-G5 (decision D2): only the operator's user ID may reset, and only on a
+ * descriptor opened for writing. Root is not the operator. */
+static void fr_g5_reset_only_from_operator(void)
+{
+    arb_status_t st;
+
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_RESET, NULL, 0, NULL), EPERM);          /* root */
+    CHECK_EQ_INT(devctl_as(OTHER_UID, O_RDWR, ARB_DCMD_RESET, NULL), EPERM);   /* another user */
+    CHECK_EQ_INT(devctl_as(OPERATOR_UID, O_RDONLY, ARB_DCMD_RESET, NULL), EBADF);   /* read-only */
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    CHECK_EQ_INT(st.resets_refused, 3);
+    CHECK_EQ_INT(devctl_as(OPERATOR_UID, O_RDWR, ARB_DCMD_RESET, NULL), EOK);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_HOLD);
+    CHECK_EQ_INT(st.stop_cause, ARB_STOP_NONE);
+    CHECK_EQ_INT(st.resets, 1);
+    CHECK_EQ_INT(devctl_as(OPERATOR_UID, O_RDWR, ARB_DCMD_RESET, NULL), EALREADY);   /* not stopped now */
+}
+
+/* FR-G5: after the reset, an approved command moves the arm again. */
+static void fr_g5_motion_resumes_after_operator_reset(void)
+{
+    arb_verdict_wire_t w;
+    arb_telem_sample_t s0, s;
+    int moved = 0;
+
+    CHECK(tm_last(&s0));
+    CHECK_EQ_INT(submit(s0.pos_urad[0] + 100000, 0, 200, &w), EOK);
+    CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+    for (int i = 0; i < 400 && !moved; i++) {           /* bound: 400 ms */
+        ms_sleep(1);
+        moved = tm_last(&s) && s.pos_urad[0] >= s0.pos_urad[0] + 100000;
+    }
+    CHECK(moved);
+}
+
+/* FR-G5 with FR-W5: no reset while the watchdog is absent; the arm refuses (it
+ * cannot register with a watchdog) and both stay stopped. */
+static void fr_g5_reset_refused_while_watchdog_absent(void)
+{
+    arb_status_t st;
+    arb_telem_sample_t s;
+
+    CHECK(kill(g_watchdog, SIGKILL) == 0);
+    CHECK(wait_state(ARM_STATE_BRAKED, 500) != 0);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    CHECK_EQ_INT(devctl_as(OPERATOR_UID, O_RDWR, ARB_DCMD_RESET, NULL), ENOLINK);
+    ms_sleep(50);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    CHECK(tm_last(&s));
+    CHECK_EQ_INT(s.state, ARM_STATE_BRAKED);
+}
+
+/* FR-W5 decision 8: motion resumes only after the watchdog is back AND an operator
+ * reset. A new watchdog alone changes nothing; the reset then re-registers the arm
+ * and the guardian with it. The test starts that watchdog and stops it at the end. */
+static void fr_w5_motion_resumes_only_after_watchdog_back_and_reset(void)
+{
+    arb_status_t st;
+    arb_telem_sample_t s;
+    pid_t wd;
+
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/e/execl.html */
+    wd = fork();
+    if (wd == 0) {
+        execl("./arb-watchdog", "arb-watchdog", (char *)NULL);
+        _exit(127);
+    }
+    CHECK(wd > 0);
+    ms_sleep(1000);
+    CHECK(kill(wd, 0) == 0);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);        /* the watchdog alone restarts nothing */
+    CHECK(tm_last(&s));
+    CHECK_EQ_INT(s.state, ARM_STATE_BRAKED);
+    CHECK_EQ_INT(devctl_as(OPERATOR_UID, O_RDWR, ARB_DCMD_RESET, NULL), EOK);
+    ms_sleep(50);                                       /* beats from the new watchdog keep both going */
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_HOLD);
+    fr_g5_motion_resumes_after_operator_reset();
+    ms_sleep(100);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK(st.state != ARB_STATE_SAFE_STOP);             /* supervised again: no watchdog loss */
+    if (wd > 0) {
+        (void)kill(wd, SIGKILL);
+        (void)waitpid(wd, NULL, 0);
+    }
+}
+
+/* FR-W6 + FR-G5: after a stopped watchdog runs again, an operator reset
+ * re-registers both clients with it and motion resumes. */
+static void fr_w6_operator_reset_after_the_watchdog_resumes_restores_motion(void)
+{
+    arb_status_t st;
+
+    CHECK_EQ_INT(devctl_as(OPERATOR_UID, O_RDWR, ARB_DCMD_RESET, NULL), EOK);
+    ms_sleep(50);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_HOLD);
+    fr_g5_motion_resumes_after_operator_reset();
+    ms_sleep(100);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK(st.state != ARB_STATE_SAFE_STOP);
+}
+
 /* ---------------------------------------------------------------- log mode */
 
 #define LOG_TEXT_MAX 65536
@@ -618,6 +835,14 @@ static const arb_test_case_t wdkilled_cases[] = {
 static const arb_test_case_t wdstopped_cases[] = {
     ARB_TEST_CASE(fr_w6_watchdog_stopped_mid_move_guardian_safe_stops_and_arm_brakes),
     ARB_TEST_CASE(fr_w6_resumed_watchdog_does_not_restart_motion),
+    ARB_TEST_CASE(fr_w6_operator_reset_after_the_watchdog_resumes_restores_motion),
+};
+static const arb_test_case_t operator_cases[] = {
+    ARB_TEST_CASE(fr_w4_estop_from_any_client_safe_stops_within_2_cycles),
+    ARB_TEST_CASE(fr_g5_reset_only_from_operator),
+    ARB_TEST_CASE(fr_g5_motion_resumes_after_operator_reset),
+    ARB_TEST_CASE(fr_g5_reset_refused_while_watchdog_absent),
+    ARB_TEST_CASE(fr_w5_motion_resumes_only_after_watchdog_back_and_reset),
 };
 static const arb_test_case_t wdforged_cases[] = { ARB_TEST_CASE(fr_w6_forged_watchdog_beats_are_ignored) };
 static const arb_test_case_t log_cases[] = { ARB_TEST_CASE(nfr_q6_trusted_processes_log_through_slog2) };
@@ -656,13 +881,16 @@ int main(int argc, char **argv)
         g_watchdog = (pid_t)strtol(argv[4], NULL, 10);
         return arb_test_run("test_e2e log", log_cases, 1);
     }
-    if (argc == 3 && strncmp(mode, "wd", 2) == 0) {
+    if (argc == 3 && (strncmp(mode, "wd", 2) == 0 || strcmp(mode, "operator") == 0)) {
         g_watchdog = (pid_t)strtol(argv[2], NULL, 10);
         if (strcmp(mode, "wdkilled") == 0) {
             return arb_test_run("test_e2e wdkilled", wdkilled_cases, 2);
         }
         if (strcmp(mode, "wdstopped") == 0) {
-            return arb_test_run("test_e2e wdstopped", wdstopped_cases, 2);
+            return arb_test_run("test_e2e wdstopped", wdstopped_cases, 3);
+        }
+        if (strcmp(mode, "operator") == 0) {
+            return arb_test_run("test_e2e operator", operator_cases, 5);
         }
         if (strcmp(mode, "wdforged") == 0) {
             return arb_test_run("test_e2e wdforged", wdforged_cases, 1);

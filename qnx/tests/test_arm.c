@@ -114,6 +114,18 @@ static long send_setpoint(int coid, const int32_t start[2], const int32_t target
     return MsgSend(coid, &q, sizeof q, r, sizeof *r);
 }
 
+/* FR-G5: the reset message (the guardian sends it on an operator reset). */
+static long send_reset(int coid, arb_arm_reply_t *r)
+{
+    arb_arm_reset_t q;
+
+    memset(&q, 0, sizeof q);
+    q.hdr.type = (uint16_t)ARB_ARM_MSG_RESET;
+    q.hdr.version = (uint16_t)ARB_ARM_PROTO_VERSION;
+    q.hdr.seq = ++g_seq;
+    return MsgSend(coid, &q, sizeof q, r, sizeof *r);
+}
+
 static int current(int32_t pos[2])
 {
     arb_arm_reply_t r;
@@ -454,6 +466,29 @@ static void fr_g5_brake_pulse_latches(void)
     CHECK(wait_state(ARM_STATE_BRAKED, 500, 1));       /* latched even while renewals arrive */
 }
 
+/* FR-G5: only the bound guardian may reset the arm; another process's reset
+ * message is refused with EPERM like its setpoints (FR-G6). */
+static void fr_g5_arm_reset_only_from_bound_guardian(void)
+{
+    const uint64_t rej0 = tm_counter(&g_tm->rejected);
+    pid_t child;
+    int status = 0;
+
+    child = fork();
+    if (child == 0) {
+        arb_arm_reply_t r;
+        const int coid = name_open(ARB_ARM_NAME, 0);
+        if (coid == -1) {
+            _exit(10);
+        }
+        _exit(send_reset(coid, &r) == -1 && errno == EPERM ? 0 : 11);
+    }
+    CHECK(child > 0);
+    (void)waitpid(child, &status, 0);
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    CHECK(tm_counter(&g_tm->rejected) > rej0);
+}
+
 /* FR-W6 on the arm alone (and the arm-side latch of judge-review M1-J1): the
  * watchdog is stopped, so its beats stop. The arm must brake by itself, count
  * the loss with cause BEATS, and then refuse every setpoint from its bound
@@ -482,6 +517,25 @@ static void fr_w6_arm_refuses_setpoints_after_losing_the_watchdog(void)
     CHECK_EQ_INT(s1.state, ARM_STATE_BRAKED);
     CHECK_EQ_INT(s1.segment, s0.segment);
     CHECK_EQ_INT(s1.pos_urad[0], s0.pos_urad[0]);
+}
+
+/* FR-G5: after the watchdog runs again (previous case), a reset from the bound
+ * guardian re-registers the arm with it and clears the latch: setpoints work
+ * again, and the arm stays supervised (no new watchdog loss). */
+static void fr_g5_arm_reset_from_its_guardian_clears_the_watchdog_latch(void)
+{
+    arb_arm_reply_t r;
+
+    CHECK_EQ_INT(send_reset(g_coid, &r), EOK);
+    CHECK_EQ_INT(r.status, ARB_ARM_OK);
+    CHECK_EQ_INT(move_to(-600000, 0, 1000), ARB_ARM_OK);
+    renew_for(g_coid, 100);
+    CHECK_EQ_INT(tm_counter(&g_tm->wd_lost), 1);          /* only the loss of the previous case */
+    {
+        arb_telem_sample_t s;
+        CHECK(tm_last(&s));
+        CHECK_EQ_INT(s.state, ARM_STATE_MOVING);
+    }
 }
 
 /* FR-A1 (the loop is driven by the arm's own QNX timer), judge-review M1-J6:
@@ -552,7 +606,9 @@ static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_a4_guardian_disconnect_brakes_at_once),
     ARB_TEST_CASE(fr_g5_hold_pulse_stops_without_latching),
     ARB_TEST_CASE(fr_g5_brake_pulse_latches),
-    ARB_TEST_CASE(fr_w6_arm_refuses_setpoints_after_losing_the_watchdog),   /* last: leaves the arm latched */
+    ARB_TEST_CASE(fr_g5_arm_reset_only_from_bound_guardian),
+    ARB_TEST_CASE(fr_w6_arm_refuses_setpoints_after_losing_the_watchdog),   /* leaves the arm latched ... */
+    ARB_TEST_CASE(fr_g5_arm_reset_from_its_guardian_clears_the_watchdog_latch),   /* ... and this clears it */
 };
 
 int main(int argc, char **argv)

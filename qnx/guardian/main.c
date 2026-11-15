@@ -8,7 +8,7 @@
  * Layout follows the 8.0 single-threaded resource manager skeleton:
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.resmgr/topic/skeleton_SIMPLE_ST_EG.html
  *
- *   arb-guardian <contract.bin>
+ *   arb-guardian <contract.bin> [operator-uid]   (no operator uid: reset refused to everyone)
  *
  * Exit status: 2 contract refused (FR-C4), 3 scheduling, 4 no arm, 5 setup, 6 no watchdog.
  * Startup order: watchdog, then arm, then guardian. The guardian registers with
@@ -68,6 +68,8 @@ static arb_status_t         g_status;
 static int                  g_tick_scoid = -1;      /* our own timer's connection (arb_own_pulse.h) */
 static arb_wd_client_t      g_wd;
 static int                  g_wd_lost;              /* the watchdog itself is gone (FR-W5, FR-W6) */
+static int                  g_operator_set;         /* FR-G5: an operator user ID was given */
+static uid_t                g_operator_uid;
 
 /* What the system log last said (NFR-Q6). Owner: the same thread, after each message. */
 static struct {
@@ -460,9 +462,13 @@ int main(int argc, char **argv)
     int chid, coid, rc;
 
     (void)arb_log_init("arb_guardian", "arb-guardian");   /* first: startup failures are logged too */
-    if (argc != 2) {
-        fprintf(stderr, "usage: arb-guardian <contract.bin>\n");
+    if (argc < 2 || argc > 3) {
+        fprintf(stderr, "usage: arb-guardian <contract.bin> [operator-uid]\n");
         return 5;
+    }
+    if (argc == 3) {
+        g_operator_uid = (uid_t)strtoul(argv[2], NULL, 10);
+        g_operator_set = 1;
     }
     if (load_contract(argv[1]) != 0) {
         return 2;

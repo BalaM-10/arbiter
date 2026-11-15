@@ -60,9 +60,13 @@ typedef struct {
     uint32_t foreign_pulses;           /* tick or trip pulses not from our own connection, ignored */
     uint16_t watchdog_lost;            /* times the guardian lost the watchdog (FR-W5, FR-W6) */
     uint16_t watchdog_lost_cause;      /* ARB_WD_LOST_* of the first loss, 0 if none */
+    uint16_t estops;                   /* emergency stops received (FR-W4) */
+    uint16_t resets;                   /* operator resets done (FR-G5) */
+    uint16_t resets_refused;           /* resets refused: not the operator, wrong state, no watchdog, arm */
+    uint16_t reserved;                 /* 0 */
 } arb_status_t;
 
-_Static_assert(sizeof(arb_status_t) == 40, "arb_status_t layout");
+_Static_assert(sizeof(arb_status_t) == 48, "arb_status_t layout");
 
 /* devctl() payload for a command: the command in, the verdict out (same buffer). */
 typedef union {

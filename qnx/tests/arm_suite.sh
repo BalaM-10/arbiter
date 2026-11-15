@@ -21,8 +21,10 @@ arb_arm_up() {
     sleep 1
 }
 
+OPERATOR_UID=800                # FR-G5: the operator's user ID (test_e2e.c OPERATOR_UID)
+
 arb_guard_up() {
-    ./arb-guardian "$CONTRACT" &
+    ./arb-guardian "$CONTRACT" "$OPERATOR_UID" &
     GUARD=$!
     sleep 1
 }
@@ -122,6 +124,37 @@ arb_wd_up
 arb_arm_up
 arb_guard_up
 ./test_e2e wdforged "$WD" || fail=1
+arb_down
+
+echo "## FR-W4, FR-G5: e-stop from any client, reset only from the operator, not without a watchdog"
+arb_wd_up
+arb_arm_up
+arb_guard_up
+./test_e2e operator "$WD" || fail=1
+arb_down
+
+# The operator console. uid 800 cannot enter root's home, where the binaries are,
+# so the operator's copy runs from /tmp.
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/o/on.html
+echo "## FR-W4, FR-G5: the operator console arb-ctl"
+arb_wd_up
+arb_arm_up
+arb_guard_up
+CTL=/tmp/arb-ctl.$$
+cp ./arb-ctl "$CTL" && chmod 755 "$CTL"
+c=0
+./arb-ctl estop || c=1
+./arb-ctl status | grep -q "^state SAFE_STOP cause estop" || c=1
+if ./arb-ctl reset; then c=1; fi                          # root is not the operator
+on -u "$OPERATOR_UID" "$CTL" reset || c=1
+./arb-ctl status | grep -q "^state HOLD cause none estops 1 resets 1 resets_refused 1 " || c=1
+rm -f "$CTL"
+if [ "$c" -eq 0 ]; then
+    echo "PASS fr_w4_operator_console_estop_and_reset"
+else
+    echo "FAIL fr_w4_operator_console_estop_and_reset"
+    fail=1
+fi
 arb_down
 
 echo "## NFR-Q6: trusted processes log through slogger2"
