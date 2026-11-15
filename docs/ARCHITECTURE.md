@@ -215,6 +215,15 @@ sends a message to a client, so no client can block it.
   the arm brakes and latches (FR-W2). A dead or stuck arm: it delivers the
   guardian's event and the guardian enters `SAFE_STOP` with cause `WATCHDOG`.
   Every trip is recorded in a read-only status record: role, cause, pid, time.
+- **Its own failure is fail-safe (FR-W5, FR-W6, M2).** Every 2 ms the watchdog
+  delivers each client a second registered event, its beat. The arm and the
+  guardian each stop on their own when the watchdog is lost: the arm brakes and
+  latches, the guardian enters `SAFE_STOP` with cause `WATCHDOG`. Lost means either
+  the kernel reports that the watchdog's channel is gone (`_PULSE_CODE_COIDDEATH`
+  on the client's connection, confirmed with `ConnectServerInfo()`: it died), or
+  10 of the client's own 1 ms ticks pass without a beat (it is stopped, stuck or
+  dead). A watchdog that runs again restarts nothing. A watchdog spinning at
+  priority 66 would starve the guardian (64); the arm (70) still brakes.
 - The watchdog cannot physically stop anything; a hung arm controller with <!-- not a claim -->
   powered motors needs a hardware cut-off (`docs/THREAT_MODEL.md`, O3).
 

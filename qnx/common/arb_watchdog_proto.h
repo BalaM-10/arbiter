@@ -8,6 +8,12 @@
  *      watchdog may deliver it (8.0 refuses unregistered events with EACCES);
  *   3. sends ARB_WD_MSG_REGISTER with its role and that event (bounded send).
  * Then it sends ARB_PULSE_WD_HEARTBEAT (value = role) every cycle.
+ * The registration carries a second registered event, the beat (version 2,
+ * FR-W6): the watchdog delivers it every ARB_WD_BEAT_PERIOD_MS with
+ * MsgDeliverEvent() ("Blocking states: None" [MsgDeliverEvent]). A client that
+ * handles ARB_WD_BEAT_TIMEOUT_MS of its own 1 ms ticks without a beat treats the
+ * watchdog as lost (stopped, stuck or dead). A dead watchdog is also seen at once
+ * through _PULSE_CODE_COIDDEATH on the client's connection to it (FR-W5).
  *
  * The watchdog never sends a message to a client. When it trips, it delivers the
  * other client's registered event with MsgDeliverEvent() (non-blocking):
@@ -27,7 +33,7 @@
 #include <sys/siginfo.h>
 
 #define ARB_WD_NAME            "arbiter_watchdog"           /* /dev/name/local/arbiter_watchdog */
-#define ARB_WD_PROTO_VERSION   1u
+#define ARB_WD_PROTO_VERSION   2u                           /* 2: beat event (FR-W6) */
 #define ARB_WD_TIMEOUT_MS      10                           /* missed heartbeats -> "stuck" */
 /* FR-W6: the watchdog beats each client every 2 ms; a client that has seen no
  * beat for 10 ms treats the watchdog as lost (owner decision D7, 2026-11-14;
@@ -60,7 +66,8 @@ typedef struct {
     uint16_t        type;            /* ARB_WD_MSG_REGISTER */
     uint16_t        version;         /* ARB_WD_PROTO_VERSION */
     uint32_t        role;            /* ARB_WD_ROLE_* */
-    struct sigevent event;           /* registered with MsgRegisterEvent(&event, watchdog coid) */
+    struct sigevent event;           /* trip; registered with MsgRegisterEvent(&event, watchdog coid) */
+    struct sigevent beat;            /* beat (FR-W6); registered the same way, same token */
 } arb_wd_register_t;
 
 typedef struct {
@@ -92,6 +99,8 @@ typedef struct {
     _Atomic uint64_t delivered;          /* events delivered to the other client */
     _Atomic uint64_t deliver_errors;
     _Atomic uint64_t rejected;           /* bad registrations, foreign heartbeats, unconfirmed deaths */
+    _Atomic uint64_t beats;              /* beat events delivered to clients (FR-W6) */
+    _Atomic uint64_t beat_errors;        /* beat deliveries the kernel refused */
 } arb_wd_status_t;
 
 _Static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "64-bit atomics must be lock-free for shared memory");

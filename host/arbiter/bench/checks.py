@@ -86,22 +86,26 @@ def trusted_running(run: Run) -> Check:
 
 
 def no_unexpected_faults(run: Run, extra_ok: frozenset[str] = frozenset()) -> Check:
-    """Nothing went wrong that the scenario did not ask for (M1-J11): no watchdog trip,
-    no arm rejection, lease expiry, disconnect or watchdog brake, no guardian arm fault,
-    foreign pulse or bad message. Counters named in extra_ok are allowed to move."""
+    """Nothing went wrong that the scenario did not ask for (M1-J11): no watchdog trip or
+    beat error, no arm rejection, lease expiry, disconnect, watchdog brake or lost
+    watchdog, no guardian arm fault, foreign pulse, bad message or lost watchdog.
+    Counters named in extra_ok are allowed to move."""
     seen = {
         "watchdog trips": _delta(run, run.wd, "trips"),
         "watchdog rejected": _delta(run, run.wd, "rejected"),
         "watchdog deliver errors": _delta(run, run.wd, "deliver_errors"),
+        "watchdog beat errors": _delta(run, run.wd, "beat_errors"),
         "arm rejected": _delta(run, run.counters, "rejected"),
         "arm lease expiries": _delta(run, run.counters, "lease_expiries"),
         "arm disconnects": _delta(run, run.counters, "disconnects"),
         "arm watchdog brakes": _delta(run, run.counters, "wd_brakes"),
+        "arm watchdog lost": _delta(run, run.counters, "wd_lost"),
     }
     if run.statuses:
         last = run.statuses[-1]
         seen.update({"guardian arm faults": last.arm_faults, "guardian watchdog trips": last.watchdog_trips,
                      "guardian foreign pulses": last.foreign_pulses,
+                     "guardian watchdog lost": last.watchdog_lost,
                      "guardian bad messages": last.bad_messages})
     else:
         seen["guardian status"] = -1

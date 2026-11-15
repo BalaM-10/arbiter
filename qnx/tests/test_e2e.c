@@ -271,7 +271,12 @@ static void fr_w2_arm_stays_braked_after_a_stuck_guardian_resumes(void)
     CHECK_EQ_INT(before.state, ARM_STATE_BRAKED);
     CHECK_EQ_INT(submit(-100000, 0, 1000, &w), EOK);    /* a valid move, away from the hand area */
     CHECK(w.verdict == ARB_VERDICT_DENY);
-    CHECK_EQ_INT(w.rule, ARB_RULE_ARM_FAULT);
+    /* Since FR-W6 (M2 P3) the watchdog stops beating a guardian it tripped, so the
+     * resumed guardian usually enters SAFE_STOP by itself first (rule STATE);
+     * otherwise the arm's latch refuses the setpoint (rule ARM_FAULT). Either
+     * way nothing moves (checked below). The arm's latch alone is tested by
+     * test_arm.c::fr_w6_arm_refuses_setpoints_after_losing_the_watchdog. */
+    CHECK(w.rule == ARB_RULE_STATE || w.rule == ARB_RULE_ARM_FAULT);
     ms_sleep(300);
     CHECK(tm_last(&after));
     CHECK_EQ_INT(after.state, ARM_STATE_BRAKED);

@@ -13,17 +13,31 @@ typedef struct {
     uint32_t role;
     uint64_t token;         /* value carried by our registered trip event */
     uint32_t hb_errors;     /* heartbeats the kernel refused */
+    uint32_t ticks_since_beat;  /* own 1 ms ticks handled since the watchdog's last beat (FR-W6) */
 } arb_wd_client_t;
 
 /* Connect and register. self_coid is a connection to the caller's own channel,
- * where the watchdog's trip event will arrive as a pulse with code `code` at
- * priority `prio`. Returns 0, or -1 with errno set (no watchdog, refused, timeout). */
-int  arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int prio, int code);
+ * where the watchdog's trip event arrives as a pulse with code `code`, and its
+ * beat (FR-W6) with code `beat_code`, both at priority `prio`. Returns 0, or -1
+ * with errno set (no watchdog, refused, timeout). */
+int  arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int prio, int code, int beat_code);
 
 /* One heartbeat pulse (non-blocking). */
 void arb_wd_client_heartbeat(arb_wd_client_t *w);
 
 /* Is this pulse our genuine trip event (right code and token)? */
 int  arb_wd_client_is_trip(const arb_wd_client_t *w, const struct _pulse *p, int code);
+
+/* FR-W6. A genuine beat (code and token) restarts the count and returns 1; a
+ * pulse with the beat code but not our token returns 0 (forged; the caller counts it). */
+int  arb_wd_client_beat(arb_wd_client_t *w, const struct _pulse *p, int beat_code);
+
+/* FR-W6. Call on each of the caller's own 1 ms ticks: 1 once the watchdog has
+ * been silent for ARB_WD_BEAT_TIMEOUT_MS ticks, else 0. */
+int  arb_wd_client_tick_lost(arb_wd_client_t *w);
+
+/* FR-W5. For a _PULSE_CODE_COIDDEATH pulse carrying `coid`: 1 if it is our
+ * connection to the watchdog and its server is really gone, else 0. */
+int  arb_wd_client_server_gone(const arb_wd_client_t *w, int coid);
 
 #endif /* ARB_WD_CLIENT_H */

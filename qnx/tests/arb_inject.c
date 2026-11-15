@@ -25,14 +25,14 @@
  * Output (all integers):
  *   ARB-INJECT 1
  *   INFO telem_version <v> cycles_per_sec <n> slots <n>
- *   COUNTERS <begin|end> rejected <n> lease_expiries <n> disconnects <n> wd_brakes <n> bound_pid <n>
- *   WD <begin|end> trips <n> rejected <n> hb_guardian <n> hb_arm <n> deliver_errors <n>
+ *   COUNTERS <begin|end> rejected <n> lease_expiries <n> disconnects <n> wd_brakes <n> wd_lost <n> bound_pid <n>
+ *   WD <begin|end> trips <n> rejected <n> hb_guardian <n> hb_arm <n> deliver_errors <n> beat_errors <n>
  *     (the watchdog's own counters; heartbeats advance only while the guardian,
  *     the arm and the watchdog are all running)
  *   V <t_send_ns> <t_reply_ns> <telem_head> <seq> <rc> <verdict> <rule> <state> <flags>
  *     <target0> <target1> <duration_ms> <requested_ms>
  *   S <t_ns> <state> <stop_cause> <decisions> <arm_faults> <ticks> <bad_messages> <watchdog_trips>
- *     <foreign_pulses>
+ *     <foreign_pulses> <watchdog_lost>
  *   T <index> <t_ns> <t_cycles> <pos0> <pos1> <vel0> <vel1> <segment> <state> <lease_ok>
  *   GAP <first_index> <count>              samples the reader lost (the bench fails on any)
  *   DONE samples <n> gaps <n> verdicts <n>
@@ -98,9 +98,9 @@ static const arb_wd_status_t *g_wd;
 
 /* Counters snapshotted at the start and the end of the run, printed afterwards. */
 typedef struct {
-    uint64_t rejected, lease_expiries, disconnects, wd_brakes;
+    uint64_t rejected, lease_expiries, disconnects, wd_brakes, wd_lost;
     int64_t  bound_pid;
-    uint64_t wd_trips, wd_rejected, hb[3], wd_deliver_errors;
+    uint64_t wd_trips, wd_rejected, hb[3], wd_deliver_errors, wd_beat_errors;
 } snap_t;
 
 static int64_t now_ns(void)
@@ -176,6 +176,7 @@ static void snapshot(snap_t *s)
     s->lease_expiries = atomic_load(&t->lease_expiries);
     s->disconnects = atomic_load(&t->disconnects);
     s->wd_brakes = atomic_load(&t->wd_brakes);
+    s->wd_lost = atomic_load(&t->wd_lost);
     s->bound_pid = atomic_load(&t->bound_pid);
     s->wd_trips = atomic_load(&w->trips);
     s->wd_rejected = atomic_load(&w->rejected);
@@ -183,17 +184,20 @@ static void snapshot(snap_t *s)
         s->hb[r] = atomic_load(&w->heartbeats[r]);
     }
     s->wd_deliver_errors = atomic_load(&w->deliver_errors);
+    s->wd_beat_errors = atomic_load(&w->beat_errors);
 }
 
 static void print_snapshot(const char *phase, const snap_t *s)
 {
-    printf("COUNTERS %s rejected %llu lease_expiries %llu disconnects %llu wd_brakes %llu bound_pid %lld\n",
+    printf("COUNTERS %s rejected %llu lease_expiries %llu disconnects %llu wd_brakes %llu wd_lost %llu "
+           "bound_pid %lld\n",
            phase, (unsigned long long)s->rejected, (unsigned long long)s->lease_expiries,
-           (unsigned long long)s->disconnects, (unsigned long long)s->wd_brakes, (long long)s->bound_pid);
-    printf("WD %s trips %llu rejected %llu hb_guardian %llu hb_arm %llu deliver_errors %llu\n", phase,
-           (unsigned long long)s->wd_trips, (unsigned long long)s->wd_rejected,
+           (unsigned long long)s->disconnects, (unsigned long long)s->wd_brakes, (unsigned long long)s->wd_lost,
+           (long long)s->bound_pid);
+    printf("WD %s trips %llu rejected %llu hb_guardian %llu hb_arm %llu deliver_errors %llu beat_errors %llu\n",
+           phase, (unsigned long long)s->wd_trips, (unsigned long long)s->wd_rejected,
            (unsigned long long)s->hb[ARB_WD_ROLE_GUARDIAN], (unsigned long long)s->hb[ARB_WD_ROLE_ARM],
-           (unsigned long long)s->wd_deliver_errors);
+           (unsigned long long)s->wd_deliver_errors, (unsigned long long)s->wd_beat_errors);
 }
 
 static int parse_script(void)
@@ -339,9 +343,9 @@ int main(void)
     }
     for (unsigned i = 0; i < g_ns; i++) {
         const arb_status_t *st = &g_s[i].st;
-        printf("S %lld %u %u %u %u %u %u %u %u\n", (long long)g_s[i].t_ns, (unsigned)st->state,
+        printf("S %lld %u %u %u %u %u %u %u %u %u\n", (long long)g_s[i].t_ns, (unsigned)st->state,
                (unsigned)st->stop_cause, st->decisions, st->arm_faults, st->ticks, st->bad_messages,
-               st->watchdog_trips, st->foreign_pulses);
+               st->watchdog_trips, st->foreign_pulses, (unsigned)st->watchdog_lost);
     }
     for (unsigned i = 0; i < g_nsamples; i++) {
         const arb_telem_sample_t *c = &g_samples[i];

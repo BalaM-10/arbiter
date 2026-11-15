@@ -12,6 +12,8 @@
  * other client's registered event (arb_watchdog_proto.h): a dead or stuck
  * guardian brakes the arm; a dead or stuck arm puts the guardian in SAFE_STOP.
  * It never sends a message to a client, so no client can block it.
+ * FR-W6: every ARB_WD_BEAT_PERIOD_MS it also delivers each registered client's
+ * beat event, so a client notices when the watchdog itself stops.
  *
  *   arb-watchdog [trusted-uid]      (default uid 0 in M1, where all run as root)
  *
@@ -58,6 +60,7 @@ typedef struct {
     pid_t           pid;
     rcvid_t         rcvid;               /* of the registration message, for MsgDeliverEvent */
     struct sigevent event;               /* its registered trip event */
+    struct sigevent beat;                /* its registered beat event (FR-W6) */
     int64_t         last_hb_ns;
 } client_t;
 
@@ -65,6 +68,7 @@ typedef struct {
 static client_t         g_client[ROLES];
 static pid_t            g_last_pid[ROLES];   /* last process that held each role */
 static int              g_self_scoid = -1;   /* our own connection, learned before the name exists */
+static uint32_t         g_ticks;             /* own ticks handled, for the beat period */
 static arb_wd_status_t *g_st;
 static uid_t            g_trusted_uid;
 
@@ -171,6 +175,7 @@ static void handle_register(rcvid_t rcvid, const struct _msg_info *info, const a
     c->pid = ci.pid;
     c->rcvid = rcvid;
     c->event = m->event;
+    c->beat = m->beat;
     c->last_hb_ns = now;
     g_last_pid[m->role] = ci.pid;
     atomic_store_explicit(&g_st->pid[m->role], (int64_t)ci.pid, memory_order_relaxed);
@@ -190,6 +195,22 @@ static void handle_pulse(const struct _pulse *p, int64_t now)
         for (uint32_t r = 1; r < ROLES; r++) {         /* bound: ROLES */
             if (g_client[r].registered && now - g_client[r].last_hb_ns > TIMEOUT_NS) {
                 trip(r, ARB_WD_CAUSE_STUCK);
+            }
+        }
+        /* FR-W6: our own beat to each client still registered. Non-blocking
+         * ("Blocking states: None"); a client the watchdog tripped gets no more
+         * beats, so it also stops on its own when it runs again.
+         * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgdeliverevent.html */
+        if (++g_ticks % (uint32_t)ARB_WD_BEAT_PERIOD_MS == 0u) {
+            for (uint32_t r = 1; r < ROLES; r++) {     /* bound: ROLES */
+                if (!g_client[r].registered) {
+                    continue;
+                }
+                if (MsgDeliverEvent(g_client[r].rcvid, &g_client[r].beat) == -1) {
+                    count(&g_st->beat_errors);
+                } else {
+                    count(&g_st->beats);
+                }
             }
         }
         return;
@@ -468,7 +489,7 @@ int main(int argc, char **argv)
 
         if (rcvid == -1) {
             /* M1-J18: do not spin at priority 66 on a receive that keeps failing.
-             * Exiting is seen by the arm and the guardian (FR-W5, M2). */
+             * Exiting is seen by the arm and the guardian, which stop (FR-W5). */
             if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
                 arb_log_fail("MsgReceive, 100 consecutive errors; exiting", errno);
                 return 7;

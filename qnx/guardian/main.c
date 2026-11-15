@@ -13,7 +13,10 @@
  * Exit status: 2 contract refused (FR-C4), 3 scheduling, 4 no arm, 5 setup, 6 no watchdog.
  * Startup order: watchdog, then arm, then guardian. The guardian registers with
  * the watchdog, sends a heartbeat every tick, and enters SAFE_STOP when the
- * watchdog says the arm died or is stuck.
+ * watchdog says the arm died or is stuck. It also enters SAFE_STOP (cause
+ * WATCHDOG) on its own when the watchdog itself is lost (fail-safe): the
+ * connection to it dies (_PULSE_CODE_COIDDEATH, FR-W5) or its beat stops for
+ * ARB_WD_BEAT_TIMEOUT_MS ticks (FR-W6).
  * Design: docs/DESIGN_M1_ADDENDUM.md. Threat model: docs/THREAT_MODEL.md.
  * Toward the arm (docs/DESIGN_M1_ADDENDUM.md section 2): a lease renewal pulse
  * every tick unless in SAFE_STOP; a hold pulse on entering HOLD; a latching brake
@@ -64,11 +67,12 @@ static arm_link_t           g_arm;
 static arb_status_t         g_status;
 static int                  g_tick_scoid = -1;      /* our own timer's connection (arb_own_pulse.h) */
 static arb_wd_client_t      g_wd;
+static int                  g_wd_lost;              /* the watchdog itself is gone (FR-W5, FR-W6) */
 
 /* What the system log last said (NFR-Q6). Owner: the same thread, after each message. */
 static struct {
     uint8_t  state, cause;
-    uint32_t arm_faults, watchdog_trips, foreign_pulses, bad_messages, arm_pulse_errors;
+    uint32_t arm_faults, watchdog_trips, foreign_pulses, bad_messages, arm_pulse_errors, watchdog_lost;
 } g_logged;
 
 static uint64_t now_ns(void)
@@ -263,6 +267,8 @@ static int io_close_ocb(resmgr_context_t *ctp, void *reserved, RESMGR_OCB_T *ocb
     return status;
 }
 
+static void watchdog_lost(uint16_t cause);   /* FR-W5 / FR-W6, below */
+
 /* 1 ms tick: silence timeout (FR-G5) and the arm's lease renewal (FR-A4).
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/pulse_attach.html */
 static int on_tick(message_context_t *ctp, int code, unsigned flags, void *handle)
@@ -278,12 +284,56 @@ static int on_tick(message_context_t *ctp, int code, unsigned flags, void *handl
         return 0;
     }
     g_status.ticks++;
+    /* FR-W6: counted in our own ticks, so a late tick of ours cannot look like a
+     * silent watchdog (its beat queued ahead of this tick is handled first). */
+    if (arb_wd_client_tick_lost(&g_wd)) {
+        watchdog_lost(ARB_WD_LOST_BEATS);
+    }
     (void)arb_guard_tick(&g_guard, now_ns());
     follow_state(before);
     if (g_guard.state != ARB_STATE_SAFE_STOP) {
         arm_pulse(ARB_PULSE_ARM_RENEW);   /* HOLD is an authorized state too */
     }
     arb_wd_client_heartbeat(&g_wd);
+    return 0;
+}
+
+/* FR-W5 / FR-W6: without its supervisor the guardian stops the system. SAFE_STOP
+ * stays until an operator reset (M2 P4); a watchdog that comes back changes nothing. */
+static void watchdog_lost(uint16_t cause)
+{
+    const uint8_t before = g_guard.state;
+
+    if (g_wd_lost) {
+        return;
+    }
+    g_wd_lost = 1;
+    g_status.watchdog_lost++;
+    g_status.watchdog_lost_cause = cause;
+    arb_guard_fault(&g_guard, ARB_STOP_WATCHDOG);
+    follow_state(before);                 /* brake pulse to the arm */
+}
+
+/* FR-W6: the watchdog's beat, a registered event carrying our token. */
+static int on_wd_beat(message_context_t *ctp, int code, unsigned flags, void *handle)
+{
+    (void)code; (void)flags; (void)handle;
+    if (!arb_wd_client_beat(&g_wd, &ctp->msg->pulse, ARB_PULSE_GUARDIAN_WD_BEAT)) {
+        g_status.foreign_pulses++;        /* the beat code without our token: forged */
+    }
+    return 0;
+}
+
+/* FR-W5: a server we are connected to destroyed its channel; the value is the
+ * coid of our connection [ChannelCreate]. Only the watchdog's counts here (the
+ * arm's death is the watchdog's to report, FR-W2).
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/channelcreate.html */
+static int on_coid_death(message_context_t *ctp, int code, unsigned flags, void *handle)
+{
+    (void)code; (void)flags; (void)handle;
+    if (arb_wd_client_server_gone(&g_wd, ctp->msg->pulse.value.sival_int)) {
+        watchdog_lost(ARB_WD_LOST_CONNECTION);
+    }
     return 0;
 }
 
@@ -356,6 +406,13 @@ static void log_changes(int first)
               "refused a malformed or unknown devctl (%lld so far)");
     log_count(&g_logged.arm_pulse_errors, g_status.arm_pulse_errors, ARB_LOG_FAULT, SLOG2_ERROR,
               "the kernel refused a pulse to the arm (%lld so far)");
+    if (g_status.watchdog_lost != g_logged.watchdog_lost) {
+        g_logged.watchdog_lost = g_status.watchdog_lost;
+        arb_log_c(ARB_LOG_FAULT, SLOG2_ERROR,
+                  g_status.watchdog_lost_cause == ARB_WD_LOST_CONNECTION
+                      ? "watchdog lost (its connection died): SAFE_STOP"
+                      : "watchdog lost (no beat for 10 ticks): SAFE_STOP");
+    }
 }
 
 /* ------------------------------------------------------------------ startup */
@@ -441,7 +498,8 @@ int main(int argc, char **argv)
      * manager's channel to have.
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/channelcreate.html
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/dispatch_create_channel.html */
-    chid = ChannelCreate(_NTO_CHF_FIXED_PRIORITY | _NTO_CHF_UNBLOCK | _NTO_CHF_DISCONNECT);
+    /* _NTO_CHF_COID_DISCONNECT (FR-W5): a pulse when the watchdog's channel is destroyed. */
+    chid = ChannelCreate(_NTO_CHF_FIXED_PRIORITY | _NTO_CHF_UNBLOCK | _NTO_CHF_DISCONNECT | _NTO_CHF_COID_DISCONNECT);
     if (chid == -1) {
         arb_log_fail("ChannelCreate", errno);
         return 5;
@@ -471,7 +529,11 @@ int main(int argc, char **argv)
 
     /* Everything attached before dispatch_context_alloc() (DISPATCH_FLAG_NOLOCK). */
     if (pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_TICK, on_tick, NULL) == -1 ||
-        pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_WD_TRIP, on_wd_trip, NULL) == -1) {
+        pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_WD_TRIP, on_wd_trip, NULL) == -1 ||
+        pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_WD_BEAT, on_wd_beat, NULL) == -1 ||
+        /* A predefined _PULSE_CODE_* code is allowed; only UNBLOCK and DISCONNECT
+         * are excluded with resmgr_attach() [pulse_attach]. */
+        pulse_attach(dpp, 0, _PULSE_CODE_COIDDEATH, on_coid_death, NULL) == -1) {
         arb_log_fail("pulse_attach", errno);
         return 5;
     }
@@ -486,7 +548,8 @@ int main(int argc, char **argv)
         arb_log_fail("ConnectAttach", errno);
         return 5;
     }
-    if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_GUARDIAN, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_WD_TRIP) != 0) {
+    if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_GUARDIAN, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_WD_TRIP,
+                               ARB_PULSE_GUARDIAN_WD_BEAT) != 0) {
         arb_log_fail("register with the watchdog", errno);
         return 6;
     }

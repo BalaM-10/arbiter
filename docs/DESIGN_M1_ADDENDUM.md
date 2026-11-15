@@ -529,6 +529,13 @@ the strict rule: 0 intervals of 2 periods or more, longest 1.988 ms.
    A *stopped* or stuck watchdog is not covered by these two signs: its
    channel still exists, so no COIDDEATH pulse is sent, and heartbeats still
    queue. Decision 9 covers it.
+   **Implemented in M2 P3 (2026-11-15).** The guardian attaches
+   `_PULSE_CODE_COIDDEATH` with `pulse_attach()` (the page allows the predefined
+   codes, excluding only UNBLOCK and DISCONNECT on a resource manager). The
+   refused-heartbeat sign was not used: a heartbeat can also fail for a transient
+   reason (`EAGAIN`), and the missing beat (decision 9) already covers a death
+   whose pulse is lost. Confirmed on target that the pulse arrives for a
+   `name_open()` connection (see `docs/TRACEABILITY.md`, FR-W5).
 
 9. **A frozen watchdog is caught by its own heartbeat (owner decision,
    2026-11-13; implemented in M2, FR-W6).** The watchdog sends its own
@@ -550,3 +557,11 @@ the strict rule: 0 intervals of 2 periods or more, longest 1.988 ms.
    (from telemetry), the guardian enters `SAFE_STOP` with cause `WATCHDOG`, and
    the measured time from the last beat to L1 and L2 is reported. Then
    `slay -u` (continue) must not resume motion: an operator reset is needed.
+   **Implemented in M2 P3 (2026-11-15).** The beat registers with the trip event
+   in one registration message (watchdog protocol version 2), carrying the same
+   token. The timeout counts the client's own ticks (10), not wall time, so a
+   late tick of the client itself is not mistaken for a silent watchdog: the beat
+   queued ahead of it is handled first. A client the watchdog has tripped gets no
+   more beats, so a stuck guardian that resumes also enters `SAFE_STOP` by
+   itself. The tests stop and continue the watchdog with `SIGSTOP` and
+   `SIGCONT` (`kill()`), the same signals as `slay -h` and `slay -u`.

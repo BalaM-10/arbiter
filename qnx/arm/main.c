@@ -13,7 +13,10 @@
  * Exit status: 2 contract refused, 3 scheduling, 5 setup, 6 no watchdog.
  * The watchdog must be running first: the arm registers with it, sends a
  * heartbeat every cycle, and brakes (latched) when the watchdog says the guardian
- * died or is stuck (FR-W2).
+ * died or is stuck (FR-W2). The arm also brakes and latches on its own when the
+ * watchdog itself is lost (fail-safe): its connection to the watchdog dies
+ * (_PULSE_CODE_COIDDEATH, FR-W5) or its beat stops for ARB_WD_BEAT_TIMEOUT_MS
+ * control cycles (FR-W6).
  *
  * Sender binding (M1): the first connection whose effective user ID is the
  * guardian's becomes the only authorized one; others are refused and counted.
@@ -75,6 +78,7 @@ static uint32_t             g_segment;
  * move the arm again until restart (judge-review M1-J1; an operator reset path
  * is M2, FR-G5). */
 static int                  g_wd_tripped;
+static int                  g_wd_lost;             /* the watchdog itself is gone (FR-W5, FR-W6); never cleared */
 static arb_wd_client_t      g_wd;
 /* Counted here for the system log only (the telemetry layout is unchanged). */
 static uint64_t             g_refused_senders;     /* messages from a connection that is not the bound guardian */
@@ -84,7 +88,7 @@ static uint64_t             g_guardian_holds;      /* HOLD pulses from the guard
 /* What the system log last said (NFR-Q6). Owner: the arm's single thread. */
 static struct {
     uint64_t rejected_other, refused_senders, lease_expiries, disconnects, wd_brakes;
-    uint64_t guardian_brakes, guardian_holds;
+    uint64_t guardian_brakes, guardian_holds, wd_lost;
     int64_t  bound_pid;
 } g_logged;
 
@@ -125,9 +129,17 @@ static void publish(const arm_sample_t *s, int64_t t_ns)
 
 /* ------------------------------------------------------------ control loop */
 
+static void watchdog_lost(int64_t now, uint64_t cause);   /* FR-W5 / FR-W6, below */
+
 static void control_cycle(int64_t now)
 {
     arm_sample_t s;
+
+    /* FR-W6: counted in our own cycles, so a late cycle of ours cannot look like
+     * a silent watchdog (its beat queued ahead of this tick is handled first). */
+    if (arb_wd_client_tick_lost(&g_wd)) {
+        watchdog_lost(now, ARB_WD_LOST_BEATS);
+    }
 
     /* FR-A4: the authorization expires inside the arm unless renewed. */
     if (g_lease_valid && now > g_lease_until_ns) {
@@ -145,6 +157,22 @@ static void brake_latched(int64_t now)
 {
     arm_motion_stop(&g_motion, now, 1);
     g_lease_valid = 0;
+}
+
+/* FR-W5 / FR-W6: without its supervisor the arm stops and stays stopped. Same
+ * latch as a watchdog brake: no setpoint is accepted again in this process, so a
+ * watchdog that comes back cannot restart motion (only a restart, or the M2
+ * operator reset, can). */
+static void watchdog_lost(int64_t now, uint64_t cause)
+{
+    if (g_wd_lost) {
+        return;
+    }
+    g_wd_lost = 1;
+    g_wd_tripped = 1;
+    brake_latched(now);
+    atomic_store_explicit(&g_telem->wd_lost_cause, cause, memory_order_relaxed);
+    count(&g_telem->wd_lost);
 }
 
 /* ----------------------------------------------------------- authorization */
@@ -250,7 +278,21 @@ static void handle_pulse(const struct _pulse *p, int64_t now)
         }
         return;
     }
+    if (p->code == ARB_PULSE_ARM_WD_BEAT) {
+        if (!arb_wd_client_beat(&g_wd, p, ARB_PULSE_ARM_WD_BEAT)) {
+            count(&g_telem->rejected);   /* the beat code without our token: forged */
+        }
+        return;
+    }
     switch (p->code) {
+    case _PULSE_CODE_COIDDEATH:
+        /* FR-W5: a server we are connected to destroyed its channel. Value: the
+         * coid of our connection [ChannelCreate]; only the watchdog's counts.
+         * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/channelcreate.html */
+        if (arb_wd_client_server_gone(&g_wd, p->value.sival_int)) {
+            watchdog_lost(now, ARB_WD_LOST_CONNECTION);
+        }
+        return;
     case ARB_PULSE_ARM_TICK:
         if (!arb_own_pulse(&g_tick_scoid, p->scoid)) {
             count(&g_telem->rejected);   /* a tick not from our own timer (M1-J6) */
@@ -344,6 +386,13 @@ static void log_changes(void)
               "guardian SAFE_STOP: braked and latched (%lld so far)");
     log_count(&g_logged.guardian_holds, g_guardian_holds, ARB_LOG_BRAKE, SLOG2_INFO,
               "guardian HOLD: stopping along the segment (%lld so far)");
+    if (telem_count(&g_telem->wd_lost) != g_logged.wd_lost) {
+        g_logged.wd_lost = telem_count(&g_telem->wd_lost);
+        arb_log_c(ARB_LOG_BRAKE, SLOG2_WARNING,
+                  telem_count(&g_telem->wd_lost_cause) == ARB_WD_LOST_CONNECTION
+                      ? "watchdog lost (its connection died): braked and latched until restart"
+                      : "watchdog lost (no beat for 10 control cycles): braked and latched until restart");
+    }
 }
 
 /* ------------------------------------------------------------------ startup */
@@ -490,7 +539,8 @@ int main(int argc, char **argv)
         arb_log_fail("ConnectAttach", errno);
         return 5;
     }
-    if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_ARM, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_WD_BRAKE) != 0) {
+    if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_ARM, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_WD_BRAKE,
+                               ARB_PULSE_ARM_WD_BEAT) != 0) {
         arb_log_fail("register with the watchdog", errno);
         return 6;
     }

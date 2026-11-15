@@ -31,6 +31,7 @@
 #include "arb_test.h"
 
 #define TRIP_CODE ARB_PULSE_ARM_WD_BRAKE   /* any code works for a test client */
+#define BEAT_CODE ARB_PULSE_ARM_WD_BEAT    /* beats arrive and are ignored by the test clients */
 
 static const arb_wd_status_t *g_st;
 
@@ -62,7 +63,7 @@ static int tclient_open(tclient_t *t, uint32_t role)
     if (t->chid == -1 || t->self_coid == -1) {
         return -1;
     }
-    return arb_wd_client_register(&t->wd, role, t->self_coid, 30, TRIP_CODE);
+    return arb_wd_client_register(&t->wd, role, t->self_coid, 30, TRIP_CODE, BEAT_CODE);
 }
 
 /* Heartbeat for ms milliseconds. */

@@ -182,9 +182,10 @@ def fr_b2_every_scenario_states_its_pass_condition(sid: str) -> None:
 
 def fr_b2_parser_reads_arb_inject_output() -> None:
     h = SPEC.sha256
-    text = ("ARB-INJECT 1\nCOUNTERS begin rejected 0 lease_expiries 0 disconnects 0 wd_brakes 0 bound_pid 5\n"
-            "WD begin trips 0 rejected 0 hb_guardian 100 hb_arm 200 deliver_errors 0\n"
-            "V 10 20 7 1 0 1 0 2 0 -5 6 200 200\nS 30 2 0 1 0 9 0 0 3\nT 7 11 99 -5 6 0 0 1 1 1\n"
+    text = ("ARB-INJECT 1\nCOUNTERS begin rejected 0 lease_expiries 0 disconnects 0 wd_brakes 0 wd_lost 0 "
+            "bound_pid 5\n"
+            "WD begin trips 0 rejected 0 hb_guardian 100 hb_arm 200 deliver_errors 0 beat_errors 0\n"
+            "V 10 20 7 1 0 1 0 2 0 -5 6 200 200\nS 30 2 0 1 0 9 0 0 3 1\nT 7 11 99 -5 6 0 0 1 1 1\n"
             "GAP 9 2\nALIVE watchdog 1 arm 1 guardian 0\n"
             f"LOG guardian arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 {h}\n"
             f"LOG arm arb-arm: ready as arbiter_arm, priority 70, contract sha256 {h}\nDONE x\n")
@@ -192,6 +193,7 @@ def fr_b2_parser_reads_arb_inject_output() -> None:
     assert run.verdicts[0].target == (-5, 6) and run.verdicts[0].rule == 0
     assert run.samples[0].pos == (-5, 6) and run.statuses[0].ticks == 9
     assert run.statuses[0].foreign_pulses == 3 and run.wd["begin"]["hb_arm"] == 200
+    assert run.statuses[0].watchdog_lost == 1 and run.counters["begin"]["bound_pid"] == 5
     assert run.gaps == [(9, 2)] and run.alive["guardian"] == 0 and run.done
     assert not ck.trusted_alive(run).passed
     assert ck.contract_matches(run, SPEC).passed
@@ -208,8 +210,9 @@ def fr_b2_contract_check_needs_the_full_hash_from_guardian_and_arm() -> None:
 
 def _fault_run() -> Run:
     run = _run([(0, 0)] * 101)                       # 100 ms of telemetry
-    zero_arm = {"rejected": 0, "lease_expiries": 0, "disconnects": 0, "wd_brakes": 0}
-    zero_wd = {"trips": 0, "rejected": 0, "deliver_errors": 0, "hb_guardian": 0, "hb_arm": 0}
+    zero_arm = {"rejected": 0, "lease_expiries": 0, "disconnects": 0, "wd_brakes": 0, "wd_lost": 0}
+    zero_wd = {"trips": 0, "rejected": 0, "deliver_errors": 0, "beat_errors": 0,
+               "hb_guardian": 0, "hb_arm": 0}
     run.counters = {"begin": dict(zero_arm), "end": dict(zero_arm)}
     run.wd = {"begin": dict(zero_wd), "end": dict(zero_wd, hb_guardian=100, hb_arm=100)}
     run.statuses.append(Status(0, 2, 0, 5, 0, 100, 0, 0, 0))
@@ -218,7 +221,8 @@ def _fault_run() -> Run:
 
 def fr_b2_unexpected_fault_counters_fail_the_baseline() -> None:
     assert ck.no_unexpected_faults(_fault_run()).passed
-    for table, key in (("wd", "trips"), ("counters", "rejected"), ("counters", "wd_brakes")):
+    for table, key in (("wd", "trips"), ("wd", "beat_errors"), ("counters", "rejected"),
+                       ("counters", "wd_brakes"), ("counters", "wd_lost")):
         run = _fault_run()
         getattr(run, table)["end"][key] = 1
         assert not ck.no_unexpected_faults(run).passed, key
@@ -226,6 +230,9 @@ def fr_b2_unexpected_fault_counters_fail_the_baseline() -> None:
     run.statuses[0] = Status(0, 2, 0, 5, 0, 100, 0, 0, 7)  # foreign pulses
     assert not ck.no_unexpected_faults(run).passed
     assert ck.no_unexpected_faults(run, frozenset({"guardian foreign pulses"})).passed
+    run = _fault_run()
+    run.statuses[0] = Status(0, 2, 0, 5, 0, 100, 0, 0, 0, 1)  # the guardian lost the watchdog
+    assert not ck.no_unexpected_faults(run).passed
 
 
 def fr_b2_a_stopped_trusted_process_fails_the_running_check() -> None:

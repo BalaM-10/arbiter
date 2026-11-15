@@ -30,7 +30,7 @@ static uint64_t make_token(void)
     return x | 1u;                      /* never zero */
 }
 
-int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int prio, int code)
+int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int prio, int code, int beat_code)
 {
     const uint64_t timeout_ns = WD_REGISTER_TIMEOUT_NS;
     arb_wd_register_t msg;
@@ -51,7 +51,8 @@ int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int
     msg.role = role;
     /* The trip event: a pulse to our own channel carrying the token.
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/sigevent.html */
-    if (prio < 1 || prio > 255 || code < _PULSE_CODE_MINAVAIL || code > _PULSE_CODE_MAXAVAIL) {
+    if (prio < 1 || prio > 255 || code < _PULSE_CODE_MINAVAIL || code > _PULSE_CODE_MAXAVAIL ||
+        beat_code < _PULSE_CODE_MINAVAIL || beat_code > _PULSE_CODE_MAXAVAIL || beat_code == code) {
         errno = EINVAL;                  /* the event's priority field is a short; keep it in range */
         return -1;
     }
@@ -60,6 +61,13 @@ int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int
     /* Only the watchdog may deliver it.
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgregisterevent.html */
     if (MsgRegisterEvent(&msg.event, w->coid) == -1) {
+        return -1;
+    }
+    /* FR-W6: the beat, a second registered event on the same connection (the
+     * MsgRegisterEvent page's example registers two on one coid). */
+    SIGEV_PULSE_INIT(&msg.beat, self_coid, (short)prio, (short)beat_code, 0);
+    msg.beat.sigev_value.sival_long = (long)w->token;
+    if (MsgRegisterEvent(&msg.beat, w->coid) == -1) {
         return -1;
     }
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/timertimeout.html */
@@ -88,4 +96,32 @@ void arb_wd_client_heartbeat(arb_wd_client_t *w)
 int arb_wd_client_is_trip(const arb_wd_client_t *w, const struct _pulse *p, int code)
 {
     return p->code == code && (uint64_t)p->value.sival_long == w->token;
+}
+
+int arb_wd_client_beat(arb_wd_client_t *w, const struct _pulse *p, int beat_code)
+{
+    if (p->code != beat_code || (uint64_t)p->value.sival_long != w->token) {
+        return 0;
+    }
+    w->ticks_since_beat = 0;
+    return 1;
+}
+
+int arb_wd_client_tick_lost(arb_wd_client_t *w)
+{
+    if (w->ticks_since_beat < (uint32_t)ARB_WD_BEAT_TIMEOUT_MS) {
+        w->ticks_since_beat++;
+        return 0;
+    }
+    return 1;                            /* stays 1 until a genuine beat */
+}
+
+int arb_wd_client_server_gone(const arb_wd_client_t *w, int coid)
+{
+    /* The ChannelCreate page's check: with info NULL, ConnectServerInfo() skips
+     * connections with dead servers, so it returns another coid (or -1) when ours
+     * is really gone; a pulse for a live connection is stale.
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/channelcreate.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectserverinfo.html */
+    return coid == w->coid && ConnectServerInfo(0, coid, NULL) != coid;
 }
