@@ -1,0 +1,517 @@
+# run-tests qemu — 2026-11-15T15:37:54-06:00, REPEAT=1
+# commit: 7a5def2
+# host: Ubuntu 22.04.5 LTS; qcc 12.2.0,gcc_ntox86_64
+
+## contract corpus (host compiler)
+$ arbiter contract corpus contracts/default.yaml -o build/contract-corpus
+wrote build/contract-corpus/manifest.txt
+  045fba7242def7e77bf3b804ca3ec2df6ecd2e50520a806fc395bbf7bb71923c  build/contract-corpus/contract.bin
+
+## build (all architectures)
+$ make -C qnx ARCH=x86_64
+  arb-arm  sha256 b7130f991c27a336beaf891a40033d0feab5e26abcca6b72ae2abc79ce24976c
+    ELF 64-bit LSB pie executable, x86-64
+  arb-ctl  sha256 8d6658bbf9ec336bbde2bec78b11d17b00a9000647fc3c28154820d6176df413
+    ELF 64-bit LSB pie executable, x86-64
+  arb-guardian  sha256 bcbc70afba363197008cc48412bfaf4b52ec8362af0e0499859dcad23bea220f
+    ELF 64-bit LSB pie executable, x86-64
+  arb-inject  sha256 40c835b43fce12639491dfc02cc5facc7c0f2f91c24689ac4bcdb12a94d60fbe
+    ELF 64-bit LSB pie executable, x86-64
+  arb-watchdog  sha256 4e93b865fc5fae92b6f2e3d2a56cd5b29839317ac0711ad4b89bb1ecfa5598fa
+    ELF 64-bit LSB pie executable, x86-64
+  arb_arm_stub  sha256 724188fdf17373748d7cc42ee7ad57e3a3c9b03752e950d55484a71f4fad8100
+    ELF 64-bit LSB pie executable, x86-64
+  arm_suite.sh  sha256 af8e4338bd111cf75e5632d988f42ff81cfccc940b74441252375a4c1ce7b46e
+    POSIX shell script, ASCII text executable
+  bench_scenario.sh  sha256 ffc423896d01ffa1eb46c79c8757425419a81cf92421a48c6595ced9cab166f8
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 9c02e42e44c222a1142b7529335cc4743d9ed701a1b81ff4c4bcfad466cbc5ca
+    POSIX shell script, ASCII text executable
+  hello  sha256 e491474caa943f082c5eb613ccce073a77f6cfd2b75d39d99440d34ff4ec8d82
+    ELF 64-bit LSB pie executable, x86-64
+  msgpass  sha256 b6b20a163faa339894cdb71eb34eb3746f73486a6cd3f9a6f13a6baf5fa23c8a
+    ELF 64-bit LSB pie executable, x86-64
+  test_arm  sha256 d9f3f92b401596dc982c100b5ac11623068798e53cb376ce046f74cf007293c8
+    ELF 64-bit LSB pie executable, x86-64
+  test_arm_motion  sha256 25444e80f3e870f81448030e9942aaffd49ee6a8880a59ca451e927d0e8bb42c
+    ELF 64-bit LSB pie executable, x86-64
+  test_contract_file  sha256 3ce7614bfd841c80b08467df35ac466b2a338c55953eb329f564fbe0801488eb
+    ELF 64-bit LSB pie executable, x86-64
+  test_e2e  sha256 e716b236ea94d683c4535886881e44d92c300cb93a9171ef7b990f8269a2d9f7
+    ELF 64-bit LSB pie executable, x86-64
+  test_guardian  sha256 569f8748b6a5f94b7a19edd2d958de3c103aa9d11197751d4095388cd4e9cab9
+    ELF 64-bit LSB pie executable, x86-64
+  test_libcontract  sha256 714f88190200f9342748bb5d35f0e3d077fa8a1422e7cde400c7dec4d98f8014
+    ELF 64-bit LSB pie executable, x86-64
+  test_send_timeout  sha256 1f58334bb9bcea95d2a0af51c6efe8b888e88d2c734224441b45c7f1f6ce4f21
+    ELF 64-bit LSB pie executable, x86-64
+  test_watchdog  sha256 a070f90b5ca2f853547955fed75d9b723f530acfe42d6a45a5ad12e6829751d1
+    ELF 64-bit LSB pie executable, x86-64
+  watchdog_suite.sh  sha256 7597cb58667b039635ce3b5ef01cdd99336e7a3fa1f1bbbeb2dde0389202baa2
+    POSIX shell script, ASCII text executable
+$ make -C qnx ARCH=aarch64le
+  arb-arm  sha256 b142ce684df0e0142a0edd7be6be3ed709a8bf1edc27224a1b1ffec01267aa4a
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-ctl  sha256 5934e0afc2f8253791f454f579d93b09b84dce57d1019b86ca4215fb5d9c8182
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-guardian  sha256 ef1fdc452f3c93795125ed858ebb63beb411dd9f37de07423e9d4dfce0e5498f
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-inject  sha256 7dc61aa918d910f5b31c7414bd5174fe2afecb51582ec6fa93a5e092b70fb079
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-watchdog  sha256 a076e95738d19935119cbceabb048f1132186afcd0d4602605ce9bc1621a9d77
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb_arm_stub  sha256 93e353f375f8f52712ca604623015fdf3a23e9830daf28cfeb4784bfb33a387c
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arm_suite.sh  sha256 af8e4338bd111cf75e5632d988f42ff81cfccc940b74441252375a4c1ce7b46e
+    POSIX shell script, ASCII text executable
+  bench_scenario.sh  sha256 ffc423896d01ffa1eb46c79c8757425419a81cf92421a48c6595ced9cab166f8
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 9c02e42e44c222a1142b7529335cc4743d9ed701a1b81ff4c4bcfad466cbc5ca
+    POSIX shell script, ASCII text executable
+  hello  sha256 1ab74333346df2367c5a3d0ecaa885a93cd1ec9810f1dd119626d56d96859569
+    ELF 64-bit LSB pie executable, ARM aarch64
+  msgpass  sha256 caca0169357d68d3bf54f1b3e4419a94380aaca1b84aa055fa4e8e007016a72b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_arm  sha256 cebee765eb7fe116b31451e905571e80600e734218e458afba9b2bab709bd878
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_arm_motion  sha256 3ae70102ea30e61902ebba8b91b3d840865878a644c42f86a2af45733e6293a8
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_contract_file  sha256 52b315cd3b1f6fdaf111767bb675d2b1979a345cc9bc071960555d028c861cf0
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_e2e  sha256 b899d8976dfbc73a0b07e41370af481b00676dc9a280653bf5680112cf512092
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_guardian  sha256 8834a00cdf2acaeb50cbcc6bb7a4662685fff9db43da90c0126bc8721920ceea
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_libcontract  sha256 c8ec30ad3879698dbcbc840e401f8b69bc011f507b182b51fbcf4acde4d44de9
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_send_timeout  sha256 8e3f122f43780231816e91e73f174370ea4c007fb1580b1bdc94b60b9f58312b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_watchdog  sha256 6432c45a35bb0900b0902c1b3d8b0f39afb8b7a172088e6feea21a8c553127b5
+    ELF 64-bit LSB pie executable, ARM aarch64
+  watchdog_suite.sh  sha256 7597cb58667b039635ce3b5ef01cdd99336e7a3fa1f1bbbeb2dde0389202baa2
+    POSIX shell script, ASCII text executable
+deployed arb-arm arb-ctl arb-guardian arb-inject arb-watchdog arb_arm_stub arm_suite.sh bench_scenario.sh guardian_suite.sh hello msgpass test_arm test_arm_motion test_contract_file test_e2e test_guardian test_libcontract test_send_timeout test_watchdog watchdog_suite.sh to qemu (root@172.31.1.174:/data/home/root/arbiter/bin)
+
+## target: root@172.31.1.174:/data/home/root/arbiter/bin (x86_64)
+$ uname -a
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## hello — M0 toolchain: qcc-built binary runs
+$ cd /data/home/root/arbiter/bin && ./hello
+hello from Arbiter on QNX 8.0.0 2026/02/27-11:02:56EST (x86pc)
+exit=0
+
+## msgpass — M0 message passing (M0-MSG-1..7, previews NFR-Q2)
+$ cd /data/home/root/arbiter/bin && ./msgpass
+info server pid 75759637 chid 1, client pid 75763734
+PASS M0-MSG-1 round trip: sent 21, reply 42
+PASS M0-MSG-2 server saw the client's pid in _msg_info
+PASS M0-MSG-3 short message rejected with EBADMSG
+PASS M0-MSG-4 oversized message rejected with EBADMSG
+PASS M0-MSG-5 wrong version rejected with EPROTO
+info stats request answered after 1 try
+PASS M0-MSG-6 3 pulses received by the server, values summed to 7
+info server counters: replies 3, bad_length 2, bad_version 1, bad_sender 0, pulses 3, pulse_sum 7
+PASS M0-MSG-7 client exited 0 and the server's counters match every event
+RESULT PASS msgpass
+exit=0
+
+## test_libcontract — libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)
+$ cd /data/home/root/arbiter/bin && ./test_libcontract
+PASS fr_c4_crc32_matches_zlib_check_value
+PASS fr_c4_valid_table_loads
+PASS fr_c4_null_arguments_rejected
+PASS fr_c4_wrong_length_rejected
+PASS fr_c4_bad_magic_rejected
+PASS fr_c4_version_mismatch_rejected
+PASS fr_c4_table_size_field_mismatch_rejected
+PASS fr_c4_crc_mismatch_rejected
+PASS fr_c4_any_single_byte_change_rejected
+PASS fr_c4_out_of_range_values_rejected
+PASS fr_c4_max_duration_must_cover_a_full_range_move
+PASS fr_c4_output_untouched_on_error
+PASS fr_c5_text_contract_rejected
+PASS nfr_i6_command_wrong_length_rejected
+PASS nfr_i6_command_bad_fields_rejected
+PASS nfr_i6_random_bytes_never_crash_or_allow_garbage
+PASS fr_g2_command_fields_carried_through
+PASS fr_g2_duration_zero_denied
+PASS fr_g2_duration_minimum_and_contract_max_allowed
+PASS fr_g2_duration_one_over_contract_max_denied
+PASS fr_g2_clamp_beyond_contract_max_denied
+PASS fr_g3_every_verdict_names_its_rule
+PASS fr_g4_sequence_replay_and_old_denied
+PASS fr_g4_sequence_wraps_around
+PASS fr_g4_rate_limit_burst_then_deny_then_refill
+PASS fr_g4_rate_limit_uses_guardian_clock_not_sender_clock
+PASS fr_g4_rate_limit_sustained_rate_holds
+PASS fr_g4_joint_limit_exactly_at_max
+PASS fr_g4_joint_limit_just_inside
+PASS fr_g4_joint_limit_just_outside_denied
+PASS fr_g4_impossible_arm_position_fails_closed
+PASS fr_g4_unusable_contract_fails_closed
+PASS fr_g4_velocity_exactly_at_limit_allowed
+PASS fr_g4_velocity_over_limit_clamped_by_stretching_duration
+PASS fr_g4_velocity_clamped_motion_never_exceeds_vmax
+PASS fr_g4_keepout_target_inside_zone_denied
+PASS fr_g4_keepout_path_through_zone_denied_though_endpoints_clear
+PASS fr_g4_keepout_clear_path_allowed
+PASS fr_g4_keepout_just_outside_by_less_than_margin_denied
+PASS fr_g4_keepout_just_outside_by_more_than_margin_allowed
+PASS fr_g4_keepout_brief_crossing_of_thin_zone_denied
+PASS fr_g4_keepout_margin_includes_start_tolerance
+PASS fr_g4_keepout_overrides_clamp
+PASS fr_g4_keepout_exit_only_move_from_inside_allowed
+PASS fr_g4_keepout_from_inside_going_deeper_denied
+PASS fr_g4_keepout_from_inside_not_ending_outside_denied
+PASS fr_g4_keepout_exit_through_another_zone_denied
+PASS fr_g4_keepout_normal_moves_carry_no_exit_flag
+PASS fr_g4_checks_run_in_the_specified_order
+PASS fr_g4_forward_kinematics_reference_poses
+PASS fr_g5_starts_in_hold_and_valid_command_enters_normal
+PASS fr_g5_silence_past_timeout_enters_hold
+PASS fr_g5_denied_commands_do_not_reset_silence
+PASS fr_g5_violation_threshold_enters_safe_stop
+PASS fr_g5_violations_spread_beyond_window_do_not_stop
+PASS fr_g5_only_joint_and_keepout_denials_count
+PASS fr_g5_safe_stop_denies_until_operator_reset
+PASS fr_g5_replay_protection_survives_reset
+PASS fr_g9_arm_send_timeout_fault_enters_safe_stop
+PASS fr_g4_three_step_decision_matches_one_call
+PASS fr_g4_pre_check_rejects_without_arm_position
+PASS fr_g5_approval_refused_by_arm_is_not_activity
+PASS fr_g9_arm_fault_denial_carries_no_setpoint
+PASS fr_g5_last_client_lost_enters_hold
+RESULT PASS test_libcontract 64/64
+exit=0
+
+## test_contract_file contract-corpus/manifest.txt — compiled contract loads on QNX exactly as written; corrupted tables rejected (FR-C3, FR-C4)
+$ cd /data/home/root/arbiter/bin && ./test_contract_file contract-corpus/manifest.txt
+PASS fr_c3_compiled_table_matches_source_dump contract.bin
+PASS fr_c4_corrupted_compiled_table_rejected truncated.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected extended.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected empty.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected magic.bin (code 3)
+PASS fr_c4_corrupted_compiled_table_rejected version.bin (code 4)
+PASS fr_c4_corrupted_compiled_table_rejected tablesize.bin (code 5)
+PASS fr_c4_corrupted_compiled_table_rejected crc.bin (code 6)
+PASS fr_c4_corrupted_compiled_table_rejected vmax0.bin (code 7)
+PASS fr_c4_corrupted_compiled_table_rejected shortmax.bin (code 7)
+PASS fr_c4_corrupted_compiled_table_rejected zones5.bin (code 7)
+RESULT PASS test_contract_file 11/11
+exit=0
+
+## test_send_timeout --timing=function — 2 ms TimerTimeout on MsgSend, SEND and REPLY states, measured (FR-G9 design check)
+$ cd /data/home/root/arbiter/bin && ./test_send_timeout --timing=function
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info timing function (QEMU): SEND and REPLY fail above 20.000 ms
+info SEND  n=1000  min 2.466 ms  median 2.998 ms  p99.9 4.065 ms  max 4.065 ms
+info SEND  0 of 1000 samples above 5.000 ms (2 ms + 3 ticks); pass limit 20.000 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.205 ms  median 2.999 ms  p99.9 3.863 ms  max 3.863 ms
+info REPLY 0 of 1000 samples above 5.000 ms (2 ms + 3 ticks); pass limit 20.000 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.520 ms  median 24.101 ms  p99.9 24.868 ms  max 24.868 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+
+## test_arm_motion — arm motion model on QNX: straight line, vmax, brake on segment, time-based (FR-A2, FR-A3, FR-A4)
+$ cd /data/home/root/arbiter/bin && ./test_arm_motion
+PASS fr_a2_model_reports_position_and_velocity_per_joint
+PASS fr_a5_simulation_sits_behind_the_backend_interface
+PASS fr_a3_motion_reaches_target_at_its_duration
+PASS fr_a3_motion_is_a_straight_line_with_joints_arriving_together
+PASS fr_a3_never_faster_than_vmax_at_the_minimum_duration
+PASS fr_a3_min_duration_matches_the_guardian_rule
+PASS fr_a3_brake_stays_on_segment
+PASS fr_a4_brake_from_full_speed_stops_within_its_braking_time
+PASS fr_a3_hold_stops_without_latching_and_brake_upgrades_it
+PASS fr_a3_new_segment_starts_from_the_given_actual_position
+PASS fr_a3_motion_depends_on_time_not_on_tick_count
+RESULT PASS test_arm_motion 11/11
+exit=0
+
+## watchdog_suite.sh — arb-watchdog on QNX: priority, stuck by missed heartbeats, death by process-manager notice, brake and SAFE_STOP events, forged notices and heartbeats ignored (FR-W1..W3)
+$ cd /data/home/root/arbiter/bin && ./watchdog_suite.sh
+## watchdog priority
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+nrw-rw-rw-  1 root root   0 2026-11-14 20:54 /dev/name/local/arbiter_watchdog
+nrw-r--r--  2 root root 192 2026-11-14 20:54 /dev/shmem/arbiter_watchdog_status
+     pid tid prio name                                                                         
+75939862   1  66f ./arb-watchdog                                                                  
+PASS fr_w1_watchdog_runs_above_the_guardian_and_below_the_arm (66, FIFO)
+## fr_w3_stuck_detected_by_missed_heartbeat
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+info stuck: tripped 10.95 ms after the last heartbeat (timeout 10 ms)
+PASS fr_w3_stuck_detected_by_missed_heartbeat
+RESULT PASS test_watchdog 1/1
+## fr_w3_death_detected_by_death_notice
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+info death pulses 2, last value 76058648 (arm pid 76058648)
+info death: tripped 2.28 ms after the last heartbeat; death notices 1
+PASS fr_w3_death_detected_by_death_notice
+RESULT PASS test_watchdog 1/1
+## fr_w2_missed_guardian_heartbeat_brakes_the_arm
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w2_missed_guardian_heartbeat_brakes_the_arm
+RESULT PASS test_watchdog 1/1
+## fr_w3_forged_death_notice_ignored
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w3_forged_death_notice_ignored
+RESULT PASS test_watchdog 1/1
+## fr_w2_heartbeats_from_another_connection_ignored
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w2_heartbeats_from_another_connection_ignored
+RESULT PASS test_watchdog 1/1
+## fr_w3_live_role_cannot_be_registered_twice
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w3_live_role_cannot_be_registered_twice
+RESULT PASS test_watchdog 1/1
+RESULT PASS watchdog_suite
+exit=0
+
+## arm_suite.sh — arb-arm on QNX alone and end to end with arb-guardian and arb-watchdog: loop period, telemetry, sender binding, lease, disconnect brake, HOLD, watchdog trips (FR-A1..A6, FR-G5, FR-G6, FR-W1..W3, NFR-I3)
+$ cd /data/home/root/arbiter/bin && ./arm_suite.sh
+## FR-C4: the arm refuses to start on a bad contract table
+arb-arm: contract refused (FR-C4) (code 6); not starting
+PASS fr_c4_arm_refuses_corrupted_contract (exit 2)
+## FR-W1: the arm refuses to start without the watchdog
+arb-arm: register with the watchdog: No such file or directory
+PASS fr_w1_trusted_processes_refuse_to_start_without_the_watchdog (arm exit 6)
+## the arm alone (test_arm plays the guardian)
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+nrw-rw-rw-  1 root root      0 2026-11-14 20:54 /dev/name/local/arbiter_arm
+nrw-r--r--  2 root root 393296 2026-11-14 20:54 /dev/shmem/arbiter_arm_telemetry
+     pid tid prio name                                                                         
+76296215   1  70f ./arb-arm                                                                       
+PASS nfr_i3_arm_runs_fifo_at_its_documented_priority (70, FIFO)
+PASS fr_g6_arm_binds_to_the_first_guardian_connection
+info telemetry: 999 samples in 1 s
+PASS fr_a6_telemetry_published_every_cycle
+info control loop period (QEMU, function only): n=2020 min 0.008 ms median 0.999 ms p99.9 1.528 ms max 3.394 ms
+PASS fr_a1_control_loop_period_measured
+info forged ticks: 2000 sent; telemetry +56 samples in 55.6 ms; rejected +2000
+PASS fr_a1_forged_tick_pulses_do_not_drive_the_loop
+PASS nfr_i6_arm_refuses_a_message_too_short_to_hold_a_type
+PASS fr_g6_arm_rejects_setpoints_from_another_process
+info fastest joint 1000000 urad/s (vmax 1000000), max distance from the line 0.4 urad
+PASS fr_a3_arm_enforces_vmax_itself_and_moves_in_a_straight_line
+PASS fr_a3_arm_rejects_targets_beyond_joint_limits
+PASS fr_a3_stale_start_rejected
+info largest per-cycle step across the switch 1523 urad
+PASS fr_a3_new_setpoint_mid_move_starts_from_actual_position
+info no renewal: braking began 10.98 ms after the setpoint (lease 10 ms)
+PASS fr_a4_lease_expires_without_renewal_and_brakes
+PASS fr_a4_renewal_after_expiry_does_not_resume
+PASS fr_a4_renewal_from_another_process_ignored
+info disconnect: braking began 1.00 ms after the connection closed (lease would take 10 ms)
+PASS fr_a4_guardian_disconnect_brakes_at_once
+PASS fr_g5_hold_pulse_stops_without_latching
+PASS fr_g5_brake_pulse_latches
+PASS fr_g5_arm_reset_only_from_bound_guardian
+PASS fr_w6_arm_refuses_setpoints_after_losing_the_watchdog
+PASS fr_g5_arm_reset_from_its_guardian_clears_the_watchdog_latch
+RESULT PASS test_arm 19/19
+## guardian and arm end to end
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+PASS fr_a3_guardian_approved_command_moves_the_arm
+info silence: the arm was stopped 311.8 ms after the last command (timeout 250 ms + braking)
+PASS fr_g5_guardian_silence_holds_the_arm
+info guardian in 1 s: 1001 ticks, 1001 heartbeats accepted by the watchdog (QEMU, function only)
+PASS fr_g7_guardian_sends_a_heartbeat_every_tick
+PASS nfr_q2_each_command_is_one_synchronous_request_and_reply
+RESULT PASS test_e2e move 4/4
+## guardian killed mid-move
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info guardian killed: the arm began braking 1.94 ms later
+PASS fr_a4_guardian_killed_arm_brakes
+PASS fr_w3_watchdog_records_that_the_guardian_died
+RESULT PASS test_e2e killed 2/2
+## guardian stopped mid-move
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info guardian stopped: the arm began braking 10.95 ms later
+PASS fr_a4_lease_expires_when_guardian_stopped
+PASS fr_w2_watchdog_records_a_stuck_guardian_and_brakes_the_arm
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w2_arm_stays_braked_after_a_stuck_guardian_resumes
+RESULT PASS test_e2e stopped 3/3
+## arm killed: the watchdog puts the guardian in SAFE_STOP
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w2_arm_death_puts_the_guardian_in_safe_stop
+RESULT PASS test_e2e armkilled 1/1
+## FR-W5: the watchdog killed mid-move
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info watchdog killed: the arm began braking 0.85 ms later (beat timeout 10 ms; QEMU, function only)
+PASS fr_w5_watchdog_killed_mid_move_guardian_safe_stops_and_arm_brakes
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w5_nothing_moves_after_the_watchdog_died
+RESULT PASS test_e2e wdkilled 2/2
+## FR-W6: the watchdog stopped mid-move, then resumed
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info watchdog stopped: the arm began braking 9.14 ms later (beat timeout 10 ms; QEMU, function only)
+PASS fr_w6_watchdog_stopped_mid_move_guardian_safe_stops_and_arm_brakes
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w6_resumed_watchdog_does_not_restart_motion
+PASS fr_w6_operator_reset_after_the_watchdog_resumes_restores_motion
+RESULT PASS test_e2e wdstopped 3/3
+## FR-W6: the watchdog stopped while its beat is forged
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info watchdog stopped while beats were forged: the arm began braking 8.87 ms later (beat timeout 10 ms; QEMU, function only)
+info forged beats counted: arm 400, guardian 400 (800 sent)
+PASS fr_w6_forged_watchdog_beats_are_ignored
+RESULT PASS test_e2e wdforged 1/1
+## FR-W4, FR-G5: e-stop from any client, reset only from the operator, not without a watchdog
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info e-stop: braking in control cycle 1 after the devctl returned (0.91 ms; QEMU, function only)
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w4_estop_from_any_client_safe_stops_within_2_cycles
+PASS fr_g5_reset_only_from_operator
+PASS fr_g5_motion_resumes_after_operator_reset
+PASS fr_g5_reset_refused_while_watchdog_absent
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w5_motion_resumes_only_after_watchdog_back_and_reset
+RESULT PASS test_e2e operator 5/5
+## FR-W4, FR-G5: the operator console arb-ctl
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-ctl: estop: done
+state SAFE_STOP cause estop estops 1 resets 0 resets_refused 0 watchdog_lost 0 decisions 0
+arb-ctl: reset: Operation not permitted
+state SAFE_STOP cause estop estops 1 resets 0 resets_refused 1 watchdog_lost 0 decisions 0
+arb-ctl: reset: done
+state HOLD cause none estops 1 resets 1 resets_refused 1 watchdog_lost 0 decisions 0
+PASS fr_w4_operator_console_estop_and_reset
+## NFR-Q6: trusted processes log through slogger2
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info slog2 Nov 14 20:55:56.714          arb_guardian.77115416                 main*     1  ready on /dev/arbiter, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info slog2 Nov 14 20:55:56.714          arb_guardian.77115416                 main      3  state HOLD (no command within the silence timeout, or no client)
+info slog2 Nov 14 20:55:57.719          arb_guardian.77115416                 main      3  state NORMAL
+info slog2 Nov 14 20:55:57.970          arb_guardian.77115416                 main      3  state HOLD (no command within the silence timeout, or no client)
+info slog2 Nov 14 20:55:55.710               arb_arm.77103127                 main*     1  ready as arbiter_arm, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info slog2 Nov 14 20:55:56.714               arb_arm.77103127                 main      8  bound the guardian, pid 77115416: only it may command the arm
+info slog2 Nov 14 20:55:57.970               arb_arm.77103127                 main      6  guardian HOLD: stopping along the segment (1 so far)
+info slog2 Nov 14 20:55:58.220               arb_arm.77103127                 main      5  refused a sender that is not the bound guardian (1 so far)
+info slog2 Nov 14 20:55:58.220               arb_arm.77103127                 main      8  guardian binding released
+info slog2 Nov 14 20:55:58.220               arb_arm.77103127                 main      6  guardian connection lost: braked (1 so far)
+info slog2 Nov 14 20:55:58.220               arb_arm.77103127                 main      6  watchdog brake: braked and latched until restart (1 so far)
+info slog2 Nov 14 20:55:54.707          arb_watchdog.77090838                 main*     1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+info slog2 Nov 14 20:55:55.710          arb_watchdog.77090838                 main      8  registered the arm, pid 77103127
+info slog2 Nov 14 20:55:56.714          arb_watchdog.77090838                 main      8  registered the guardian, pid 77115416
+info slog2 Nov 14 20:55:58.220          arb_watchdog.77090838                 main      7  trip: the guardian disconnected, pid 77115416; the other client was told
+info slog2 Nov 14 20:55:58.220          arb_watchdog.77090838                 main      7  trip cause refined: the guardian died (death notice), pid 77115416
+PASS nfr_q6_trusted_processes_log_through_slog2
+RESULT PASS test_e2e log 1/1
+## NFR-Q6: slogger2 not running: the trusted processes still start and run
+slogger2: pid 71675907, arguments '-U 21:21'
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+arb-watchdog: slog2_register: No such file or directory; running without the system log
+arb-arm: slog2_register: No such file or directory; running without the system log
+arb-guardian: slog2_register: No such file or directory; running without the system log
+PASS fr_a3_guardian_approved_command_moves_the_arm
+info silence: the arm was stopped 311.8 ms after the last command (timeout 250 ms + braking)
+PASS fr_g5_guardian_silence_holds_the_arm
+info guardian in 1 s: 1001 ticks, 1001 heartbeats accepted by the watchdog (QEMU, function only)
+PASS fr_g7_guardian_sends_a_heartbeat_every_tick
+PASS nfr_q2_each_command_is_one_synchronous_request_and_reply
+RESULT PASS test_e2e move 4/4
+PASS nfr_q6_trusted_processes_run_without_slogger2
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+slogger2 restored: 77344771 /proc/boot/slogger2 -U 21:21 
+RESULT PASS arm_suite
+exit=0
+
+## guardian_suite.sh — arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)
+$ cd /data/home/root/arbiter/bin && ./guardian_suite.sh
+## FR-C4: the guardian refuses to start on a bad contract table
+arb-guardian: contract refused (FR-C4) (code 6); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/crc.bin (exit 2, no /dev/arbiter)
+arb-guardian: contract refused (FR-C4) (code 2); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/truncated.bin (exit 2, no /dev/arbiter)
+arb-guardian: contract refused (FR-C4) (code 4); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/version.bin (exit 2, no /dev/arbiter)
+arb-guardian: open contract: No such file or directory
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/no-such-file.bin (exit 2, no /dev/arbiter)
+## well-behaved arm
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+nrw-rw-rw-  1 root root 0 2026-11-14 20:56 /dev/arbiter
+nrw-rw-rw-  1 root root 0 2026-11-14 20:56 /dev/name/local/arbiter_arm
+PASS nfr_q3_guardian_is_a_resource_manager_in_the_path_namespace
+     pid tid prio name                                                                         
+77512728   1  64f ./arb-guardian                                                                  
+PASS nfr_i3_guardian_runs_fifo_at_its_documented_priority (64, FIFO)
+PASS fr_g1_dev_arbiter_exists_in_path_namespace
+PASS fr_g1_command_round_trip_over_devctl
+PASS fr_g3_clamp_and_denials_over_devctl
+PASS fr_g4_replay_denied_over_devctl
+PASS fr_g2_zero_duration_denied_over_devctl
+PASS fr_g4_rate_limit_over_devctl
+PASS nfr_i6_devctl_wrong_size_rejected
+PASS nfr_i6_unknown_devctl_command_rejected
+PASS nfr_i6_read_only_descriptor_cannot_submit
+PASS nfr_i6_random_payloads_never_crash_the_guardian
+info forged pulses: 2000 sent; guardian ticks +58 in 57.7 ms; foreign_pulses +2000
+PASS fr_g5_forged_tick_and_trip_pulses_are_ignored_and_counted
+PASS fr_g5_silence_enters_hold_over_devctl
+PASS fr_g5_last_client_close_enters_hold
+RESULT PASS test_guardian normal 13/13
+## arm receives setpoints and never replies (REPLY-blocked guardian)
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info devctl with a faulty arm returned after 2.839 ms (send timeout 2 ms, 1 ms tick)
+PASS fr_g9_arm_never_replies_times_out_and_safe_stops
+RESULT PASS test_guardian hang 1/1
+## arm process stopped (SEND-blocked guardian)
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+info devctl with a faulty arm returned after 2.586 ms (send timeout 2 ms, 1 ms tick)
+PASS fr_g9_arm_not_receiving_times_out_and_safe_stops
+RESULT PASS test_guardian stopped 1/1
+## arm rejects the start position
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 265a6f183c1e0bd0ec3b3048a929d1b0c4772a190ccfdd42cb8081e90294d5a9
+PASS fr_g3_stale_start_reported_as_deny
+RESULT PASS test_guardian stale 1/1
+RESULT PASS guardian_suite
+exit=0
+
+SUMMARY 9/9 tests passed on qemu (each run 1 time(s))
