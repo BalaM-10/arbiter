@@ -12,13 +12,14 @@ from .common import baseline
 ID = "F5"
 TITLE = "Keep-out violation"
 PASS_CONDITION = (
-    "From a position next to the operator's hand area, a target inside the area and a target outside it "
+    "An allowed walk ends with the elbow under 30 mm from the operator's hand area; from there a target "
+    "inside the area and a target outside it "
     "whose straight path sweeps through it are each DENY with the keep-out rule; telemetry, checked with "
     "the bench's own kinematics, shows neither the elbow nor the tip ever inside the area, and the arm "
     "holding where it was after each denial."
 )
 
-BESIDE = (deg(15), 0)          # elbow about 72 mm from the area
+BESIDE = (deg(27), 0)          # an allowed walk that ends with the elbow about 14 mm from the area
 
 
 def build(spec: Spec) -> Script:
@@ -43,8 +44,10 @@ def f5_keepout_denied_and_never_entered(run: Run, script: Script, spec: Spec) ->
     out.append(ck.stayed_at(run, BESIDE, script.marks["v1"], script.marks["end"], "arm_held_after_denials"))
     keep = ck.keepout_never_entered(run, spec)
     near = min(keep.data["min_clearance_mm"].values())
-    out.append(Check("arm_was_near_the_zone", near < 100.0,
-                     f"closest approach {near:.1f} mm (must be under 100 mm: the test ran next to the area)"))
+    out.append(Check("arm_was_near_the_zone", near < 30.0,
+                     f"closest approach {near:.1f} mm during an allowed walk "
+                     "(must be under 30 mm: the bench's "
+                     "keep-out check was exercised close to the area, M1-J10)"))
     return out
 
 

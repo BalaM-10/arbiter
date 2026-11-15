@@ -451,10 +451,63 @@ static void fr_g5_brake_pulse_latches(void)
     CHECK(wait_state(ARM_STATE_BRAKED, 500, 1));       /* latched even while renewals arrive */
 }
 
+/* FR-A1 (the loop is driven by the arm's own QNX timer), judge-review M1-J6:
+ * tick-coded pulses from any other connection, even the bound guardian's, do
+ * not run the control loop. Each loop run publishes one telemetry sample, so
+ * the telemetry head may advance only with real time; every forged tick is
+ * counted as rejected. */
+static void fr_a1_forged_tick_pulses_do_not_drive_the_loop(void)
+{
+    const uint64_t rej0 = tm_counter(&g_tm->rejected);
+    const uint64_t h0 = tm_head();
+    struct timespec t0, t1;
+    double elapsed_ms;
+    int sent = 0;
+
+    (void)clock_gettime(CLOCK_MONOTONIC, &t0);
+    for (int i = 0; i < 2000; i++) {                       /* bound: 2000 pulses */
+        if (MsgSendPulse(g_coid, 10, ARB_PULSE_ARM_TICK, 0) == 0) {
+            sent++;
+        }
+    }
+    ms_sleep(50);
+    (void)clock_gettime(CLOCK_MONOTONIC, &t1);
+    elapsed_ms = (double)(t1.tv_sec - t0.tv_sec) * 1000.0 + (double)(t1.tv_nsec - t0.tv_nsec) / 1e6;
+    printf("info forged ticks: %d sent; telemetry +%llu samples in %.1f ms; rejected +%llu\n", sent,
+           (unsigned long long)(tm_head() - h0), elapsed_ms,
+           (unsigned long long)(tm_counter(&g_tm->rejected) - rej0));
+    CHECK(sent > 0);
+    CHECK((double)(tm_head() - h0) <= elapsed_ms + 3.0);
+    CHECK_EQ_INT(tm_counter(&g_tm->rejected) - rej0, sent);
+}
+
+/* NFR-I6, judge-review M1-J16: a message too short to hold a type is refused
+ * with EBADMSG before any field is read, even from the bound guardian, and the
+ * arm keeps running. */
+static void nfr_i6_arm_refuses_a_message_too_short_to_hold_a_type(void)
+{
+    const uint64_t rej0 = tm_counter(&g_tm->rejected);
+    const uint8_t one = 0x42;
+    uint8_t reply[64];
+    long rc;
+
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsend.html */
+    rc = MsgSend(g_coid, &one, sizeof one, reply, sizeof reply);
+    CHECK(rc == -1 && errno == EBADMSG);
+    CHECK_EQ_INT(tm_counter(&g_tm->rejected) - rej0, 1);
+    {
+        const uint64_t h0 = tm_head();
+        ms_sleep(20);
+        CHECK(tm_head() > h0 + 10);                       /* the loop is still running */
+    }
+}
+
 static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_g6_arm_binds_to_the_first_guardian_connection),
     ARB_TEST_CASE(fr_a6_telemetry_published_every_cycle),
     ARB_TEST_CASE(fr_a1_control_loop_period_measured),
+    ARB_TEST_CASE(fr_a1_forged_tick_pulses_do_not_drive_the_loop),
+    ARB_TEST_CASE(nfr_i6_arm_refuses_a_message_too_short_to_hold_a_type),
     ARB_TEST_CASE(fr_g6_arm_rejects_setpoints_from_another_process),
     ARB_TEST_CASE(fr_a3_arm_enforces_vmax_itself_and_moves_in_a_straight_line),
     ARB_TEST_CASE(fr_a3_arm_rejects_targets_beyond_joint_limits),

@@ -56,12 +56,59 @@ def trusted_alive(run: Run) -> Check:
 
 
 def contract_matches(run: Run, spec: Spec) -> Check:
-    """The guardian on the target loaded the contract the bench judges against."""
-    line = next((s for s in run.logs if "contract sha256" in s), "")
-    shown = line.split("contract sha256")[-1].strip().rstrip(".") if line else ""
-    ok = bool(shown) and spec.sha256.startswith(shown)
-    return Check("guardian_loaded_this_contract", ok,
-                 f"guardian printed {shown or 'nothing'}; {spec.source.name} sha256 {spec.sha256[:16]}...")
+    """The guardian and the arm on the target both loaded the contract the bench judges
+    against: each prints the full SHA-256 of the contract source at startup (M1-J17)."""
+    shown: dict[str, str] = {}
+    for proc in ("guardian", "arm"):
+        line = next((s for s in run.logs if s.startswith(f"{proc} ") and "contract sha256" in s), "")
+        shown[proc] = line.split("contract sha256")[-1].split()[0] if line else ""
+    ok = all(h == spec.sha256 for h in shown.values())
+    detail = (f"guardian and arm both loaded {spec.source.name} (sha256 {spec.sha256})" if ok else
+              f"guardian {shown['guardian'] or 'nothing'}, arm {shown['arm'] or 'nothing'}; "
+              f"{spec.source.name} is {spec.sha256}")
+    return Check("trusted_processes_loaded_this_contract", ok, detail)
+
+
+def _delta(run: Run, table: dict[str, dict[str, int]], key: str) -> int:
+    return table.get("end", {}).get(key, -1) - table.get("begin", {}).get(key, 0)
+
+
+def trusted_running(run: Run) -> Check:
+    """Alive is not enough: a stopped process passes `kill -0` (M1-J11). The watchdog
+    counts heartbeats from the guardian and the arm; both advance only while the
+    guardian, the arm and the watchdog itself are all running."""
+    span_ms = (run.samples[-1].t_ns - run.samples[0].t_ns) / 1e6 if len(run.samples) > 1 else 0.0
+    hb = {r: _delta(run, run.wd, f"hb_{r}") for r in ("guardian", "arm")}
+    ok = span_ms > 0 and all(h >= 0.8 * span_ms for h in hb.values())
+    return Check("trusted_processes_running", ok,
+                 f"over {span_ms:.0f} ms of telemetry the watchdog accepted {hb['guardian']} guardian and "
+                 f"{hb['arm']} arm heartbeats (1 per ms expected)", {"heartbeats": hb, "span_ms": span_ms})
+
+
+def no_unexpected_faults(run: Run, extra_ok: frozenset[str] = frozenset()) -> Check:
+    """Nothing went wrong that the scenario did not ask for (M1-J11): no watchdog trip,
+    no arm rejection, lease expiry, disconnect or watchdog brake, no guardian arm fault,
+    foreign pulse or bad message. Counters named in extra_ok are allowed to move."""
+    seen = {
+        "watchdog trips": _delta(run, run.wd, "trips"),
+        "watchdog rejected": _delta(run, run.wd, "rejected"),
+        "watchdog deliver errors": _delta(run, run.wd, "deliver_errors"),
+        "arm rejected": _delta(run, run.counters, "rejected"),
+        "arm lease expiries": _delta(run, run.counters, "lease_expiries"),
+        "arm disconnects": _delta(run, run.counters, "disconnects"),
+        "arm watchdog brakes": _delta(run, run.counters, "wd_brakes"),
+    }
+    if run.statuses:
+        last = run.statuses[-1]
+        seen.update({"guardian arm faults": last.arm_faults, "guardian watchdog trips": last.watchdog_trips,
+                     "guardian foreign pulses": last.foreign_pulses,
+                     "guardian bad messages": last.bad_messages})
+    else:
+        seen["guardian status"] = -1
+    bad = {k: v for k, v in seen.items() if v != 0 and k not in extra_ok}
+    return Check("no_unexpected_faults", not bad,
+                 "all zero: " + ", ".join(seen) if not bad else
+                 "unexpected: " + ", ".join(f"{k} {v}" for k, v in bad.items()), {"counters": seen})
 
 
 def telemetry_complete(run: Run) -> Check:
@@ -149,13 +196,16 @@ def speed_never_above_limit(run: Run, spec: Spec) -> tuple[Check, float]:
     two positions. The reported peak is over PEAK_WINDOW-sample windows, where that
     rounding is negligible. Returns the check and the peak (µrad/s)."""
     peak = 0.0
+    peak_net = 0.0          # with up to 1 µrad of rounding (two positions, ±0.5 each) taken off
     bad = None
     worst_excess = 0.0
     smp = run.samples
     for a, b in zip(smp, smp[PEAK_WINDOW:], strict=False):
         dt = b.t_ns - a.t_ns
         if dt > 0:
-            peak = max(peak, max(abs(b.pos[j] - a.pos[j]) for j in range(2)) * 1e9 / dt)
+            d = max(abs(b.pos[j] - a.pos[j]) for j in range(2))
+            peak = max(peak, d * 1e9 / dt)
+            peak_net = max(peak_net, max(d - 1, 0) * 1e9 / dt)
     for a, b in pairwise(smp):
         dt = b.t_ns - a.t_ns
         for j in range(2):
@@ -169,11 +219,13 @@ def speed_never_above_limit(run: Run, spec: Spec) -> tuple[Check, float]:
             if d > allowed and bad is None:
                 bad = (f"samples {a.index}-{b.index}: joint {j} moved {d} µrad in {dt / 1e6:.3f} ms "
                        f"(limit {allowed:.0f})")
-    detail = bad or (f"peak joint speed {peak / 1e6:.4f} rad/s over {PEAK_WINDOW} ms windows, limit "
+    detail = bad or (f"peak joint speed {peak_net / 1e6:.4f} rad/s net of position rounding "
+                     f"({peak / 1e6:.4f} rad/s raw over {PEAK_WINDOW} ms windows), limit "
                      f"{spec.vmax_urad_s / 1e6:.4f} rad/s; largest per-sample step beyond the limit "
                      f"{max(worst_excess, 0.0):.1f} µrad (rounding allowance {POS_ROUNDING_URAD} µrad)")
     return Check("speed_never_above_limit", bad is None, detail,
-                 {"peak_urad_s": peak, "worst_step_excess_urad": worst_excess}), peak
+                 {"peak_urad_s": peak, "peak_net_urad_s": peak_net,
+                  "worst_step_excess_urad": worst_excess}), peak
 
 
 def reached(run: Run, cmd: Command, name: str, until_ms: int | None = None) -> Check:

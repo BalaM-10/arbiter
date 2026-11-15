@@ -44,7 +44,7 @@ an untrusted party cannot do cite the claim in `docs/THREAT_MODEL.md` (TM-C1 to 
 | FR-G6 | Only the guardian can send setpoints to the arm controller, enforced by sender identity and by the security policy (TM-C2) |
 | FR-G7 | The guardian emits a heartbeat every control cycle |
 | FR-G8 | Every decision and its measured latency go to a ring buffer without blocking |
-| FR-G9 | After initialization: no memory allocation, no unbounded loop, no blocking call except the message receive and one `TimerTimeout()`-bounded setpoint send to the arm, whose timeout enters `SAFE_STOP` |
+| FR-G9 | After initialization: no memory allocation, no unbounded loop, no blocking call except the message receive and, per command, two `TimerTimeout()`-bounded sends to the arm (the state query, then the setpoint); a timeout of either enters `SAFE_STOP` (reworded Nov 15, judge-review M1-J7) |
 
 ## Arm controller (FR-A)
 

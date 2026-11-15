@@ -45,7 +45,7 @@ typedef struct {
 
 _Static_assert(sizeof(arb_verdict_wire_t) == 32, "arb_verdict_wire_t layout");
 
-/* Guardian status (for tests and the dashboard). 32 bytes. */
+/* Guardian status (for tests and the dashboard). 40 bytes. */
 typedef struct {
     uint16_t version;
     uint8_t  state;                    /* HOLD=1, NORMAL=2, SAFE_STOP=3 */
@@ -57,9 +57,11 @@ typedef struct {
     uint32_t bad_messages;             /* devctl messages rejected before decision */
     uint32_t arm_pulse_errors;         /* lease/hold/brake pulses the kernel refused */
     uint32_t watchdog_trips;           /* genuine trip events from the watchdog */
+    uint32_t foreign_pulses;           /* tick or trip pulses not from our own connection, ignored */
+    uint32_t reserved;                 /* 0 */
 } arb_status_t;
 
-_Static_assert(sizeof(arb_status_t) == 32, "arb_status_t layout");
+_Static_assert(sizeof(arb_status_t) == 40, "arb_status_t layout");
 
 /* devctl() payload for a command: the command in, the verdict out (same buffer). */
 typedef union {

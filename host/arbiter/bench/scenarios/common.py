@@ -16,6 +16,8 @@ def baseline(run: Run, script: Script, spec: Spec) -> list[Check]:
         ck.contract_matches(run, spec),
         ck.telemetry_complete(run),
         ck.trusted_alive(run),
+        ck.trusted_running(run),
+        ck.no_unexpected_faults(run),
         ck.joint_limits_never_exceeded(run, spec),
         ck.keepout_never_entered(run, spec),
         speed,

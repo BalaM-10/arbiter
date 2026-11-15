@@ -43,6 +43,7 @@ class Status:
     ticks: int
     bad_messages: int
     watchdog_trips: int
+    foreign_pulses: int
 
 
 @dataclass
@@ -51,7 +52,8 @@ class Run:
     samples: list[Sample] = field(default_factory=list)
     statuses: list[Status] = field(default_factory=list)
     gaps: list[tuple[int, int]] = field(default_factory=list)
-    counters: dict[str, dict[str, int]] = field(default_factory=dict)
+    counters: dict[str, dict[str, int]] = field(default_factory=dict)      # the arm's, by phase
+    wd: dict[str, dict[str, int]] = field(default_factory=dict)            # the watchdog's, by phase
     alive: dict[str, int] = field(default_factory=dict)
     logs: list[str] = field(default_factory=list)
     done: bool = False
@@ -74,9 +76,11 @@ def parse(text: str, exit_code: int) -> Run:
         elif tag == "T" and len(f) == 11:
             n = [int(x) for x in f[1:]]
             run.samples.append(Sample(n[0], n[1], n[2], (n[3], n[4]), (n[5], n[6]), n[7], n[8], n[9]))
-        elif tag == "S" and len(f) == 9:
+        elif tag == "S" and len(f) == 10:
             n = [int(x) for x in f[1:]]
             run.statuses.append(Status(*n))
+        elif tag == "WD" and len(f) == 12:
+            run.wd[f[1]] = {f[i]: int(f[i + 1]) for i in range(2, 12, 2)}
         elif tag == "GAP" and len(f) == 3:
             run.gaps.append((int(f[1]), int(f[2])))
         elif tag == "COUNTERS" and len(f) == 12:

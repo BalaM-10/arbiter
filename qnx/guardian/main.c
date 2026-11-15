@@ -37,6 +37,8 @@
 
 #include "arb_contract.h"
 #include "arb_devctl.h"
+#include "arb_hex.h"
+#include "arb_own_pulse.h"
 #include "arb_prio.h"
 #include "arb_pulses.h"
 #include "arm_link.h"
@@ -44,6 +46,7 @@
 #include "arb_wd_client.h"
 
 #define TICK_NS 1000000L
+#define ARB_RECV_ERRORS_MAX 100   /* consecutive receive failures before exiting (M1-J18) */
 
 /* resmgr_attach() keeps pointers to these: they must be static.
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/r/resmgr_attach.html */
@@ -56,6 +59,7 @@ static arb_contract_table_t g_contract;
 static arb_guard_t          g_guard;
 static arm_link_t           g_arm;
 static arb_status_t         g_status;
+static int                  g_tick_scoid = -1;      /* our own timer's connection (arb_own_pulse.h) */
 static arb_wd_client_t      g_wd;
 
 static uint64_t now_ns(void)
@@ -256,7 +260,14 @@ static int on_tick(message_context_t *ctp, int code, unsigned flags, void *handl
 {
     const uint8_t before = g_guard.state;
 
-    (void)ctp; (void)code; (void)flags; (void)handle;
+    (void)code; (void)flags; (void)handle;
+    /* The pulse is ctp->msg->pulse (struct _pulse, with scoid), per the 8.0
+     * pulse_attach() page and <sys/resmgr.h>.
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/pulse_attach.html */
+    if (!arb_own_pulse(&g_tick_scoid, ctp->msg->pulse.scoid)) {
+        g_status.foreign_pulses++;        /* a tick not from our own timer (M1-J6) */
+        return 0;
+    }
     g_status.ticks++;
     (void)arb_guard_tick(&g_guard, now_ns());
     follow_state(before);
@@ -274,7 +285,7 @@ static int on_wd_trip(message_context_t *ctp, int code, unsigned flags, void *ha
 
     (void)code; (void)flags; (void)handle;
     if (!arb_wd_client_is_trip(&g_wd, &ctp->msg->pulse, ARB_PULSE_GUARDIAN_WD_TRIP)) {
-        g_status.bad_messages++;          /* the code without our token: forged */
+        g_status.foreign_pulses++;        /* the code without our token: forged */
         return 0;
     }
     g_status.watchdog_trips++;
@@ -322,6 +333,7 @@ int main(int argc, char **argv)
     resmgr_attr_t rattr;
     dispatch_t *dpp;
     dispatch_context_t *ctp;
+    int recv_errors = 0;
     timer_t timer;
     int chid, coid, rc;
 
@@ -435,9 +447,13 @@ int main(int argc, char **argv)
         fprintf(stderr, "arb-guardian: dispatch_context_alloc: %s\n", strerror(errno));
         return 5;
     }
-    printf("arb-guardian: ready on %s, priority %d, contract sha256 %02x%02x%02x%02x...\n", ARB_DEV_PATH,
-           ARB_PRIO_GUARDIAN, g_contract.source_sha256[0], g_contract.source_sha256[1],
-           g_contract.source_sha256[2], g_contract.source_sha256[3]);
+    {
+        char hex[ARB_SHA256_HEX_LEN];
+
+        arb_sha256_hex(g_contract.source_sha256, hex);
+        printf("arb-guardian: ready on %s, priority %d, contract sha256 %s\n", ARB_DEV_PATH, ARB_PRIO_GUARDIAN,
+               hex);
+    }
     fflush(stdout);
 
     /* The server loop: blocks in MsgReceive() inside dispatch_block() and handles
@@ -447,8 +463,16 @@ int main(int argc, char **argv)
     for (;;) {
         dispatch_context_t *got = dispatch_block(ctp);
         if (got == NULL) {
-            continue;                      /* e.g. EINTR; the old context stays valid */
+            /* e.g. EINTR; the old context stays valid. M1-J18: not forever at
+             * priority 64; exiting drops the arm's connection, so the arm brakes. */
+            if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
+                fprintf(stderr, "arb-guardian: %d consecutive receive errors (%s); exiting\n", recv_errors,
+                        strerror(errno));
+                return 7;
+            }
+            continue;
         }
+        recv_errors = 0;
         ctp = got;
         (void)dispatch_handler(ctp);
     }

@@ -37,6 +37,7 @@
 #include <sys/procmgr.h>
 #include <sys/syspage.h>
 
+#include "arb_own_pulse.h"
 #include "arb_prio.h"
 #include "arb_pulses.h"
 #include "arb_watchdog_proto.h"
@@ -44,6 +45,7 @@
 #define TICK_NS     1000000L
 #define TIMEOUT_NS  ((int64_t)ARB_WD_TIMEOUT_MS * 1000000)
 #define ROLES       3                    /* index 1 guardian, 2 arm; 0 unused */
+#define ARB_RECV_ERRORS_MAX 100              /* consecutive MsgReceive() failures before exiting (M1-J18) */
 
 typedef struct {
     int             registered;
@@ -278,6 +280,7 @@ int main(int argc, char **argv)
     dispatch_t *dpp;
     timer_t timer;
     int chid, self_coid, rc;
+    int recv_errors = 0;
 
     if (argc > 2) {
         fprintf(stderr, "usage: arb-watchdog [trusted-uid]\n");
@@ -345,13 +348,14 @@ int main(int argc, char **argv)
         return 5;
     }
     /* Learn our own connection's scoid from the first timer pulse, before the name
-     * exists, so no other process can have sent it. Kernel-delivered pulses on
-     * self_coid (the timer, the death notices) carry this scoid; a forged pulse
-     * carries the forger's.
+     * exists. Kernel-delivered pulses on self_coid (the timer, the death notices)
+     * carry this scoid; a forged pulse carries the forger's. A process that
+     * guessed our channel ID could still send one before the name exists, so the
+     * kernel is also asked that the connection is our own (arb_own_pulse.h).
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/_pulse.html */
     for (int i = 0; i < 1000 && g_self_scoid == -1; i++) {        /* bound: 1000 receives */
         if (MsgReceive(chid, &msg, sizeof msg, &info) == 0 && msg.pulse.code == ARB_PULSE_WD_TICK) {
-            g_self_scoid = msg.pulse.scoid;
+            (void)arb_own_pulse(&g_self_scoid, msg.pulse.scoid);
         }
     }
     if (g_self_scoid == -1) {
@@ -375,10 +379,21 @@ int main(int argc, char **argv)
         const int64_t now = now_ns();
 
         if (rcvid == -1) {
+            /* M1-J18: do not spin at priority 66 on a receive that keeps failing.
+             * Exiting is seen by the arm and the guardian (FR-W5, M2). */
+            if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
+                fprintf(stderr, "arb-watchdog: %d consecutive MsgReceive errors (%s); exiting\n", recv_errors,
+                        strerror(errno));
+                return 7;
+            }
             continue;
         }
+        recv_errors = 0;
         if (rcvid == 0) {
             handle_pulse(&msg.pulse, now);
+        } else if (info.srcmsglen < (ssize64_t)sizeof msg.type) {
+            count(&g_st->rejected);                /* M1-J16: too short to hold a type */
+            (void)MsgError(rcvid, EBADMSG);
         } else if (msg.type == _IO_CONNECT) {
             (void)MsgReply(rcvid, EOK, NULL, 0);   /* defensive: not observed from name_open() */
         } else if (msg.type == ARB_WD_MSG_REGISTER) {

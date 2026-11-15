@@ -41,6 +41,8 @@
 #include "arb_arm_model.h"
 #include "arb_arm_proto.h"
 #include "arb_contract.h"
+#include "arb_hex.h"
+#include "arb_own_pulse.h"
 #include "arb_prio.h"
 #include "arb_pulses.h"
 #include "arb_telemetry.h"
@@ -50,6 +52,7 @@
 #include "arm_motion.h"
 
 #define LEASE_NS ((int64_t)ARB_LEASE_MS * 1000000)
+#define ARB_RECV_ERRORS_MAX 100      /* consecutive MsgReceive() failures before exiting (M1-J18) */
 
 /* All state has one owner: the arm's single thread. */
 static arb_contract_table_t g_contract;
@@ -57,6 +60,7 @@ static arm_motion_t         g_motion;
 static arm_backend_t        g_backend;
 static arb_telem_t         *g_telem;
 static int                  g_bound_scoid = -1;     /* the guardian's connection, once bound */
+static int                  g_tick_scoid = -1;      /* our own timer's connection (arb_own_pulse.h) */
 static uid_t                g_guardian_uid;
 static int                  g_lease_valid;
 static int64_t              g_lease_until_ns;
@@ -131,14 +135,14 @@ static void brake_latched(int64_t now)
 
 /* FR-G6: only the guardian's connection may command the arm.
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectclientinfo.html */
-static int authorized(int scoid)
+static int authorized(int scoid, int may_bind)
 {
     struct _client_info ci;
 
     if (g_bound_scoid != -1) {
         return scoid == g_bound_scoid;
     }
-    if (ConnectClientInfo(scoid, &ci, 0) == -1) {
+    if (!may_bind || ConnectClientInfo(scoid, &ci, 0) == -1) {
         return 0;
     }
     if (ci.cred.euid != g_guardian_uid) {
@@ -232,6 +236,10 @@ static void handle_pulse(const struct _pulse *p, int64_t now)
     }
     switch (p->code) {
     case ARB_PULSE_ARM_TICK:
+        if (!arb_own_pulse(&g_tick_scoid, p->scoid)) {
+            count(&g_telem->rejected);   /* a tick not from our own timer (M1-J6) */
+            return;
+        }
         control_cycle(now);            /* motion is time-based: an extra tick cannot speed it up */
         return;
     case _PULSE_CODE_DISCONNECT:
@@ -346,6 +354,7 @@ int main(int argc, char **argv)
     dispatch_t *dpp;
     timer_t timer;
     int chid, coid, rc;
+    int recv_errors = 0;
 
     if (argc < 2 || argc > 3) {
         fprintf(stderr, "usage: arb-arm <contract.bin> [guardian-uid]\n");
@@ -426,8 +435,13 @@ int main(int argc, char **argv)
         fprintf(stderr, "arb-arm: timer_settime: %s\n", strerror(errno));
         return 5;
     }
-    printf("arb-arm: ready as %s, priority %d, backend %s, telemetry %s\n", ARB_ARM_NAME, ARB_PRIO_ARM,
-           g_backend.name, ARB_TELEM_NAME);
+    {
+        char hex[ARB_SHA256_HEX_LEN];
+
+        arb_sha256_hex(g_contract.source_sha256, hex);
+        printf("arb-arm: ready as %s, priority %d, backend %s, telemetry %s, contract sha256 %s\n", ARB_ARM_NAME,
+               ARB_PRIO_ARM, g_backend.name, ARB_TELEM_NAME, hex);
+    }
     fflush(stdout);
 
     /* The server loop: one message or pulse per iteration, for the life of the process.
@@ -438,17 +452,35 @@ int main(int argc, char **argv)
         arm_sample_t s;
 
         if (rcvid == -1) {
+            /* M1-J18: do not spin at priority 70 on a receive that keeps failing.
+             * Exiting drops the guardian's connection and the watchdog's
+             * registration, and the frozen simulated arm moves no further. */
+            if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
+                fprintf(stderr, "arb-arm: %d consecutive MsgReceive errors (%s); exiting\n", recv_errors,
+                        strerror(errno));
+                return 7;
+            }
             continue;
         }
+        recv_errors = 0;
         if (rcvid == 0) {
             handle_pulse(&msg.pulse, now);
+            continue;
+        }
+        /* M1-J16: no field is read before the length says it is there. */
+        if (info.srcmsglen < (ssize64_t)sizeof msg.type) {
+            count(&g_telem->rejected);
+            (void)MsgError(rcvid, EBADMSG);
             continue;
         }
         if (msg.type == _IO_CONNECT) {
             (void)MsgReply(rcvid, EOK, NULL, 0);   /* defensive: not observed from name_open() */
             continue;
         }
-        if (!authorized(info.scoid)) {
+        /* M1-J16: a connection may become the bound guardian only through a
+         * well-formed state query, the guardian's first message. */
+        if (!authorized(info.scoid, msg.type == ARB_ARM_MSG_GET_STATE &&
+                                    info.srcmsglen == (ssize64_t)sizeof(arb_arm_get_state_t))) {
             count(&g_telem->rejected);
             /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgerror.html */
             (void)MsgError(rcvid, EPERM);

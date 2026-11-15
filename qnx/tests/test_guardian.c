@@ -25,6 +25,7 @@
 
 #include "arb_contract.h"
 #include "arb_devctl.h"
+#include "arb_pulses.h"
 #include "arb_test.h"
 
 static int g_fd = -1;          /* opened read-write */
@@ -235,6 +236,44 @@ static void fr_g5_silence_enters_hold_over_devctl(void)
     CHECK(s.ticks > 300u);                          /* the 1 ms tick is running */
 }
 
+static double mono_ms(void)
+{
+    struct timespec ts;
+
+    (void)clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+/* FR-G5 (the guardian keeps time on its own timer), judge-review M1-J6: a client
+ * that sends tick-coded or trip-coded pulses on its /dev/arbiter connection
+ * neither adds guardian ticks (and with them heartbeats and lease renewals) nor
+ * trips it; every such pulse is ignored and counted. */
+static void fr_g5_forged_tick_and_trip_pulses_are_ignored_and_counted(void)
+{
+    arb_status_t a, b;
+    double t0, t1;
+    int sent = 0;
+
+    CHECK_EQ_INT(status(&a), EOK);
+    t0 = mono_ms();
+    for (int i = 0; i < 2000; i++) {                       /* bound: 2000 pulses */
+        /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsendpulse.html */
+        if (MsgSendPulse(g_fd, 10, i % 10 == 0 ? ARB_PULSE_GUARDIAN_WD_TRIP : ARB_PULSE_GUARDIAN_TICK, 0) == 0) {
+            sent++;
+        }
+    }
+    ms_sleep(50);
+    t1 = mono_ms();
+    CHECK_EQ_INT(status(&b), EOK);
+    printf("info forged pulses: %d sent; guardian ticks +%u in %.1f ms; foreign_pulses +%u\n", sent,
+           b.ticks - a.ticks, t1 - t0, b.foreign_pulses - a.foreign_pulses);
+    CHECK(sent > 0);
+    CHECK((double)(b.ticks - a.ticks) <= t1 - t0 + 3.0);   /* only the real 1 ms timer counts */
+    CHECK_EQ_INT(b.foreign_pulses - a.foreign_pulses, sent);
+    CHECK_EQ_INT(b.watchdog_trips, a.watchdog_trips);
+    CHECK(b.state != ARB_STATE_SAFE_STOP);
+}
+
 static void fr_g5_last_client_close_enters_hold(void)
 {
     const arb_cmd_t c = cmd(-300000, 0, 1000);
@@ -312,6 +351,7 @@ static const arb_test_case_t normal_cases[] = {
     ARB_TEST_CASE(nfr_i6_unknown_devctl_command_rejected),
     ARB_TEST_CASE(nfr_i6_read_only_descriptor_cannot_submit),
     ARB_TEST_CASE(nfr_i6_random_payloads_never_crash_the_guardian),
+    ARB_TEST_CASE(fr_g5_forged_tick_and_trip_pulses_are_ignored_and_counted),
     ARB_TEST_CASE(fr_g5_silence_enters_hold_over_devctl),
     ARB_TEST_CASE(fr_g5_last_client_close_enters_hold),
 };

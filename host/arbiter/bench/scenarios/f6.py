@@ -52,7 +52,8 @@ def f6_overspeed_clamped_and_never_above_limit(run: Run, script: Script, spec: S
                              f"asked {v.requested_ms} ms, forwarded {v.duration_ms} ms, needs >= {need} ms"))
     _, peak = ck.speed_never_above_limit(run, spec)
     out.append(Check("arm_moved_at_the_limit", peak >= 0.95 * spec.vmax_urad_s,
-                     f"peak {peak / 1e6:.4f} rad/s vs limit {spec.vmax_urad_s / 1e6:.4f} rad/s"))
+                     f"peak {peak / 1e6:.4f} rad/s raw, at least 95% of the limit "
+                     f"{spec.vmax_urad_s / 1e6:.4f} rad/s (the test drove the arm at the limit)"))
     for name in ("target", "home"):
         out.append(ck.reached(run, script.commands[script.marks[f"arrive_{name}"]], f"reached_{name}"))
     return out

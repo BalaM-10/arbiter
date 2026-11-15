@@ -26,9 +26,13 @@
  *   ARB-INJECT 1
  *   INFO telem_version <v> cycles_per_sec <n> slots <n>
  *   COUNTERS <begin|end> rejected <n> lease_expiries <n> disconnects <n> wd_brakes <n> bound_pid <n>
+ *   WD <begin|end> trips <n> rejected <n> hb_guardian <n> hb_arm <n> deliver_errors <n>
+ *     (the watchdog's own counters; heartbeats advance only while the guardian,
+ *     the arm and the watchdog are all running)
  *   V <t_send_ns> <t_reply_ns> <telem_head> <seq> <rc> <verdict> <rule> <state> <flags>
  *     <target0> <target1> <duration_ms> <requested_ms>
  *   S <t_ns> <state> <stop_cause> <decisions> <arm_faults> <ticks> <bad_messages> <watchdog_trips>
+ *     <foreign_pulses>
  *   T <index> <t_ns> <t_cycles> <pos0> <pos1> <vel0> <vel1> <segment> <state> <lease_ok>
  *   GAP <first_index> <count>              samples the reader lost (the bench fails on any)
  *   DONE samples <n> gaps <n> verdicts <n>
@@ -49,6 +53,7 @@
 #include "arb_contract.h"
 #include "arb_devctl.h"
 #include "arb_telemetry.h"
+#include "arb_watchdog_proto.h"
 
 #define MAX_STEPS     2048u
 #define MAX_SAMPLES   40000u      /* 40 s at 1 kHz */
@@ -89,6 +94,14 @@ static unsigned           g_nsteps, g_nv, g_ns, g_nsamples, g_ngaps;
 static int                g_overflow;
 static uint64_t           g_next;
 static const arb_telem_t *g_tm;
+static const arb_wd_status_t *g_wd;
+
+/* Counters snapshotted at the start and the end of the run, printed afterwards. */
+typedef struct {
+    uint64_t rejected, lease_expiries, disconnects, wd_brakes;
+    int64_t  bound_pid;
+    uint64_t wd_trips, wd_rejected, hb[3], wd_deliver_errors;
+} snap_t;
 
 static int64_t now_ns(void)
 {
@@ -154,15 +167,33 @@ static void drain(void)
     }
 }
 
-static void counters(const char *phase)
+static void snapshot(snap_t *s)
 {
     arb_telem_t *t = (arb_telem_t *)g_tm;
+    arb_wd_status_t *w = (arb_wd_status_t *)g_wd;
 
+    s->rejected = atomic_load(&t->rejected);
+    s->lease_expiries = atomic_load(&t->lease_expiries);
+    s->disconnects = atomic_load(&t->disconnects);
+    s->wd_brakes = atomic_load(&t->wd_brakes);
+    s->bound_pid = atomic_load(&t->bound_pid);
+    s->wd_trips = atomic_load(&w->trips);
+    s->wd_rejected = atomic_load(&w->rejected);
+    for (int r = 0; r < 3; r++) {                     /* bound: 3 roles */
+        s->hb[r] = atomic_load(&w->heartbeats[r]);
+    }
+    s->wd_deliver_errors = atomic_load(&w->deliver_errors);
+}
+
+static void print_snapshot(const char *phase, const snap_t *s)
+{
     printf("COUNTERS %s rejected %llu lease_expiries %llu disconnects %llu wd_brakes %llu bound_pid %lld\n",
-           phase,
-           (unsigned long long)atomic_load(&t->rejected), (unsigned long long)atomic_load(&t->lease_expiries),
-           (unsigned long long)atomic_load(&t->disconnects), (unsigned long long)atomic_load(&t->wd_brakes),
-           (long long)atomic_load(&t->bound_pid));
+           phase, (unsigned long long)s->rejected, (unsigned long long)s->lease_expiries,
+           (unsigned long long)s->disconnects, (unsigned long long)s->wd_brakes, (long long)s->bound_pid);
+    printf("WD %s trips %llu rejected %llu hb_guardian %llu hb_arm %llu deliver_errors %llu\n", phase,
+           (unsigned long long)s->wd_trips, (unsigned long long)s->wd_rejected,
+           (unsigned long long)s->hb[ARB_WD_ROLE_GUARDIAN], (unsigned long long)s->hb[ARB_WD_ROLE_ARM],
+           (unsigned long long)s->wd_deliver_errors);
 }
 
 static int parse_script(void)
@@ -215,6 +246,7 @@ static int parse_script(void)
 int main(void)
 {
     int fd, tfd;
+    snap_t begin, end;
     int64_t t0;
 
     if (parse_script() != 0) {
@@ -239,11 +271,18 @@ int main(void)
         fprintf(stderr, "arb-inject: telemetry missing or wrong version (want %u)\n", ARB_TELEM_VERSION);
         return 4;
     }
+    tfd = shm_open(ARB_WD_STATUS_NAME, O_RDONLY, 0);
+    g_wd = tfd == -1 ? MAP_FAILED : mmap(NULL, sizeof(arb_wd_status_t), PROT_READ, MAP_SHARED, tfd, 0);
+    if (g_wd == MAP_FAILED || g_wd->magic != ARB_WD_STATUS_MAGIC) {
+        fprintf(stderr, "arb-inject: watchdog status %s missing\n", ARB_WD_STATUS_NAME);
+        return 4;
+    }
 
     printf("ARB-INJECT 1\n");
     printf("INFO telem_version %u cycles_per_sec %llu slots %u\n", g_tm->version,
            (unsigned long long)g_tm->cycles_per_sec, ARB_TELEM_SLOTS);
-    counters("begin");
+    snapshot(&begin);
+    print_snapshot("begin", &begin);
     {
         const uint64_t h = head();
         g_next = h > PREROLL ? h - PREROLL : 0u;
@@ -289,6 +328,7 @@ int main(void)
         drain();
     }
     drain();
+    snapshot(&end);
 
     for (unsigned i = 0; i < g_nv; i++) {
         const vrec_t *v = &g_v[i];
@@ -299,9 +339,9 @@ int main(void)
     }
     for (unsigned i = 0; i < g_ns; i++) {
         const arb_status_t *st = &g_s[i].st;
-        printf("S %lld %u %u %u %u %u %u %u\n", (long long)g_s[i].t_ns, (unsigned)st->state,
+        printf("S %lld %u %u %u %u %u %u %u %u\n", (long long)g_s[i].t_ns, (unsigned)st->state,
                (unsigned)st->stop_cause, st->decisions, st->arm_faults, st->ticks, st->bad_messages,
-               st->watchdog_trips);
+               st->watchdog_trips, st->foreign_pulses);
     }
     for (unsigned i = 0; i < g_nsamples; i++) {
         const arb_telem_sample_t *c = &g_samples[i];
@@ -312,7 +352,7 @@ int main(void)
     for (unsigned i = 0; i < g_ngaps; i++) {
         printf("GAP %llu %llu\n", (unsigned long long)g_gaps[i].first, (unsigned long long)g_gaps[i].count);
     }
-    counters("end");
+    print_snapshot("end", &end);
     printf("DONE samples %u gaps %u verdicts %u\n", g_nsamples, g_ngaps, g_nv);
     return g_overflow ? 5 : 0;
 }
