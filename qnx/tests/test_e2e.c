@@ -240,6 +240,34 @@ static void fr_w2_arm_death_puts_the_guardian_in_safe_stop(void)
     CHECK(w.verdict == ARB_VERDICT_DENY && w.rule == ARB_RULE_STATE);
 }
 
+/* Judge-review M1-J1: after the watchdog has braked the arm for a stuck guardian,
+ * the guardian resumes (SIGCONT, sent by the test above) and a planner sends an
+ * approved-looking command. The arm must stay braked: it refuses every setpoint
+ * after a genuine watchdog brake, so the guardian reports an arm fault and
+ * enters SAFE_STOP, and nothing moves until the processes are restarted. */
+static void fr_w2_arm_stays_braked_after_a_stuck_guardian_resumes(void)
+{
+    arb_verdict_wire_t w;
+    arb_telem_sample_t before, after;
+    arb_status_t st;
+
+    ms_sleep(100);                                      /* the guardian runs again */
+    CHECK(tm_last(&before));
+    CHECK_EQ_INT(before.state, ARM_STATE_BRAKED);
+    CHECK_EQ_INT(submit(-100000, 0, 1000, &w), EOK);    /* a valid move, away from the hand area */
+    CHECK(w.verdict == ARB_VERDICT_DENY);
+    CHECK_EQ_INT(w.rule, ARB_RULE_ARM_FAULT);
+    ms_sleep(300);
+    CHECK(tm_last(&after));
+    CHECK_EQ_INT(after.state, ARM_STATE_BRAKED);
+    CHECK_EQ_INT(after.segment, before.segment);        /* no new segment was started */
+    CHECK_EQ_INT(after.pos_urad[0], before.pos_urad[0]);
+    CHECK_EQ_INT(after.pos_urad[1], before.pos_urad[1]);
+    memset(&st, 0, sizeof st);
+    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_GET_STATUS, &st, sizeof st, NULL), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+}
+
 static const arb_test_case_t move_cases[] = {
     ARB_TEST_CASE(fr_a3_guardian_approved_command_moves_the_arm),
     ARB_TEST_CASE(fr_g5_guardian_silence_holds_the_arm),
@@ -251,6 +279,7 @@ static const arb_test_case_t killed_cases[] = {
 static const arb_test_case_t stopped_cases[] = {
     ARB_TEST_CASE(fr_a4_lease_expires_when_guardian_stopped),
     ARB_TEST_CASE(fr_w2_watchdog_records_a_stuck_guardian_and_brakes_the_arm),
+    ARB_TEST_CASE(fr_w2_arm_stays_braked_after_a_stuck_guardian_resumes),
 };
 static const arb_test_case_t armkilled_cases[] = { ARB_TEST_CASE(fr_w2_arm_death_puts_the_guardian_in_safe_stop) };
 
@@ -288,7 +317,7 @@ int main(int argc, char **argv)
             return arb_test_run("test_e2e killed", killed_cases, 2);
         }
         if (strcmp(mode, "stopped") == 0) {
-            return arb_test_run("test_e2e stopped", stopped_cases, 2);
+            return arb_test_run("test_e2e stopped", stopped_cases, 3);
         }
         if (strcmp(mode, "armkilled") == 0) {
             return arb_test_run("test_e2e armkilled", armkilled_cases, 1);

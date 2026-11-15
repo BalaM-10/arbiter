@@ -61,6 +61,11 @@ static uid_t                g_guardian_uid;
 static int                  g_lease_valid;
 static int64_t              g_lease_until_ns;
 static uint32_t             g_segment;
+/* Set by a genuine watchdog brake and never cleared in this process: the
+ * watchdog no longer supervises the guardian it tripped on, so no setpoint may
+ * move the arm again until restart (judge-review M1-J1; an operator reset path
+ * is M2, FR-G5). */
+static int                  g_wd_tripped;
 static arb_wd_client_t      g_wd;
 
 static int64_t now_ns(void)
@@ -174,6 +179,11 @@ static void handle_setpoint(rcvid_t rcvid, const arb_arm_setpoint_t *sp, int64_t
     uint32_t dur;
 
     arm_motion_sample(&g_motion, now, &actual);
+    if (g_wd_tripped) {                                    /* braked by the watchdog: stay braked */
+        count(&g_telem->rejected);
+        reply(rcvid, sp->hdr.seq, ARB_ARM_REJECTED, &actual);
+        return;
+    }
     if (sp->hdr.version != ARB_ARM_PROTO_VERSION || sp->reserved != 0u ||
         sp->duration_ms < ARB_DURATION_MIN_MS || sp->duration_ms > g_contract.max_duration_ms) {
         count(&g_telem->rejected);
@@ -213,6 +223,7 @@ static void handle_pulse(const struct _pulse *p, int64_t now)
     if (p->code == ARB_PULSE_ARM_WD_BRAKE) {
         if (arb_wd_client_is_trip(&g_wd, p, ARB_PULSE_ARM_WD_BRAKE)) {
             brake_latched(now);          /* FR-W2: the watchdog says the guardian is gone */
+            g_wd_tripped = 1;            /* and no later setpoint may undo it (M1-J1) */
             count(&g_telem->wd_brakes);
         } else {
             count(&g_telem->rejected);   /* the code without our token: forged */
