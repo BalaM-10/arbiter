@@ -33,6 +33,7 @@ do. What Arbiter defends against, and what it does not, is in
 | Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred | |
 | **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-15-qemu/143428/report.html) | |
 | Watchdog failure is fail-safe (M2): if the watchdog dies or freezes, the arm brakes and latches and the guardian enters SAFE_STOP, each on its own; a watchdog that comes back restarts nothing | |
+| Emergency stop and operator reset (M2): `arb-ctl estop` from any client stops everything; `arb-ctl reset` works only for the operator's user ID, and only once a watchdog is running | |
 | System log (M2): guardian, arm and watchdog record startup, state changes, brakes, refused senders and watchdog trips through the QNX system logger, read on the target with `slog2info -b arb_guardian` (or `arb_arm`, `arb_watchdog`) | |
 | Message-passing sample from M0: send/receive/reply, malformed messages, pulses, sender identity (7 checks) | |
 

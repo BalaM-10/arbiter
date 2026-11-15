@@ -84,11 +84,13 @@ static arb_wd_client_t      g_wd;
 static uint64_t             g_refused_senders;     /* messages from a connection that is not the bound guardian */
 static uint64_t             g_guardian_brakes;     /* SAFE_STOP brake pulses from the guardian */
 static uint64_t             g_guardian_holds;      /* HOLD pulses from the guardian */
+static uint64_t             g_resets;              /* operator resets accepted (FR-G5) */
+static uint64_t             g_resets_refused;      /* resets refused: no watchdog to register with */
 
 /* What the system log last said (NFR-Q6). Owner: the arm's single thread. */
 static struct {
     uint64_t rejected_other, refused_senders, lease_expiries, disconnects, wd_brakes;
-    uint64_t guardian_brakes, guardian_holds, wd_lost;
+    uint64_t guardian_brakes, guardian_holds, wd_lost, resets, resets_refused;
     int64_t  bound_pid;
 } g_logged;
 
@@ -266,6 +268,28 @@ static void handle_setpoint(rcvid_t rcvid, const arb_arm_setpoint_t *sp, int64_t
     reply(rcvid, sp->hdr.seq, ARB_ARM_OK, &actual);
 }
 
+/* FR-G5 operator reset, from the bound guardian only (the caller checked). The
+ * arm first registers again with a watchdog (bounded, ~2 ms; the arm is braked,
+ * so the missed cycles move nothing). Only if that works does it clear the
+ * watchdog latch; the next approved setpoint then moves it. Without a watchdog
+ * it stays latched and says so (FR-W5: motion resumes only with the watchdog
+ * back and an operator reset). */
+static void handle_reset(rcvid_t rcvid, uint32_t seq, int64_t now)
+{
+    arm_sample_t s;
+
+    arm_motion_sample(&g_motion, now, &s);
+    if (arb_wd_client_reregister(&g_wd) != 0) {
+        g_resets_refused++;
+        reply(rcvid, seq, ARB_ARM_NO_WATCHDOG, &s);
+        return;
+    }
+    g_wd_tripped = 0;
+    g_wd_lost = 0;
+    g_resets++;
+    reply(rcvid, seq, ARB_ARM_OK, &s);
+}
+
 static void handle_pulse(const struct _pulse *p, int64_t now)
 {
     if (p->code == ARB_PULSE_ARM_WD_BRAKE) {
@@ -386,6 +410,14 @@ static void log_changes(void)
               "guardian SAFE_STOP: braked and latched (%lld so far)");
     log_count(&g_logged.guardian_holds, g_guardian_holds, ARB_LOG_BRAKE, SLOG2_INFO,
               "guardian HOLD: stopping along the segment (%lld so far)");
+    if (g_resets != g_logged.resets) {
+        g_logged.resets = g_resets;
+        arb_log_1(ARB_LOG_CLIENT, SLOG2_WARNING,
+                  "operator reset from the guardian: registered with the watchdog again, latch cleared (%lld so far)",
+                  (int64_t)g_resets);
+    }
+    log_count(&g_logged.resets_refused, g_resets_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
+              "operator reset refused: no watchdog to register with (%lld so far)");
     if (telem_count(&g_telem->wd_lost) != g_logged.wd_lost) {
         g_logged.wd_lost = telem_count(&g_telem->wd_lost);
         arb_log_c(ARB_LOG_BRAKE, SLOG2_WARNING,
@@ -617,6 +649,9 @@ int main(int argc, char **argv)
             reply(rcvid, msg.hdr.seq, ARB_ARM_OK, &s);
         } else if (msg.type == ARB_ARM_MSG_SETPOINT && info.srcmsglen == (ssize64_t)sizeof(arb_arm_setpoint_t)) {
             handle_setpoint(rcvid, &msg.sp, now);
+        } else if (msg.type == ARB_ARM_MSG_RESET && info.srcmsglen == (ssize64_t)sizeof(arb_arm_reset_t) &&
+                   msg.hdr.version == ARB_ARM_PROTO_VERSION) {
+            handle_reset(rcvid, msg.hdr.seq, now);
         } else {
             count(&g_telem->rejected);
             (void)MsgError(rcvid, msg.type <= _IO_MAX ? ENOSYS : EBADMSG);

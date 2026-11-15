@@ -29,10 +29,9 @@ int arm_link_open(arm_link_t *l)
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/timertimeout.html
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsend.html
  */
-static arm_link_result_t bounded_send(arm_link_t *l, const void *req, size_t req_len,
-                                      uint32_t seq, arb_arm_reply_t *reply)
+static arm_link_result_t bounded_send_for(arm_link_t *l, const void *req, size_t req_len,
+                                          uint32_t seq, arb_arm_reply_t *reply, uint64_t timeout_ns)
 {
-    const uint64_t timeout_ns = ARM_LINK_TIMEOUT_NS;
     long rc;
 
     memset(reply, 0, sizeof *reply);
@@ -50,6 +49,37 @@ static arm_link_result_t bounded_send(arm_link_t *l, const void *req, size_t req
         return ARM_LINK_ERROR;
     }
     return ARM_LINK_OK;
+}
+
+static arm_link_result_t bounded_send(arm_link_t *l, const void *req, size_t req_len,
+                                      uint32_t seq, arb_arm_reply_t *reply)
+{
+    return bounded_send_for(l, req, req_len, seq, reply, ARM_LINK_TIMEOUT_NS);
+}
+
+arm_link_result_t arm_link_reset(arm_link_t *l)
+{
+    arb_arm_reset_t req;
+    arb_arm_reply_t reply;
+    arm_link_result_t r;
+
+    memset(&req, 0, sizeof req);
+    req.hdr.type = (uint16_t)ARB_ARM_MSG_RESET;
+    req.hdr.version = (uint16_t)ARB_ARM_PROTO_VERSION;
+    req.hdr.seq = ++l->seq;
+    r = bounded_send_for(l, &req, sizeof req, req.hdr.seq, &reply, ARM_LINK_RESET_TIMEOUT_NS);
+    if (r != ARM_LINK_OK) {
+        return r;
+    }
+    switch (reply.status) {
+    case ARB_ARM_OK:
+        return ARM_LINK_OK;
+    case ARB_ARM_NO_WATCHDOG:
+        return ARM_LINK_NO_WATCHDOG;
+    default:
+        l->last_errno = EBADMSG;
+        return ARM_LINK_ERROR;
+    }
 }
 
 arm_link_result_t arm_link_get_state(arm_link_t *l, int32_t pos_urad[ARB_JOINTS])

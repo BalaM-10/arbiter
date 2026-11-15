@@ -17,12 +17,17 @@
  * WATCHDOG) on its own when the watchdog itself is lost (fail-safe): the
  * connection to it dies (_PULSE_CODE_COIDDEATH, FR-W5) or its beat stops for
  * ARB_WD_BEAT_TIMEOUT_MS ticks (FR-W6).
+ * E-stop (FR-W4): ARB_DCMD_ESTOP from any client enters SAFE_STOP (cause ESTOP)
+ * and brakes the arm before the reply. Operator reset (FR-G5): ARB_DCMD_RESET,
+ * only from the operator's user ID on a descriptor opened for writing, only in
+ * SAFE_STOP; the arm and then the guardian register again with the watchdog,
+ * and the guardian goes to HOLD. Never reachable through the gateway (D2).
  * Design: docs/DESIGN_M1_ADDENDUM.md. Threat model: docs/THREAT_MODEL.md.
  * Toward the arm (docs/DESIGN_M1_ADDENDUM.md section 2): a lease renewal pulse
  * every tick unless in SAFE_STOP; a hold pulse on entering HOLD; a latching brake
  * pulse on entering SAFE_STOP. Logs go to slogger2 (arb_log.h, NFR-Q6): startup,
  * state changes and faults, written by the server loop after each message is
- * handled and replied to, never from the decision path. Not yet (M2): operator reset.
+ * handled and replied to, never from the decision path.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -75,6 +80,7 @@ static uid_t                g_operator_uid;
 static struct {
     uint8_t  state, cause;
     uint32_t arm_faults, watchdog_trips, foreign_pulses, bad_messages, arm_pulse_errors, watchdog_lost;
+    uint32_t estops, resets, resets_refused;
 } g_logged;
 
 static uint64_t now_ns(void)
@@ -155,6 +161,61 @@ static void decide(const void *payload, size_t len, arb_verdict_t *v)
         arm_fault(v);
         break;
     }
+}
+
+/* FR-W4: stop now. Any client may (stopping is always allowed, decision D2). */
+static void estop(void)
+{
+    const uint8_t before = g_guard.state;
+
+    g_status.estops++;
+    arb_guard_fault(&g_guard, ARB_STOP_ESTOP);
+    follow_state(before);                 /* the brake pulse goes before the reply */
+}
+
+/* FR-G5 operator reset (the caller checked who is asking). Returns EOK or the
+ * errno documented in arb_devctl.h. Bounded: one arm send (10 ms) and one
+ * watchdog registration (2 ms), only reachable in SAFE_STOP. */
+static int operator_reset(void)
+{
+    const uint8_t before = g_guard.state;
+
+    if (g_guard.state != ARB_STATE_SAFE_STOP) {
+        return EALREADY;
+    }
+    /* The arm first: it registers again with the watchdog and clears its latch,
+     * or refuses when there is no watchdog (FR-W5). */
+    switch (arm_link_reset(&g_arm)) {
+    case ARM_LINK_OK:
+        break;
+    case ARM_LINK_NO_WATCHDOG:
+        return ENOLINK;
+    default:
+        return EIO;
+    }
+    /* Then the guardian, last, so its heartbeats resume at once. */
+    if (arb_wd_client_reregister(&g_wd) != 0) {
+        return ENOLINK;
+    }
+    g_wd_lost = 0;
+    if (arb_guard_reset(&g_guard, now_ns()) != 0) {
+        return EALREADY;
+    }
+    g_status.resets++;
+    follow_state(before);                 /* HOLD: lease renewals resume on the next tick */
+    return EOK;
+}
+
+/* FR-G5: is this client the operator? Its effective user ID, from the kernel.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectclientinfo.html */
+static int is_operator(int scoid)
+{
+    struct _client_info ci;
+
+    if (!g_operator_set || ConnectClientInfo(scoid, &ci, 0) == -1) {
+        return 0;
+    }
+    return ci.cred.euid == g_operator_uid;
 }
 
 static void to_wire(const arb_verdict_t *v, arb_verdict_wire_t *w)
@@ -244,6 +305,27 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
         memset(&msg->o, 0, sizeof msg->o);
         memcpy(_IO_OUTPUT_PAYLOAD(msg), &g_status, sizeof g_status);
         return _RESMGR_PTR(ctp, &msg->o, want);
+    }
+    case ARB_DCMD_ESTOP:                   /* FR-W4: any client, any open mode */
+        estop();
+        memset(&msg->o, 0, sizeof msg->o);
+        return _RESMGR_PTR(ctp, &msg->o, sizeof msg->o);
+    case ARB_DCMD_RESET: {                 /* FR-G5: the operator only */
+        int rc;
+
+        if ((ocb->ioflag & _IO_FLAG_WR) == 0) {
+            rc = EBADF;
+        } else if (!is_operator(ctp->info.scoid)) {
+            rc = EPERM;
+        } else {
+            rc = operator_reset();
+        }
+        if (rc != EOK) {
+            g_status.resets_refused++;
+            return rc;
+        }
+        memset(&msg->o, 0, sizeof msg->o);
+        return _RESMGR_PTR(ctp, &msg->o, sizeof msg->o);
     }
     default:
         g_status.bad_messages++;
@@ -408,6 +490,13 @@ static void log_changes(int first)
               "refused a malformed or unknown devctl (%lld so far)");
     log_count(&g_logged.arm_pulse_errors, g_status.arm_pulse_errors, ARB_LOG_FAULT, SLOG2_ERROR,
               "the kernel refused a pulse to the arm (%lld so far)");
+    log_count(&g_logged.estops, g_status.estops, ARB_LOG_STATE, SLOG2_WARNING,
+              "emergency stop received (%lld so far)");
+    log_count(&g_logged.resets, g_status.resets, ARB_LOG_STATE, SLOG2_WARNING,
+              "operator reset: SAFE_STOP left for HOLD (%lld so far)");
+    log_count(&g_logged.resets_refused, g_status.resets_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
+              "operator reset refused: not the operator, not opened for writing, not stopped, "
+              "no watchdog, or the arm refused (%lld so far)");
     if (g_status.watchdog_lost != g_logged.watchdog_lost) {
         g_logged.watchdog_lost = g_status.watchdog_lost;
         arb_log_c(ARB_LOG_FAULT, SLOG2_ERROR,

@@ -158,8 +158,32 @@ is doing at the time.
 Added during M1: motion-lease renewals and watchdog heartbeats on every tick,
 and the hold pulse to the arm on entering HOLD. Added in M2: system logging
 through `slog2` (NFR-Q6, `qnx/common/arb_log.h`): startup, every state change with
-its cause, and faults, written after the reply, never while deciding. Not yet in
-the guardian (M2): the operator reset of `SAFE_STOP`.
+its cause, and faults, written after the reply, never while deciding. Also in
+M2: the watchdog's own failure (FR-W5, FR-W6, see the watchdog section), the
+emergency stop and the operator reset.
+
+**Emergency stop and operator reset (FR-W4, FR-G5, decision D2).** Two devctl
+commands on `/dev/arbiter`, run by the operator console `arb-ctl`:
+
+- `ARB_DCMD_ESTOP` is accepted from **any** client, even on a read-only
+  descriptor: stopping is always allowed. The guardian enters `SAFE_STOP` with
+  cause `ESTOP` and sends the arm its brake pulse before it replies.
+- `ARB_DCMD_RESET` is accepted only from the **operator**: a descriptor opened for
+  writing whose effective user ID, as the kernel reports it
+  (`ConnectClientInfo()`), is the operator user ID given to `arb-guardian` at
+  startup. Without that argument every reset is refused. Root is not the operator.
+  The gateway (M2 P6) will run under its own user ID, so a reset sent through it
+  is refused (to be tested in P6). Only in `SAFE_STOP`. The guardian first sends the arm a reset message
+  (bounded, 10 ms; the arm accepts it only from its bound guardian): the arm
+  registers again with the watchdog and only then clears its latch, and refuses
+  when no watchdog answers. Then the guardian registers again and goes to `HOLD`.
+  So after the watchdog was lost, motion resumes only once a watchdog runs again
+  **and** the operator resets (decision 8). The reset is the only path that
+  blocks the guardian longer than a command's two sends; it exists only in
+  `SAFE_STOP`, when nothing moves.
+- Until the per-process users of M2 P5, every Arbiter process runs as root; the
+  operator check is by user ID, so it holds already (the tests use uid 800 for
+  the operator and show root refused).
 
 ## The arm controller (`arb-arm`)
 

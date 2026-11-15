@@ -39,6 +39,10 @@ int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int
 
     memset(w, 0, sizeof *w);
     w->role = role;
+    w->self_coid = self_coid;
+    w->prio = prio;
+    w->code = code;
+    w->beat_code = beat_code;
     w->token = make_token();
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_open.html */
     w->coid = name_open(ARB_WD_NAME, 0);
@@ -82,6 +86,24 @@ int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int
         errno = reply.status != 0u ? (int)reply.status : EBADMSG;
         return -1;
     }
+    return 0;
+}
+
+int arb_wd_client_reregister(arb_wd_client_t *w)
+{
+    arb_wd_client_t n;
+
+    if (arb_wd_client_register(&n, w->role, w->self_coid, w->prio, w->code, w->beat_code) != 0) {
+        const int e = errno;
+        if (n.coid != -1) {
+            /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectdetach.html */
+            (void)ConnectDetach(n.coid);
+        }
+        errno = e;
+        return -1;
+    }
+    (void)ConnectDetach(w->coid);       /* the old connection, after the new one holds the role */
+    *w = n;
     return 0;
 }
 

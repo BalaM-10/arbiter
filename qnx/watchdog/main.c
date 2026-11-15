@@ -164,11 +164,13 @@ static void handle_register(rcvid_t rcvid, const struct _msg_info *info, const a
         return;
     }
     c = &g_client[m->role];
-    if (c->registered && pid_alive(c->pid)) {
+    if (c->registered && pid_alive(c->pid) && c->pid != ci.pid) {
         count(&g_st->rejected);
-        reply(rcvid, EBUSY);             /* the role is held by a live process: no hijacking */
+        reply(rcvid, EBUSY);             /* the role is held by another live process: no hijacking */
         return;
     }
+    /* The holder itself may register again (FR-G5 operator reset): its new
+     * registration replaces the old one, connection and events included. */
     memset(c, 0, sizeof *c);
     c->registered = 1;
     c->scoid = info->scoid;

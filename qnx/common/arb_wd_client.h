@@ -14,6 +14,8 @@ typedef struct {
     uint64_t token;         /* value carried by our registered trip event */
     uint32_t hb_errors;     /* heartbeats the kernel refused */
     uint32_t ticks_since_beat;  /* own 1 ms ticks handled since the watchdog's last beat (FR-W6) */
+    int      self_coid;     /* kept for arb_wd_client_reregister() */
+    int      prio, code, beat_code;
 } arb_wd_client_t;
 
 /* Connect and register. self_coid is a connection to the caller's own channel,
@@ -21,6 +23,13 @@ typedef struct {
  * beat (FR-W6) with code `beat_code`, both at priority `prio`. Returns 0, or -1
  * with errno set (no watchdog, refused, timeout). */
 int  arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int prio, int code, int beat_code);
+
+/* FR-G5 operator reset: register again, with the same role and events, on a new
+ * connection (to a watchdog that came back, or one that tripped us). The old
+ * connection is closed only after the new registration holds the role, so the
+ * watchdog never sees our role disconnect. On failure the old state is kept.
+ * Bounded like arb_wd_client_register(). Returns 0, or -1 with errno set. */
+int  arb_wd_client_reregister(arb_wd_client_t *w);
 
 /* One heartbeat pulse (non-blocking). */
 void arb_wd_client_heartbeat(arb_wd_client_t *w);
