@@ -17,6 +17,7 @@ TESTS=(
     "watchdog_suite.sh:arb-watchdog on QNX: priority, stuck by missed heartbeats, death by process-manager notice, brake and SAFE_STOP events, forged notices and heartbeats ignored (FR-W1..W3)"
     "arm_suite.sh:arb-arm on QNX alone and end to end with arb-guardian and arb-watchdog: loop period, telemetry, sender binding, lease, disconnect brake, HOLD, watchdog trips (FR-A1..A6, FR-G5, FR-G6, FR-W1..W3, NFR-I3)"
     "guardian_suite.sh:arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)"
+    "f11_suite.sh off:F11 bypass with the policy off: an untrusted user's setpoint to the arm, binding the arm before the guardian starts, attaching /dev/arbiter first (F11, FR-G6)"
 )
 ALL_ARCHS=(x86_64 aarch64le)
 

@@ -18,8 +18,10 @@
 #include <sys/iofunc.h>
 #include <sys/dispatch.h>
 #include <sys/neutrino.h>
+#include <unistd.h>
 
 #include "arb_arm_proto.h"
+#include "arb_ids.h"
 
 typedef enum { MODE_NORMAL, MODE_HANG, MODE_STALE } mode_t_;
 
@@ -86,6 +88,14 @@ int main(int argc, char **argv)
         return 1;
     }
     (void)fr_g6_name_attach_uses_own_channel(chid, attach);
+    /* The guardian accepts the server of ARB_ARM_NAME only if it runs as the arm's
+     * user (F11 case 4), so the stand-in arm becomes that user, as the real arm does.
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/setregid.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/setreuid.html */
+    if (setregid(ARB_UID_ARM, ARB_UID_ARM) == -1 || setreuid(ARB_UID_ARM, ARB_UID_ARM) == -1) {
+        printf("FAIL stub cannot become the arm's user %d: %s\n", ARB_UID_ARM, strerror(errno));
+        return 1;
+    }
 
     for (;;) {
         /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgreceive.html */

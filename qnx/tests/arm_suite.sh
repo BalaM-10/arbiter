@@ -15,8 +15,8 @@ arb_wd_up() {      # the watchdog starts first: arm and guardian register with i
     sleep 1
 }
 
-arb_arm_up() {
-    ./arb-arm "$CONTRACT" &
+arb_arm_up() {      # [guardian-uid]: only the arm-alone tests, where test_arm plays the guardian as root
+    ./arb-arm "$CONTRACT" ${1:+"$1"} &
     ARM=$!
     sleep 1
 }
@@ -42,6 +42,9 @@ arb_down() {
     WD=
     sleep 1
 }
+# Whatever happens, leave no Arbiter process behind: one would keep the SSH
+# session (and run-tests.sh) open.
+trap 'arb_down; slay -f arb-guardian arb-arm arb-watchdog >/dev/null 2>&1' EXIT
 
 echo "## FR-C4: the arm refuses to start on a bad contract table"
 ./arb-arm contract-corpus/crc.bin
@@ -63,9 +66,9 @@ else
     fail=1
 fi
 
-echo "## the arm alone (test_arm plays the guardian)"
+echo "## the arm alone (test_arm plays the guardian, as root)"
 arb_wd_up
-arb_arm_up
+arb_arm_up 0
 ls -l /dev/name/local/arbiter_arm /dev/shmem/arbiter_arm_telemetry
 pidin -p arb-arm -F "%a %b %p %n"
 if pidin -p arb-arm -F "%b %p" | grep -q ' 70f'; then
@@ -82,6 +85,47 @@ arb_wd_up
 arb_arm_up
 arb_guard_up
 ./test_e2e move || fail=1
+
+# NFR-I5, after the client traffic above. Each trusted process: its own user and
+# group (qnx/common/arb_ids.h), still FIFO at its arb_prio.h priority, and its own
+# startup check that what it dropped is refused (arb_privdrop.c), read from slog2.
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/p/pidin.html
+echo "## NFR-I5: own users, priorities kept, dropped abilities refused"
+for n in arb-watchdog arb-arm arb-guardian; do pidin -p "$n" -F "%a %U %V %b %p %n"; done
+i5p=0
+i5d=0
+i5_check() {       # i5_check <name> <slog2 set> <pid> <uid> <prio> <expected drop line>
+    if pidin -p "$1" -F "%a %U %V %b %p" | grep -q "^ *$3  *$4  *$4  *1  *${5}f"; then
+        echo "  ok   $1: pid $3 user $4 group $4, FIFO $5"
+    else
+        echo "  FAIL $1: expected pid $3 user $4 group $4, FIFO $5"
+        i5p=1
+    fi
+    if slog2info -b "$2" | grep "$2.$3 " | grep -qF "$6"; then
+        echo "  ok   $1: $6"
+    else
+        echo "  FAIL $1: no slog2 line '$6'"
+        i5d=1
+    fi
+}
+i5_check arb-watchdog arb_watchdog "$WD" 812 66 \
+    "privileges dropped: uid 812 gid 812; kept PRIORITY 1-70; refused as expected: setuid(0), priority 71, fork()"
+i5_check arb-arm arb_arm "$ARM" 811 70 \
+    "privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()"
+i5_check arb-guardian arb_guardian "$GUARD" 810 64 \
+    "privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()"
+if [ "$i5p" -eq 0 ]; then
+    echo "PASS nfr_i5_trusted_processes_keep_their_priority_after_dropping_privileges"
+else
+    echo "FAIL nfr_i5_trusted_processes_keep_their_priority_after_dropping_privileges"
+    fail=1
+fi
+if [ "$i5d" -eq 0 ]; then
+    echo "PASS nfr_i5_dropped_abilities_are_denied"
+else
+    echo "FAIL nfr_i5_dropped_abilities_are_denied"
+    fail=1
+fi
 arb_down
 
 echo "## guardian killed mid-move"
