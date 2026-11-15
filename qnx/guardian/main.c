@@ -17,7 +17,9 @@
  * Design: docs/DESIGN_M1_ADDENDUM.md. Threat model: docs/THREAT_MODEL.md.
  * Toward the arm (docs/DESIGN_M1_ADDENDUM.md section 2): a lease renewal pulse
  * every tick unless in SAFE_STOP; a hold pulse on entering HOLD; a latching brake
- * pulse on entering SAFE_STOP. Not yet (M2): slog2 logging, operator reset.
+ * pulse on entering SAFE_STOP. Logs go to slogger2 (arb_log.h, NFR-Q6): startup,
+ * state changes and faults, written by the server loop after each message is
+ * handled and replied to, never from the decision path. Not yet (M2): operator reset.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -38,6 +40,7 @@
 #include "arb_contract.h"
 #include "arb_devctl.h"
 #include "arb_hex.h"
+#include "arb_log.h"
 #include "arb_own_pulse.h"
 #include "arb_prio.h"
 #include "arb_pulses.h"
@@ -61,6 +64,12 @@ static arm_link_t           g_arm;
 static arb_status_t         g_status;
 static int                  g_tick_scoid = -1;      /* our own timer's connection (arb_own_pulse.h) */
 static arb_wd_client_t      g_wd;
+
+/* What the system log last said (NFR-Q6). Owner: the same thread, after each message. */
+static struct {
+    uint8_t  state, cause;
+    uint32_t arm_faults, watchdog_trips, foreign_pulses, bad_messages, arm_pulse_errors;
+} g_logged;
 
 static uint64_t now_ns(void)
 {
@@ -294,6 +303,61 @@ static int on_wd_trip(message_context_t *ctp, int code, unsigned flags, void *ha
     return 0;
 }
 
+/* ------------------------------------------------------------- system log */
+
+static const char *state_text(uint8_t state, uint8_t cause)
+{
+    switch (state) {
+    case ARB_STATE_NORMAL:
+        return "state NORMAL";
+    case ARB_STATE_HOLD:
+        return "state HOLD (no command within the silence timeout, or no client)";
+    case ARB_STATE_SAFE_STOP:
+        switch (cause) {
+        case ARB_STOP_VIOLATIONS:  return "state SAFE_STOP, cause violations (threshold of counted denials)";
+        case ARB_STOP_ARM_TIMEOUT: return "state SAFE_STOP, cause arm timeout (a bounded send to the arm failed)";
+        case ARB_STOP_WATCHDOG:    return "state SAFE_STOP, cause watchdog (the arm died or is stuck)";
+        case ARB_STOP_ESTOP:       return "state SAFE_STOP, cause e-stop";
+        default:                   return "state SAFE_STOP, cause unknown";
+        }
+    default:
+        return "state unknown";
+    }
+}
+
+/* A counter moved: log it (the first 16 times, then once per 1024, arb_log.h). */
+static void log_count(uint32_t *logged, uint32_t now, uint16_t code, uint8_t sev, const char *fmt)
+{
+    if (arb_log_worth(*logged, now)) {
+        arb_log_1(code, sev, fmt, (int64_t)now);
+    }
+    *logged = now;
+}
+
+/* NFR-Q6: write what changed since the last call. Called by the server loop
+ * after each message or pulse is handled (so after its reply), and once at
+ * startup with first = 1. Bounded: a fixed number of comparisons, at most six
+ * bounded slog2 writes. */
+static void log_changes(int first)
+{
+    if (first || g_guard.state != g_logged.state || g_guard.stop_cause != g_logged.cause) {
+        arb_log_c(ARB_LOG_STATE, g_guard.state == ARB_STATE_SAFE_STOP ? SLOG2_WARNING : SLOG2_INFO,
+                  state_text(g_guard.state, g_guard.stop_cause));
+        g_logged.state = g_guard.state;
+        g_logged.cause = g_guard.stop_cause;
+    }
+    log_count(&g_logged.arm_faults, g_status.arm_faults, ARB_LOG_FAULT, SLOG2_ERROR,
+              "a bounded send to the arm failed or timed out (%lld so far)");
+    log_count(&g_logged.watchdog_trips, g_status.watchdog_trips, ARB_LOG_TRIP, SLOG2_WARNING,
+              "watchdog trip received: the arm died or is stuck (%lld so far)");
+    log_count(&g_logged.foreign_pulses, g_status.foreign_pulses, ARB_LOG_REFUSED, SLOG2_WARNING,
+              "ignored a tick or trip pulse not from its own source (%lld so far)");
+    log_count(&g_logged.bad_messages, g_status.bad_messages, ARB_LOG_REFUSED, SLOG2_NOTICE,
+              "refused a malformed or unknown devctl (%lld so far)");
+    log_count(&g_logged.arm_pulse_errors, g_status.arm_pulse_errors, ARB_LOG_FAULT, SLOG2_ERROR,
+              "the kernel refused a pulse to the arm (%lld so far)");
+}
+
 /* ------------------------------------------------------------------ startup */
 
 /* FR-C4: load the table once, refuse to start on any problem. */
@@ -308,18 +372,19 @@ static int load_contract(const char *path)
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/r/read.html */
     fd = open(path, O_RDONLY);
     if (fd == -1) {
-        fprintf(stderr, "arb-guardian: cannot open contract %s: %s\n", path, strerror(errno));
+        arb_log_s(ARB_LOG_FAIL, SLOG2_ERROR, "cannot open contract %s", path);
+        arb_log_fail("open contract", errno);
         return -1;
     }
     n = read(fd, buf, sizeof buf);        /* one byte more than a table, to detect oversize */
     (void)close(fd);
     if (n < 0) {
-        fprintf(stderr, "arb-guardian: cannot read contract %s: %s\n", path, strerror(errno));
+        arb_log_fail("read contract", errno);
         return -1;
     }
     r = arb_contract_load(buf, (size_t)n, &g_contract);
     if (r != ARB_LOAD_OK) {
-        fprintf(stderr, "arb-guardian: contract %s refused (load code %d); not starting\n", path, (int)r);
+        arb_log_fail_code("contract refused (FR-C4)", (int64_t)r);
         return -1;
     }
     return 0;
@@ -337,6 +402,7 @@ int main(int argc, char **argv)
     timer_t timer;
     int chid, coid, rc;
 
+    (void)arb_log_init("arb_guardian", "arb-guardian");   /* first: startup failures are logged too */
     if (argc != 2) {
         fprintf(stderr, "usage: arb-guardian <contract.bin>\n");
         return 5;
@@ -351,13 +417,12 @@ int main(int argc, char **argv)
     sp.sched_priority = ARB_PRIO_GUARDIAN;
     rc = pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp);
     if (rc != EOK) {
-        fprintf(stderr, "arb-guardian: cannot set FIFO priority %d: %s\n", ARB_PRIO_GUARDIAN, strerror(rc));
+        arb_log_fail("set FIFO priority", rc);
         return 3;
     }
 
     if (arm_link_open(&g_arm) != 0) {
-        fprintf(stderr, "arb-guardian: arm controller '%s' not found: %s; not starting\n",
-                ARB_ARM_NAME, strerror(errno));
+        arb_log_fail("find the arm controller " ARB_ARM_NAME, errno);
         return 4;
     }
     /* One bounded query before serving anyone: proves the arm answers, and makes
@@ -366,8 +431,7 @@ int main(int argc, char **argv)
     {
         int32_t pos[ARB_JOINTS];
         if (arm_link_get_state(&g_arm, pos) != ARM_LINK_OK) {
-            fprintf(stderr, "arb-guardian: arm controller did not answer (errno %d); not starting\n",
-                    g_arm.last_errno);
+            arb_log_fail("first state query to the arm", g_arm.last_errno);
             return 4;
         }
     }
@@ -379,12 +443,12 @@ int main(int argc, char **argv)
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/dispatch_create_channel.html */
     chid = ChannelCreate(_NTO_CHF_FIXED_PRIORITY | _NTO_CHF_UNBLOCK | _NTO_CHF_DISCONNECT);
     if (chid == -1) {
-        fprintf(stderr, "arb-guardian: ChannelCreate: %s\n", strerror(errno));
+        arb_log_fail("ChannelCreate", errno);
         return 5;
     }
     dpp = dispatch_create_channel(chid, DISPATCH_FLAG_NOLOCK);
     if (dpp == NULL) {
-        fprintf(stderr, "arb-guardian: dispatch_create_channel: %s\n", strerror(errno));
+        arb_log_fail("dispatch_create_channel", errno);
         return 5;
     }
 
@@ -401,14 +465,14 @@ int main(int argc, char **argv)
     rattr.nparts_max = 1;
     rattr.msg_max_size = 2048;
     if (resmgr_attach(dpp, &rattr, ARB_DEV_PATH, _FTYPE_ANY, 0, &g_connect_funcs, &g_io_funcs, &g_attr) == -1) {
-        fprintf(stderr, "arb-guardian: resmgr_attach %s: %s\n", ARB_DEV_PATH, strerror(errno));
+        arb_log_fail("resmgr_attach " ARB_DEV_PATH, errno);
         return 5;
     }
 
     /* Everything attached before dispatch_context_alloc() (DISPATCH_FLAG_NOLOCK). */
     if (pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_TICK, on_tick, NULL) == -1 ||
         pulse_attach(dpp, 0, ARB_PULSE_GUARDIAN_WD_TRIP, on_wd_trip, NULL) == -1) {
-        fprintf(stderr, "arb-guardian: pulse_attach: %s\n", strerror(errno));
+        arb_log_fail("pulse_attach", errno);
         return 5;
     }
 
@@ -419,16 +483,16 @@ int main(int argc, char **argv)
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/timer_settime.html */
     coid = ConnectAttach(0, 0, chid, _NTO_SIDE_CHANNEL, 0);
     if (coid == -1) {
-        fprintf(stderr, "arb-guardian: ConnectAttach: %s\n", strerror(errno));
+        arb_log_fail("ConnectAttach", errno);
         return 5;
     }
     if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_GUARDIAN, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_WD_TRIP) != 0) {
-        fprintf(stderr, "arb-guardian: cannot register with the watchdog: %s; not starting\n", strerror(errno));
+        arb_log_fail("register with the watchdog", errno);
         return 6;
     }
     SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_TICK, 0);
     if (timer_create(CLOCK_MONOTONIC, &ev, &timer) == -1) {
-        fprintf(stderr, "arb-guardian: timer_create: %s\n", strerror(errno));
+        arb_log_fail("timer_create", errno);
         return 5;
     }
     memset(&its, 0, sizeof its);
@@ -437,14 +501,14 @@ int main(int argc, char **argv)
 
     arb_guard_init(&g_guard, &g_contract, now_ns());
     if (timer_settime(timer, 0, &its, NULL) == -1) {
-        fprintf(stderr, "arb-guardian: timer_settime: %s\n", strerror(errno));
+        arb_log_fail("timer_settime", errno);
         return 5;
     }
 
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/dispatch_context_alloc.html */
     ctp = dispatch_context_alloc(dpp);
     if (ctp == NULL) {
-        fprintf(stderr, "arb-guardian: dispatch_context_alloc: %s\n", strerror(errno));
+        arb_log_fail("dispatch_context_alloc", errno);
         return 5;
     }
     {
@@ -453,6 +517,8 @@ int main(int argc, char **argv)
         arb_sha256_hex(g_contract.source_sha256, hex);
         printf("arb-guardian: ready on %s, priority %d, contract sha256 %s\n", ARB_DEV_PATH, ARB_PRIO_GUARDIAN,
                hex);
+        arb_log_s(ARB_LOG_START, SLOG2_INFO, "ready on " ARB_DEV_PATH ", contract sha256 %s", hex);
+        log_changes(1);
     }
     fflush(stdout);
 
@@ -466,14 +532,14 @@ int main(int argc, char **argv)
             /* e.g. EINTR; the old context stays valid. M1-J18: not forever at
              * priority 64; exiting drops the arm's connection, so the arm brakes. */
             if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
-                fprintf(stderr, "arb-guardian: %d consecutive receive errors (%s); exiting\n", recv_errors,
-                        strerror(errno));
+                arb_log_fail("dispatch_block, 100 consecutive errors; exiting", errno);
                 return 7;
             }
             continue;
         }
         recv_errors = 0;
         ctp = got;
-        (void)dispatch_handler(ctp);
+        (void)dispatch_handler(ctp);   /* handles the message and sends its reply */
+        log_changes(0);                /* only then: nothing logged before the reply */
     }
 }

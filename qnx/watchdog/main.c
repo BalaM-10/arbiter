@@ -17,6 +17,10 @@
  *
  * FIFO 66: above the guardian, so a guardian spinning in a loop cannot starve it;
  * below only the arm's control loop (owner decision 2026-11-13, arb_prio.h).
+ *
+ * Logs go to slogger2 (arb_log.h, NFR-Q6): startup, registrations, trips with
+ * their cause, refusals and delivery errors, written by the loop after each
+ * message or pulse is handled (after its reply).
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -37,6 +41,7 @@
 #include <sys/procmgr.h>
 #include <sys/syspage.h>
 
+#include "arb_log.h"
 #include "arb_own_pulse.h"
 #include "arb_prio.h"
 #include "arb_pulses.h"
@@ -62,6 +67,13 @@ static pid_t            g_last_pid[ROLES];   /* last process that held each role
 static int              g_self_scoid = -1;   /* our own connection, learned before the name exists */
 static arb_wd_status_t *g_st;
 static uid_t            g_trusted_uid;
+
+/* What the system log last said (NFR-Q6). Owner: the watchdog's single thread. */
+static struct {
+    int64_t  pid[ROLES];
+    uint64_t trips, rejected, deliver_errors;
+    uint32_t last_cause;
+} g_logged;
 
 static int64_t now_ns(void)
 {
@@ -232,6 +244,71 @@ static void handle_pulse(const struct _pulse *p, int64_t now)
     }
 }
 
+/* ------------------------------------------------------------- system log */
+
+static const char *role_text(uint32_t role)
+{
+    return role == ARB_WD_ROLE_GUARDIAN ? "guardian" : role == ARB_WD_ROLE_ARM ? "arm" : "unknown role";
+}
+
+static const char *cause_text(uint32_t cause)
+{
+    switch (cause) {
+    case ARB_WD_CAUSE_DIED:         return "died (death notice)";
+    case ARB_WD_CAUSE_STUCK:        return "stuck (heartbeats missing)";
+    case ARB_WD_CAUSE_DISCONNECTED: return "disconnected";
+    default:                        return "unknown cause";
+    }
+}
+
+static uint64_t st_count(_Atomic uint64_t *c)
+{
+    return atomic_load_explicit(c, memory_order_relaxed);
+}
+
+/* NFR-Q6: write what changed since the last call. Called by the loop after each
+ * message or pulse has been handled. Bounded: ROLES + 4 comparisons, at most
+ * seven bounded slog2 writes. Two trips in one pass (both clients at once) are
+ * logged as one line with the last one's cause and the trip count. */
+static void log_changes(void)
+{
+    const uint64_t trips = st_count(&g_st->trips);
+    const uint32_t cause = atomic_load_explicit(&g_st->last_cause, memory_order_relaxed);
+    const uint64_t rejected = st_count(&g_st->rejected);
+    const uint64_t deliver_errors = st_count(&g_st->deliver_errors);
+
+    for (uint32_t r = 1; r < ROLES; r++) {             /* bound: ROLES */
+        const int64_t pid = atomic_load_explicit(&g_st->pid[r], memory_order_relaxed);
+        if (pid != g_logged.pid[r] && pid != -1) {
+            arb_log_si(ARB_LOG_CLIENT, SLOG2_INFO, "registered the %s, pid %lld", role_text(r), pid);
+        }
+        g_logged.pid[r] = pid;
+    }
+    if (trips != g_logged.trips) {
+        const uint32_t role = atomic_load_explicit(&g_st->last_role, memory_order_relaxed);
+        arb_log_ssi(ARB_LOG_TRIP, SLOG2_WARNING, "trip: the %s %s, pid %lld; the other client was told",
+                    role_text(role), cause_text(cause),
+                    atomic_load_explicit(&g_st->last_pid, memory_order_relaxed));
+    } else if (cause != g_logged.last_cause && trips != 0u) {
+        arb_log_ssi(ARB_LOG_TRIP, SLOG2_WARNING, "trip cause refined: the %s %s, pid %lld",
+                    role_text(atomic_load_explicit(&g_st->last_role, memory_order_relaxed)), cause_text(cause),
+                    atomic_load_explicit(&g_st->last_pid, memory_order_relaxed));
+    }
+    g_logged.trips = trips;
+    g_logged.last_cause = cause;
+    if (arb_log_worth(g_logged.rejected, rejected)) {
+        arb_log_1(ARB_LOG_REFUSED, SLOG2_WARNING,
+                  "refused a registration, message or pulse not from its rightful source (%lld so far)",
+                  (int64_t)rejected);
+    }
+    g_logged.rejected = rejected;
+    if (arb_log_worth(g_logged.deliver_errors, deliver_errors)) {
+        arb_log_1(ARB_LOG_FAULT, SLOG2_ERROR, "could not deliver a trip event (%lld so far)",
+                  (int64_t)deliver_errors);
+    }
+    g_logged.deliver_errors = deliver_errors;
+}
+
 /* ------------------------------------------------------------------ setup */
 
 static int status_create(void)
@@ -282,6 +359,7 @@ int main(int argc, char **argv)
     int chid, self_coid, rc;
     int recv_errors = 0;
 
+    (void)arb_log_init("arb_watchdog", "arb-watchdog");   /* first: startup failures are logged too */
     if (argc > 2) {
         fprintf(stderr, "usage: arb-watchdog [trusted-uid]\n");
         return 5;
@@ -293,11 +371,11 @@ int main(int argc, char **argv)
     sp.sched_priority = ARB_PRIO_WATCHDOG;
     rc = pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp);
     if (rc != EOK) {
-        fprintf(stderr, "arb-watchdog: cannot set FIFO priority %d: %s\n", ARB_PRIO_WATCHDOG, strerror(rc));
+        arb_log_fail("set FIFO priority", rc);
         return 3;
     }
     if (status_create() != 0) {
-        fprintf(stderr, "arb-watchdog: cannot create %s: %s\n", ARB_WD_STATUS_NAME, strerror(errno));
+        arb_log_fail("create status " ARB_WD_STATUS_NAME, errno);
         return 5;
     }
 
@@ -308,15 +386,18 @@ int main(int argc, char **argv)
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_attach.html */
     chid = ChannelCreate(_NTO_CHF_FIXED_PRIORITY | _NTO_CHF_DISCONNECT | _NTO_CHF_COID_DISCONNECT);
     if (chid == -1) {
+        arb_log_fail("ChannelCreate", errno);
         return 5;
     }
     dpp = dispatch_create_channel(chid, 0);
     if (dpp == NULL) {
+        arb_log_fail("dispatch_create_channel", errno);
         return 5;
     }
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectattach.html */
     self_coid = ConnectAttach(0, 0, chid, _NTO_SIDE_CHANNEL, 0);
     if (self_coid == -1) {
+        arb_log_fail("ConnectAttach", errno);
         return 5;
     }
 
@@ -327,11 +408,11 @@ int main(int argc, char **argv)
     SIGEV_PULSE_INIT(&death_ev, self_coid, ARB_PRIO_WATCHDOG, ARB_PULSE_WD_DEATH, 0);
     SIGEV_MAKE_UPDATEABLE(&death_ev);
     if (MsgRegisterEvent(&death_ev, SYSMGR_COID) == -1) {
-        fprintf(stderr, "arb-watchdog: MsgRegisterEvent: %s\n", strerror(errno));
+        arb_log_fail("MsgRegisterEvent", errno);
         return 5;
     }
     if (procmgr_event_notify_add(PROCMGR_EVENT_PROCESS_DEATH, &death_ev) == -1) {
-        fprintf(stderr, "arb-watchdog: procmgr_event_notify_add: %s\n", strerror(errno));
+        arb_log_fail("procmgr_event_notify_add", errno);
         return 5;
     }
 
@@ -339,12 +420,14 @@ int main(int argc, char **argv)
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/timer_create.html */
     SIGEV_PULSE_INIT(&tick_ev, self_coid, ARB_PRIO_WATCHDOG, ARB_PULSE_WD_TICK, 0);
     if (timer_create(CLOCK_MONOTONIC, &tick_ev, &timer) == -1) {
+        arb_log_fail("timer_create", errno);
         return 5;
     }
     memset(&its, 0, sizeof its);
     its.it_value.tv_nsec = TICK_NS;
     its.it_interval.tv_nsec = TICK_NS;
     if (timer_settime(timer, 0, &its, NULL) == -1) {
+        arb_log_fail("timer_settime", errno);
         return 5;
     }
     /* Learn our own connection's scoid from the first timer pulse, before the name
@@ -359,17 +442,22 @@ int main(int argc, char **argv)
         }
     }
     if (g_self_scoid == -1) {
-        fprintf(stderr, "arb-watchdog: no timer pulse received; not starting\n");
+        arb_log_fail("first timer pulse (none in 1000 receives)", ETIMEDOUT);
         return 5;
     }
     atomic_store_explicit(&g_st->self_scoid, (int64_t)g_self_scoid, memory_order_relaxed);
     attach = name_attach(dpp, ARB_WD_NAME, 0);
     if (attach == NULL || attach->chid != chid) {
-        fprintf(stderr, "arb-watchdog: name_attach %s failed\n", ARB_WD_NAME);
+        arb_log_fail("name_attach " ARB_WD_NAME " (or it did not keep our channel)", attach == NULL ? errno : EINVAL);
         return 5;
     }
     printf("arb-watchdog: ready as %s, priority %d, timeout %d ms, status %s\n", ARB_WD_NAME,
            ARB_PRIO_WATCHDOG, ARB_WD_TIMEOUT_MS, ARB_WD_STATUS_NAME);
+    arb_log_1(ARB_LOG_START, SLOG2_INFO, "ready as " ARB_WD_NAME ", heartbeat timeout %lld ms",
+              (int64_t)ARB_WD_TIMEOUT_MS);
+    for (int r = 0; r < ROLES; r++) {                   /* bound: ROLES */
+        g_logged.pid[r] = -1;
+    }
     fflush(stdout);
 
     /* The server loop, for the life of the process.
@@ -382,8 +470,7 @@ int main(int argc, char **argv)
             /* M1-J18: do not spin at priority 66 on a receive that keeps failing.
              * Exiting is seen by the arm and the guardian (FR-W5, M2). */
             if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
-                fprintf(stderr, "arb-watchdog: %d consecutive MsgReceive errors (%s); exiting\n", recv_errors,
-                        strerror(errno));
+                arb_log_fail("MsgReceive, 100 consecutive errors; exiting", errno);
                 return 7;
             }
             continue;
@@ -403,5 +490,6 @@ int main(int argc, char **argv)
             /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgerror.html */
             (void)MsgError(rcvid, msg.type <= _IO_MAX ? ENOSYS : EBADMSG);
         }
+        log_changes();                 /* after the reply or the pulse, never inside a handler */
     }
 }

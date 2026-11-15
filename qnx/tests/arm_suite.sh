@@ -102,6 +102,13 @@ arb_guard_up
 ./test_e2e armkilled "$ARM" || fail=1
 arb_down
 
+echo "## NFR-Q6: trusted processes log through slogger2"
+arb_wd_up
+arb_arm_up
+arb_guard_up
+./test_e2e log "$GUARD" "$ARM" "$WD" || fail=1
+arb_down
+
 if [ "$fail" -eq 0 ]; then
     echo "RESULT PASS arm_suite"
 else

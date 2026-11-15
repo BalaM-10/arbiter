@@ -75,7 +75,11 @@ None yet (M2). Present in the SDP: `secpolcompile`, `secpolpush`, `secpol`,
 
 ## Tracing and logging
 
-None yet (M1: `slog2`; M2: kernel trace).
+| QNX feature | Why Arbiter needs it | File | Function | 8.0 doc page | Proof |
+| --- | --- | --- | --- | --- | --- |
+| System logger (`slog2_register`, `slog2c`, `slog2fa`; read with `slog2info -b`) | Startup, state changes, brakes, refused senders and watchdog trips are recorded by the system logger, outside the process, so the record survives the process that wrote it, including a killed guardian (NFR-Q6). One buffer set per trusted process, registered once at startup. `slog2fa()` stores the arguments and leaves formatting to the reader; `SLOG2_LIMIT_RETRIES` bounds every write (the default is unlimited retries) and `SLOG2_QUIET` keeps failures off stderr. Each server loop logs what changed after the message is handled and replied to, never on the decision path | `qnx/common/arb_log.h`; `qnx/guardian/main.c`, `qnx/arm/main.c`, `qnx/watchdog/main.c` | `arb_log_init()`, `log_changes()` | [slog2_register](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/slog2_register.html), [slog2c](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/slog2c.html), [slog2fa](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/slog2fa.html), [slog2info](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slog2info.html), [slogger2](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slogger2.html) | pending: evidence run at the P2 commit, `nfr_q6_trusted_processes_log_through_slog2` |
+
+Kernel trace: none yet (M2, NFR-Q5).
 
 ## Image and boot
 

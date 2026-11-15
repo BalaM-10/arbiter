@@ -7,6 +7,9 @@
  *   test_e2e killed  <guardian-pid> the guardian is killed mid-move: the arm brakes
  *   test_e2e stopped <guardian-pid> the guardian is stopped mid-move: the lease expires
  *   test_e2e armkilled <arm-pid>    the arm is killed: the watchdog puts the guardian in SAFE_STOP
+ *   test_e2e log <guardian-pid> <arm-pid> <watchdog-pid>
+ *                                   NFR-Q6: state changes, a refused sender, a brake and a
+ *                                   watchdog trip are in the system log (slog2info)
  *
  * QEMU proves function; the times printed are QEMU measurements, not claims.
  */
@@ -21,9 +24,11 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <sys/dispatch.h>
 #include <sys/neutrino.h>
 
 #include "arb_arm_model.h"
+#include "arb_arm_proto.h"
 #include "arb_contract.h"
 #include "arb_devctl.h"
 #include "arb_telemetry.h"
@@ -36,6 +41,8 @@ static const arb_wd_status_t *g_wd;
 static int g_fd = -1;
 static uint32_t g_seq = 1000;
 static pid_t g_guardian;
+static pid_t g_arm;
+static pid_t g_watchdog;
 
 static void ms_sleep(long ms)
 {
@@ -338,6 +345,107 @@ static void nfr_q2_each_command_is_one_synchronous_request_and_reply(void)
     }
 }
 
+/* ---------------------------------------------------------------- log mode */
+
+#define LOG_TEXT_MAX 65536
+
+/* Every line slog2info prints for one buffer set of one process ("<set>.<pid>"),
+ * into buf. Returns the number of lines.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slog2info.html */
+static int read_log(const char *set, pid_t pid, char *buf, size_t cap)
+{
+    char cmd[96], tag[64], line[1024];
+    size_t used = 0;
+    int lines = 0;
+    FILE *f;
+
+    buf[0] = '\0';
+    snprintf(cmd, sizeof cmd, "slog2info -b %s", set);
+    snprintf(tag, sizeof tag, "%s.%d ", set, (int)pid);
+    f = popen(cmd, "r");
+    if (f == NULL) {
+        return -1;
+    }
+    while (fgets(line, sizeof line, f) != NULL) {
+        const size_t n = strlen(line);
+        if (strstr(line, tag) == NULL || used + n + 1 > cap) {
+            continue;
+        }
+        printf("info slog2 %s", line);
+        memcpy(buf + used, line, n + 1);
+        used += n;
+        lines++;
+    }
+    (void)pclose(f);
+    return lines;
+}
+
+static int count_of(const char *text, const char *what)
+{
+    int n = 0;
+
+    for (const char *p = strstr(text, what); p != NULL; p = strstr(p + 1, what)) {
+        n++;
+    }
+    return n;
+}
+
+static void nfr_q6_trusted_processes_log_through_slog2(void)
+{
+    static char text[LOG_TEXT_MAX];
+    char want[80];
+    arb_verdict_wire_t w;
+    arb_arm_setpoint_t q;
+    arb_arm_reply_t r;
+    int coid;
+
+    /* 1. Guardian state changes: HOLD at startup, NORMAL on a command, HOLD after
+     *    the 250 ms silence timeout. */
+    CHECK_EQ_INT(submit(-100000, 50000, 100, &w), EOK);
+    CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+    ms_sleep(500);
+
+    /* 2. A refused sender: a setpoint straight to the arm, not from the guardian. */
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_open.html */
+    coid = name_open(ARB_ARM_NAME, 0);
+    CHECK(coid != -1);
+    memset(&q, 0, sizeof q);
+    q.hdr.type = (uint16_t)ARB_ARM_MSG_SETPOINT;
+    q.hdr.version = (uint16_t)ARB_ARM_PROTO_VERSION;
+    q.hdr.seq = 1;
+    q.target_urad[0] = 300000;
+    q.duration_ms = 1000;
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsend.html */
+    CHECK(MsgSend(coid, &q, sizeof q, &r, sizeof r) == -1 && errno == EPERM);
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_close.html */
+    (void)name_close(coid);
+
+    /* 3. A brake and a watchdog trip: the guardian is killed. */
+    CHECK(kill(g_guardian, SIGKILL) == 0);
+    ms_sleep(300);
+
+    /* The guardian's buffer set outlives it (slogger2 page: logs survive a crash). */
+    CHECK(read_log("arb_guardian", g_guardian, text, sizeof text) > 0);
+    CHECK(count_of(text, "ready on /dev/arbiter, contract sha256 ") == 1);
+    CHECK(count_of(text, "state NORMAL") >= 1);
+    CHECK(count_of(text, "state HOLD") >= 2);          /* at startup, and after the silence */
+
+    CHECK(read_log("arb_arm", g_arm, text, sizeof text) > 0);
+    CHECK(count_of(text, "ready as arbiter_arm, contract sha256 ") == 1);
+    snprintf(want, sizeof want, "bound the guardian, pid %d", (int)g_guardian);
+    CHECK(count_of(text, want) == 1);
+    CHECK(count_of(text, "refused a sender that is not the bound guardian (1 so far)") == 1);
+    CHECK(count_of(text, "guardian connection lost: braked") == 1);
+
+    CHECK(read_log("arb_watchdog", g_watchdog, text, sizeof text) > 0);
+    CHECK(count_of(text, "ready as ") == 1);
+    snprintf(want, sizeof want, "registered the guardian, pid %d", (int)g_guardian);
+    CHECK(count_of(text, want) == 1);
+    snprintf(want, sizeof want, "registered the arm, pid %d", (int)g_arm);
+    CHECK(count_of(text, want) == 1);
+    CHECK(count_of(text, "trip: the guardian") == 1);
+}
+
 static const arb_test_case_t move_cases[] = {
     ARB_TEST_CASE(fr_a3_guardian_approved_command_moves_the_arm),
     ARB_TEST_CASE(fr_g5_guardian_silence_holds_the_arm),
@@ -354,6 +462,7 @@ static const arb_test_case_t stopped_cases[] = {
     ARB_TEST_CASE(fr_w2_arm_stays_braked_after_a_stuck_guardian_resumes),
 };
 static const arb_test_case_t armkilled_cases[] = { ARB_TEST_CASE(fr_w2_arm_death_puts_the_guardian_in_safe_stop) };
+static const arb_test_case_t log_cases[] = { ARB_TEST_CASE(nfr_q6_trusted_processes_log_through_slog2) };
 
 int main(int argc, char **argv)
 {
@@ -383,6 +492,12 @@ int main(int argc, char **argv)
     if (strcmp(mode, "move") == 0) {
         return arb_test_run("test_e2e move", move_cases, 4);
     }
+    if (strcmp(mode, "log") == 0 && argc == 5) {
+        g_guardian = (pid_t)strtol(argv[2], NULL, 10);
+        g_arm = (pid_t)strtol(argv[3], NULL, 10);
+        g_watchdog = (pid_t)strtol(argv[4], NULL, 10);
+        return arb_test_run("test_e2e log", log_cases, 1);
+    }
     if (argc == 3) {
         g_guardian = (pid_t)strtol(argv[2], NULL, 10);
         if (strcmp(mode, "killed") == 0) {
@@ -395,6 +510,6 @@ int main(int argc, char **argv)
             return arb_test_run("test_e2e armkilled", armkilled_cases, 1);
         }
     }
-    printf("usage: test_e2e move | killed <pid> | stopped <pid>\n");
+    printf("usage: test_e2e move | killed <pid> | stopped <pid> | armkilled <pid> | log <guardian> <arm> <watchdog>\n");
     return 2;
 }

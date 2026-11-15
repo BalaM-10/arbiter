@@ -156,8 +156,10 @@ faster than that. This is FR-G5 as written: silence is a fault, whatever the arm
 is doing at the time.
 
 Added during M1: motion-lease renewals and watchdog heartbeats on every tick,
-and the hold pulse to the arm on entering HOLD. Not yet in the guardian (M2):
-system logging through `slog2`, and the operator reset of `SAFE_STOP`.
+and the hold pulse to the arm on entering HOLD. Added in M2: system logging
+through `slog2` (NFR-Q6, `qnx/common/arb_log.h`): startup, every state change with
+its cause, and faults, written after the reply, never while deciding. Not yet in
+the guardian (M2): the operator reset of `SAFE_STOP`.
 
 ## The arm controller (`arb-arm`)
 

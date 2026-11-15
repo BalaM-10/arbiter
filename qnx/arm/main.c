@@ -20,6 +20,10 @@
  * While every process runs as root the user ID alone cannot tell them apart, so
  * the binding is what separates them until the M2 security policy
  * (docs/THREAT_MODEL.md, known gaps).
+ *
+ * Logs go to slogger2 (arb_log.h, NFR-Q6): startup, brakes and their cause,
+ * bindings and refused senders, written by the loop after each message or
+ * pulse is handled (after its reply), never from the control cycle itself.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -42,6 +46,7 @@
 #include "arb_arm_proto.h"
 #include "arb_contract.h"
 #include "arb_hex.h"
+#include "arb_log.h"
 #include "arb_own_pulse.h"
 #include "arb_prio.h"
 #include "arb_pulses.h"
@@ -71,6 +76,17 @@ static uint32_t             g_segment;
  * is M2, FR-G5). */
 static int                  g_wd_tripped;
 static arb_wd_client_t      g_wd;
+/* Counted here for the system log only (the telemetry layout is unchanged). */
+static uint64_t             g_refused_senders;     /* messages from a connection that is not the bound guardian */
+static uint64_t             g_guardian_brakes;     /* SAFE_STOP brake pulses from the guardian */
+static uint64_t             g_guardian_holds;      /* HOLD pulses from the guardian */
+
+/* What the system log last said (NFR-Q6). Owner: the arm's single thread. */
+static struct {
+    uint64_t rejected_other, refused_senders, lease_expiries, disconnects, wd_brakes;
+    uint64_t guardian_brakes, guardian_holds;
+    int64_t  bound_pid;
+} g_logged;
 
 static int64_t now_ns(void)
 {
@@ -269,14 +285,65 @@ static void handle_pulse(const struct _pulse *p, int64_t now)
         break;
     case ARB_PULSE_ARM_HOLD:
         arm_motion_stop(&g_motion, now, 0);
+        g_guardian_holds++;
         break;
     case ARB_PULSE_ARM_BRAKE:
         brake_latched(now);
+        g_guardian_brakes++;
         break;
     default:
         count(&g_telem->rejected);
         break;
     }
+}
+
+/* ------------------------------------------------------------- system log */
+
+static uint64_t telem_count(_Atomic uint64_t *c)
+{
+    return atomic_load_explicit(c, memory_order_relaxed);
+}
+
+/* A counter moved: log it (the first 16 times, then once per 1024, arb_log.h). */
+static void log_count(uint64_t *logged, uint64_t now, uint16_t code, uint8_t sev, const char *fmt)
+{
+    if (arb_log_worth(*logged, now)) {
+        arb_log_1(code, sev, fmt, (int64_t)now);
+    }
+    *logged = now;
+}
+
+/* NFR-Q6: write what changed since the last call. Called by the loop after each
+ * message or pulse has been handled and replied to. Bounded: a fixed number of
+ * comparisons, at most eight bounded slog2 writes. */
+static void log_changes(void)
+{
+    const int64_t bound = atomic_load_explicit(&g_telem->bound_pid, memory_order_relaxed);
+    const uint64_t rejected = telem_count(&g_telem->rejected);
+
+    if (bound != g_logged.bound_pid) {
+        if (bound == -1) {
+            arb_log_c(ARB_LOG_CLIENT, SLOG2_WARNING, "guardian binding released");
+        } else {
+            arb_log_1(ARB_LOG_CLIENT, SLOG2_INFO, "bound the guardian, pid %lld: only it may command the arm",
+                      bound);
+        }
+        g_logged.bound_pid = bound;
+    }
+    log_count(&g_logged.refused_senders, g_refused_senders, ARB_LOG_REFUSED, SLOG2_WARNING,
+              "refused a sender that is not the bound guardian (%lld so far)");
+    log_count(&g_logged.rejected_other, rejected - g_refused_senders, ARB_LOG_REFUSED, SLOG2_NOTICE,
+              "refused a setpoint, malformed message or forged pulse (%lld so far)");
+    log_count(&g_logged.lease_expiries, telem_count(&g_telem->lease_expiries), ARB_LOG_BRAKE, SLOG2_WARNING,
+              "motion lease expired: braked (%lld so far)");
+    log_count(&g_logged.disconnects, telem_count(&g_telem->disconnects), ARB_LOG_BRAKE, SLOG2_WARNING,
+              "guardian connection lost: braked (%lld so far)");
+    log_count(&g_logged.wd_brakes, telem_count(&g_telem->wd_brakes), ARB_LOG_BRAKE, SLOG2_WARNING,
+              "watchdog brake: braked and latched until restart (%lld so far)");
+    log_count(&g_logged.guardian_brakes, g_guardian_brakes, ARB_LOG_BRAKE, SLOG2_WARNING,
+              "guardian SAFE_STOP: braked and latched (%lld so far)");
+    log_count(&g_logged.guardian_holds, g_guardian_holds, ARB_LOG_BRAKE, SLOG2_INFO,
+              "guardian HOLD: stopping along the segment (%lld so far)");
 }
 
 /* ------------------------------------------------------------------ startup */
@@ -289,18 +356,19 @@ static int load_contract(const char *path)
     arb_load_result_t r;
 
     if (fd == -1) {
-        fprintf(stderr, "arb-arm: cannot open contract %s: %s\n", path, strerror(errno));
+        arb_log_s(ARB_LOG_FAIL, SLOG2_ERROR, "cannot open contract %s", path);
+        arb_log_fail("open contract", errno);
         return -1;
     }
     n = read(fd, buf, sizeof buf);
     (void)close(fd);
     if (n < 0) {
-        fprintf(stderr, "arb-arm: cannot read contract %s\n", path);
+        arb_log_fail("read contract", errno);
         return -1;
     }
     r = arb_contract_load(buf, (size_t)n, &g_contract);
     if (r != ARB_LOAD_OK) {
-        fprintf(stderr, "arb-arm: contract %s refused (load code %d); not starting\n", path, (int)r);
+        arb_log_fail_code("contract refused (FR-C4)", (int64_t)r);
         return -1;
     }
     return 0;
@@ -356,6 +424,7 @@ int main(int argc, char **argv)
     int chid, coid, rc;
     int recv_errors = 0;
 
+    (void)arb_log_init("arb_arm", "arb-arm");   /* first: startup failures are logged too */
     if (argc < 2 || argc > 3) {
         fprintf(stderr, "usage: arb-arm <contract.bin> [guardian-uid]\n");
         return 5;
@@ -370,7 +439,7 @@ int main(int argc, char **argv)
     sp.sched_priority = ARB_PRIO_ARM;
     rc = pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp);
     if (rc != EOK) {
-        fprintf(stderr, "arb-arm: cannot set FIFO priority %d: %s\n", ARB_PRIO_ARM, strerror(rc));
+        arb_log_fail("set FIFO priority", rc);
         return 3;
     }
     /* NFR-I2: "In this QNX OS release, all memory is locked for the entire duration
@@ -379,11 +448,12 @@ int main(int argc, char **argv)
     (void)mlockall(MCL_CURRENT | MCL_FUTURE);
 
     if (telemetry_create() != 0) {
-        fprintf(stderr, "arb-arm: cannot create telemetry %s: %s\n", ARB_TELEM_NAME, strerror(errno));
+        arb_log_fail("create telemetry " ARB_TELEM_NAME, errno);
         return 5;
     }
     arm_backend_sim_bind(&g_backend);
     if (g_backend.init(&g_backend, home) != 0) {
+        arb_log_fail("backend init", EIO);
         return 5;
     }
     arm_motion_init(&g_motion, home, now_ns());
@@ -397,17 +467,17 @@ int main(int argc, char **argv)
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_attach.html */
     chid = ChannelCreate(_NTO_CHF_FIXED_PRIORITY | _NTO_CHF_DISCONNECT | _NTO_CHF_COID_DISCONNECT);
     if (chid == -1) {
-        fprintf(stderr, "arb-arm: ChannelCreate: %s\n", strerror(errno));
+        arb_log_fail("ChannelCreate", errno);
         return 5;
     }
     dpp = dispatch_create_channel(chid, 0);
     if (dpp == NULL) {
-        fprintf(stderr, "arb-arm: dispatch_create_channel: %s\n", strerror(errno));
+        arb_log_fail("dispatch_create_channel", errno);
         return 5;
     }
     attach = name_attach(dpp, ARB_ARM_NAME, 0);
     if (attach == NULL || attach->chid != chid) {
-        fprintf(stderr, "arb-arm: name_attach %s failed or did not keep our channel\n", ARB_ARM_NAME);
+        arb_log_fail("name_attach " ARB_ARM_NAME " (or it did not keep our channel)", attach == NULL ? errno : EINVAL);
         return 5;
     }
 
@@ -417,22 +487,23 @@ int main(int argc, char **argv)
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/timer_settime.html */
     coid = ConnectAttach(0, 0, chid, _NTO_SIDE_CHANNEL, 0);
     if (coid == -1) {
+        arb_log_fail("ConnectAttach", errno);
         return 5;
     }
     if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_ARM, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_WD_BRAKE) != 0) {
-        fprintf(stderr, "arb-arm: cannot register with the watchdog: %s; not starting\n", strerror(errno));
+        arb_log_fail("register with the watchdog", errno);
         return 6;
     }
     SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_TICK, 0);
     if (timer_create(CLOCK_MONOTONIC, &ev, &timer) == -1) {
-        fprintf(stderr, "arb-arm: timer_create: %s\n", strerror(errno));
+        arb_log_fail("timer_create", errno);
         return 5;
     }
     memset(&its, 0, sizeof its);
     its.it_value.tv_nsec = ARB_ARM_PERIOD_NS;
     its.it_interval.tv_nsec = ARB_ARM_PERIOD_NS;
     if (timer_settime(timer, 0, &its, NULL) == -1) {
-        fprintf(stderr, "arb-arm: timer_settime: %s\n", strerror(errno));
+        arb_log_fail("timer_settime", errno);
         return 5;
     }
     {
@@ -441,6 +512,9 @@ int main(int argc, char **argv)
         arb_sha256_hex(g_contract.source_sha256, hex);
         printf("arb-arm: ready as %s, priority %d, backend %s, telemetry %s, contract sha256 %s\n", ARB_ARM_NAME,
                ARB_PRIO_ARM, g_backend.name, ARB_TELEM_NAME, hex);
+        arb_log_s(ARB_LOG_START, SLOG2_INFO, "ready as " ARB_ARM_NAME ", contract sha256 %s", hex);
+        g_logged.bound_pid = -1;         /* nothing bound yet: not a change worth a line */
+        log_changes();
     }
     fflush(stdout);
 
@@ -456,8 +530,7 @@ int main(int argc, char **argv)
              * Exiting drops the guardian's connection and the watchdog's
              * registration, and the frozen simulated arm moves no further. */
             if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
-                fprintf(stderr, "arb-arm: %d consecutive MsgReceive errors (%s); exiting\n", recv_errors,
-                        strerror(errno));
+                arb_log_fail("MsgReceive, 100 consecutive errors; exiting", errno);
                 return 7;
             }
             continue;
@@ -465,6 +538,7 @@ int main(int argc, char **argv)
         recv_errors = 0;
         if (rcvid == 0) {
             handle_pulse(&msg.pulse, now);
+            log_changes();             /* after the cycle or the pulse, never inside it */
             continue;
         }
         /* M1-J16: no field is read before the length says it is there. */
@@ -482,8 +556,10 @@ int main(int argc, char **argv)
         if (!authorized(info.scoid, msg.type == ARB_ARM_MSG_GET_STATE &&
                                     info.srcmsglen == (ssize64_t)sizeof(arb_arm_get_state_t))) {
             count(&g_telem->rejected);
+            g_refused_senders++;
             /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgerror.html */
             (void)MsgError(rcvid, EPERM);
+            log_changes();             /* after the error reply */
             continue;
         }
         if (msg.type == ARB_ARM_MSG_GET_STATE && info.srcmsglen == (ssize64_t)sizeof(arb_arm_get_state_t)) {
@@ -495,5 +571,6 @@ int main(int argc, char **argv)
             count(&g_telem->rejected);
             (void)MsgError(rcvid, msg.type <= _IO_MAX ? ENOSYS : EBADMSG);
         }
+        log_changes();                 /* after the reply */
     }
 }
