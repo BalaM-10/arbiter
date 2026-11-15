@@ -12,7 +12,7 @@ TESTS=(
     "msgpass:M0 message passing (M0-MSG-1..7, previews NFR-Q2)"
     "test_libcontract:libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)"
     "test_contract_file contract-corpus/manifest.txt:compiled contract loads on QNX exactly as written; corrupted tables rejected (FR-C3, FR-C4)"
-    "test_send_timeout:2 ms TimerTimeout on MsgSend, SEND and REPLY states, measured (FR-G9 design check)"
+    "test_send_timeout --timing=@TIMING@:2 ms TimerTimeout on MsgSend, SEND and REPLY states, measured (FR-G9 design check)"
     "test_arm_motion:arm motion model on QNX: straight line, vmax, brake on segment, time-based (FR-A2, FR-A3, FR-A4)"
     "watchdog_suite.sh:arb-watchdog on QNX: priority, stuck by missed heartbeats, death by process-manager notice, brake and SAFE_STOP events, forged notices and heartbeats ignored (FR-W1..W3)"
     "arm_suite.sh:arb-arm on QNX alone and end to end with arb-guardian and arb-watchdog: loop period, telemetry, sender binding, lease, disconnect brake, HOLD, watchdog trips (FR-A1..A6, FR-G5, FR-G6, FR-W1..W3, NFR-I3)"
@@ -72,6 +72,7 @@ pass=0
 fail=0
 for entry in "${TESTS[@]}"; do
     bin="${entry%%:*}"
+    bin="${bin//@TIMING@/$T_TIMING}"   # per-target timing rule (scripts/targets.env)
     what="${entry#*:}"
     {
         echo

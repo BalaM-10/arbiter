@@ -184,7 +184,17 @@ from the saved run `evidence/runs/2026-11-13-qemu/run-133305.log` (lines
 | Same with `_NTO_CHF_UNBLOCK`, server replies 20 ms later | 20 | 23.505 ms | 24.059 ms | 24.380 ms | 24.380 ms | client held until the server answered |
 
 So on QEMU the 2 ms timeout never fired early and fired by the second tick
-after expiry: an observed range of 2 to 4 ms. This is a QEMU function result,
+after expiry: an observed range of 2 to 4 ms in that run.
+
+Correction, 2026-11-15: later QEMU runs show a rare tail beyond that. REPLY took
+6.314 ms once in `evidence/runs/2026-11-15-qemu/run-151353.log`, and SEND took
+5.081 ms and 5.331 ms in 2 of 50 runs in
+`evidence/runs/2026-11-15-qemu/fr-g9-repeat-152521.log` (1000 samples per case
+per run; medians stayed at 3.0 ms; every sample `ETIMEDOUT`, none early). After
+these failures the QEMU pass condition of `test_send_timeout` was changed to
+function only (`--timing=function`: `ETIMEDOUT`, never early, never later than
+20 ms; samples above 2 ms + 3 ticks counted and reported). The Pi 5 rule is
+unchanged (`--timing=strict`: 2 ms + 3 ticks, a hard failure). This is a QEMU function result,
 used only as a working budget until the Pi 5 bound is measured in M3; it is
 not a timing claim. The third row confirms on target why the arm's channel
 must not set `_NTO_CHF_UNBLOCK`.

@@ -1,0 +1,557 @@
+# test_send_timeout x50 on qemu — 2026-11-15T15:25:21-06:00
+# commit: 10f5650
+deployed arb-arm arb-ctl arb-guardian arb-inject arb-watchdog arb_arm_stub arm_suite.sh bench_scenario.sh guardian_suite.sh hello msgpass test_arm test_arm_motion test_contract_file test_e2e test_guardian test_libcontract test_send_timeout test_watchdog watchdog_suite.sh to qemu (root@172.31.1.174:/data/home/root/arbiter/bin)
+sha256 test_send_timeout ededce8cbae09b9e78aab524cb23118ed595935cb07a5c2decd482f39f1865d6
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+=== run 1
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.439 ms  median 3.002 ms  p99.9 4.019 ms  max 4.019 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.480 ms  median 3.001 ms  p99.9 3.796 ms  max 3.796 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.548 ms  median 24.135 ms  p99.9 24.867 ms  max 24.867 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 2
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.485 ms  median 3.000 ms  p99.9 3.600 ms  max 3.600 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.525 ms  median 2.999 ms  p99.9 4.352 ms  max 4.352 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.207 ms  median 24.103 ms  p99.9 24.606 ms  max 24.606 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 3
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.459 ms  median 2.999 ms  p99.9 3.976 ms  max 3.976 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.441 ms  median 2.998 ms  p99.9 3.835 ms  max 3.835 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.216 ms  median 24.030 ms  p99.9 24.595 ms  max 24.595 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 4
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.417 ms  median 2.992 ms  p99.9 3.893 ms  max 3.893 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.522 ms  median 2.997 ms  p99.9 3.819 ms  max 3.819 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.627 ms  median 24.023 ms  p99.9 25.142 ms  max 25.142 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 5
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.491 ms  median 2.996 ms  p99.9 4.233 ms  max 4.233 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.537 ms  median 3.000 ms  p99.9 3.969 ms  max 3.969 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.690 ms  median 24.004 ms  p99.9 25.102 ms  max 25.102 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 6
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.389 ms  median 2.996 ms  p99.9 4.081 ms  max 4.081 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.295 ms  median 2.998 ms  p99.9 4.104 ms  max 4.104 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.562 ms  median 24.325 ms  p99.9 25.192 ms  max 25.192 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 7
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+  SEND sample 0: err 260 (Connection timed out), 5.081 ms, expected err 260 within [2.000, 5.000] ms
+info SEND  n=1000  min 2.326 ms  median 2.995 ms  p99.9 5.081 ms  max 5.081 ms
+FAIL fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.298 ms  median 2.997 ms  p99.9 3.900 ms  max 3.900 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.523 ms  median 24.077 ms  p99.9 24.922 ms  max 24.922 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT FAIL test_send_timeout
+exit=1
+=== run 8
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.536 ms  median 2.997 ms  p99.9 3.840 ms  max 3.840 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.470 ms  median 2.993 ms  p99.9 3.828 ms  max 3.828 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.192 ms  median 24.129 ms  p99.9 25.342 ms  max 25.342 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 9
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.367 ms  median 2.994 ms  p99.9 4.080 ms  max 4.080 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.536 ms  median 2.991 ms  p99.9 3.416 ms  max 3.416 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.373 ms  median 24.155 ms  p99.9 24.812 ms  max 24.812 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 10
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.506 ms  median 2.998 ms  p99.9 3.950 ms  max 3.950 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.562 ms  median 2.998 ms  p99.9 3.489 ms  max 3.489 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.301 ms  median 24.135 ms  p99.9 25.374 ms  max 25.374 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 11
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.437 ms  median 2.995 ms  p99.9 3.621 ms  max 3.621 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.505 ms  median 2.998 ms  p99.9 3.439 ms  max 3.439 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.676 ms  median 24.196 ms  p99.9 25.265 ms  max 25.265 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 12
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.373 ms  median 2.994 ms  p99.9 3.506 ms  max 3.506 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.347 ms  median 2.997 ms  p99.9 3.735 ms  max 3.735 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.434 ms  median 24.198 ms  p99.9 25.493 ms  max 25.493 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 13
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.446 ms  median 2.998 ms  p99.9 3.661 ms  max 3.661 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.496 ms  median 2.994 ms  p99.9 3.627 ms  max 3.627 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.251 ms  median 24.099 ms  p99.9 24.854 ms  max 24.854 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 14
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.457 ms  median 2.994 ms  p99.9 3.471 ms  max 3.471 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.414 ms  median 2.995 ms  p99.9 3.529 ms  max 3.529 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.398 ms  median 24.142 ms  p99.9 24.976 ms  max 24.976 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 15
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.401 ms  median 2.996 ms  p99.9 3.912 ms  max 3.912 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.460 ms  median 2.994 ms  p99.9 3.651 ms  max 3.651 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.754 ms  median 24.050 ms  p99.9 24.667 ms  max 24.667 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 16
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.519 ms  median 2.995 ms  p99.9 3.775 ms  max 3.775 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.551 ms  median 2.998 ms  p99.9 3.841 ms  max 3.841 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.385 ms  median 24.289 ms  p99.9 24.917 ms  max 24.917 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 17
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.519 ms  median 2.998 ms  p99.9 4.837 ms  max 4.837 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.421 ms  median 2.998 ms  p99.9 3.856 ms  max 3.856 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.437 ms  median 24.190 ms  p99.9 25.737 ms  max 25.737 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 18
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.519 ms  median 2.994 ms  p99.9 4.038 ms  max 4.038 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.553 ms  median 2.995 ms  p99.9 3.928 ms  max 3.928 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.429 ms  median 24.102 ms  p99.9 24.694 ms  max 24.694 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 19
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.508 ms  median 2.994 ms  p99.9 3.869 ms  max 3.869 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.269 ms  median 3.000 ms  p99.9 3.695 ms  max 3.695 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.305 ms  median 24.118 ms  p99.9 25.814 ms  max 25.814 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 20
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.520 ms  median 2.998 ms  p99.9 3.661 ms  max 3.661 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.607 ms  median 2.994 ms  p99.9 3.601 ms  max 3.601 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.351 ms  median 24.090 ms  p99.9 24.726 ms  max 24.726 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 21
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.527 ms  median 2.999 ms  p99.9 3.737 ms  max 3.737 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.377 ms  median 3.001 ms  p99.9 3.474 ms  max 3.474 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.373 ms  median 24.100 ms  p99.9 25.272 ms  max 25.272 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 22
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.525 ms  median 2.998 ms  p99.9 3.784 ms  max 3.784 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.529 ms  median 2.998 ms  p99.9 3.743 ms  max 3.743 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.799 ms  median 24.170 ms  p99.9 25.926 ms  max 25.926 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 23
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.537 ms  median 2.992 ms  p99.9 3.745 ms  max 3.745 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.482 ms  median 2.996 ms  p99.9 3.931 ms  max 3.931 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.388 ms  median 24.123 ms  p99.9 25.255 ms  max 25.255 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 24
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.502 ms  median 2.994 ms  p99.9 3.550 ms  max 3.550 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.451 ms  median 2.998 ms  p99.9 3.908 ms  max 3.908 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.678 ms  median 24.127 ms  p99.9 25.071 ms  max 25.071 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 25
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.597 ms  median 2.999 ms  p99.9 3.684 ms  max 3.684 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.258 ms  median 3.000 ms  p99.9 3.465 ms  max 3.465 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.722 ms  median 24.192 ms  p99.9 25.117 ms  max 25.117 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 26
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.587 ms  median 2.999 ms  p99.9 3.553 ms  max 3.553 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.256 ms  median 2.999 ms  p99.9 3.465 ms  max 3.465 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.553 ms  median 24.213 ms  p99.9 25.191 ms  max 25.191 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 27
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.428 ms  median 2.998 ms  p99.9 3.781 ms  max 3.781 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.344 ms  median 2.997 ms  p99.9 3.804 ms  max 3.804 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.538 ms  median 24.253 ms  p99.9 24.830 ms  max 24.830 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 28
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.579 ms  median 2.988 ms  p99.9 3.597 ms  max 3.597 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.443 ms  median 2.993 ms  p99.9 3.843 ms  max 3.843 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.591 ms  median 24.043 ms  p99.9 24.680 ms  max 24.680 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 29
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.521 ms  median 2.993 ms  p99.9 3.521 ms  max 3.521 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.293 ms  median 2.995 ms  p99.9 3.445 ms  max 3.445 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.519 ms  median 24.242 ms  p99.9 25.873 ms  max 25.873 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 30
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.379 ms  median 2.994 ms  p99.9 3.747 ms  max 3.747 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.434 ms  median 3.000 ms  p99.9 3.899 ms  max 3.899 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.338 ms  median 24.174 ms  p99.9 25.235 ms  max 25.235 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 31
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.459 ms  median 2.997 ms  p99.9 3.810 ms  max 3.810 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.431 ms  median 2.996 ms  p99.9 4.325 ms  max 4.325 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.716 ms  median 24.324 ms  p99.9 29.734 ms  max 29.734 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 32
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.454 ms  median 2.999 ms  p99.9 3.788 ms  max 3.788 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.567 ms  median 2.995 ms  p99.9 3.396 ms  max 3.396 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.484 ms  median 24.082 ms  p99.9 25.198 ms  max 25.198 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 33
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.527 ms  median 2.991 ms  p99.9 3.749 ms  max 3.749 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.546 ms  median 2.991 ms  p99.9 4.177 ms  max 4.177 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.761 ms  median 24.069 ms  p99.9 24.880 ms  max 24.880 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 34
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.436 ms  median 2.996 ms  p99.9 3.539 ms  max 3.539 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.456 ms  median 2.998 ms  p99.9 3.862 ms  max 3.862 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.467 ms  median 24.064 ms  p99.9 24.460 ms  max 24.460 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 35
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.376 ms  median 2.994 ms  p99.9 3.450 ms  max 3.450 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.470 ms  median 2.998 ms  p99.9 3.497 ms  max 3.497 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.497 ms  median 24.128 ms  p99.9 25.056 ms  max 25.056 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 36
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.551 ms  median 2.998 ms  p99.9 3.672 ms  max 3.672 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.408 ms  median 3.000 ms  p99.9 4.252 ms  max 4.252 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.406 ms  median 24.096 ms  p99.9 24.898 ms  max 24.898 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 37
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.498 ms  median 3.002 ms  p99.9 3.926 ms  max 3.926 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.499 ms  median 2.996 ms  p99.9 3.480 ms  max 3.480 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.507 ms  median 24.156 ms  p99.9 24.435 ms  max 24.435 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 38
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.520 ms  median 2.987 ms  p99.9 3.535 ms  max 3.535 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.513 ms  median 2.991 ms  p99.9 3.799 ms  max 3.799 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.341 ms  median 24.224 ms  p99.9 25.019 ms  max 25.019 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 39
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.395 ms  median 2.989 ms  p99.9 3.707 ms  max 3.707 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.510 ms  median 2.998 ms  p99.9 3.806 ms  max 3.806 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.645 ms  median 24.085 ms  p99.9 25.202 ms  max 25.202 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 40
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.536 ms  median 2.996 ms  p99.9 3.771 ms  max 3.771 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.389 ms  median 2.997 ms  p99.9 3.912 ms  max 3.912 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.369 ms  median 24.158 ms  p99.9 25.346 ms  max 25.346 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 41
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.503 ms  median 2.997 ms  p99.9 3.736 ms  max 3.736 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.518 ms  median 2.998 ms  p99.9 3.799 ms  max 3.799 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.802 ms  median 24.121 ms  p99.9 25.224 ms  max 25.224 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 42
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.472 ms  median 2.998 ms  p99.9 3.876 ms  max 3.876 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.529 ms  median 2.996 ms  p99.9 3.798 ms  max 3.798 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.634 ms  median 24.150 ms  p99.9 25.240 ms  max 25.240 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 43
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.421 ms  median 2.989 ms  p99.9 3.581 ms  max 3.581 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.568 ms  median 2.994 ms  p99.9 3.474 ms  max 3.474 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.592 ms  median 24.021 ms  p99.9 25.257 ms  max 25.257 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 44
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.388 ms  median 3.000 ms  p99.9 3.710 ms  max 3.710 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.482 ms  median 2.996 ms  p99.9 3.821 ms  max 3.821 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.765 ms  median 24.019 ms  p99.9 24.988 ms  max 24.988 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 45
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.473 ms  median 2.999 ms  p99.9 3.579 ms  max 3.579 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.558 ms  median 2.997 ms  p99.9 3.774 ms  max 3.774 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.702 ms  median 24.378 ms  p99.9 25.236 ms  max 25.236 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 46
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+  SEND sample 194: err 260 (Connection timed out), 5.331 ms, expected err 260 within [2.000, 5.000] ms
+info SEND  n=1000  min 2.494 ms  median 2.997 ms  p99.9 5.331 ms  max 5.331 ms
+FAIL fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.439 ms  median 2.998 ms  p99.9 3.901 ms  max 3.901 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.572 ms  median 24.194 ms  p99.9 25.019 ms  max 25.019 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT FAIL test_send_timeout
+exit=1
+=== run 47
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.536 ms  median 2.999 ms  p99.9 3.400 ms  max 3.400 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.553 ms  median 2.995 ms  p99.9 3.594 ms  max 3.594 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.438 ms  median 24.116 ms  p99.9 24.414 ms  max 24.414 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 48
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.598 ms  median 2.996 ms  p99.9 3.591 ms  max 3.591 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.523 ms  median 2.997 ms  p99.9 3.494 ms  max 3.494 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.566 ms  median 24.098 ms  p99.9 25.130 ms  max 25.130 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 49
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.392 ms  median 2.997 ms  p99.9 3.569 ms  max 3.569 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.582 ms  median 2.997 ms  p99.9 3.930 ms  max 3.930 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.528 ms  median 24.135 ms  p99.9 25.562 ms  max 25.562 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+=== run 50
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2696007922 /s
+info requested timeout 2.000 ms
+info SEND  n=1000  min 2.546 ms  median 3.000 ms  p99.9 3.422 ms  max 3.422 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.411 ms  median 3.001 ms  p99.9 3.708 ms  max 3.708 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.605 ms  median 24.201 ms  p99.9 24.953 ms  max 24.953 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0

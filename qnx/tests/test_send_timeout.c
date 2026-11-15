@@ -15,9 +15,17 @@
  * percentile / max of the measured time from arming the timeout to MsgSend's
  * return. QEMU numbers prove function only, never timing.
  *
- * Pass condition (function): SEND and REPLY always fail with ETIMEDOUT, never
- * earlier than 2 ms, never later than 2 ms + 3 ticks; UNBLK returns only after
- * the server's delayed reply.
+ * Pass condition, chosen by the argument --timing=strict|function (default strict):
+ *   strict   (Pi 5, unchanged): SEND and REPLY always fail with ETIMEDOUT, never
+ *            earlier than 2 ms, never later than 2 ms + 3 ticks.
+ *   function (QEMU): SEND and REPLY always fail with ETIMEDOUT, never earlier than
+ *            2 ms, never later than FUNCTION_CEILING_NS. Samples later than
+ *            2 ms + 3 ticks are counted and reported, not failed. Changed for QEMU
+ *            after observed failures: 6.314 ms in evidence/runs/2026-11-15-qemu/
+ *            run-151353.log, and 5.081 / 5.331 ms in 2 of 50 runs in
+ *            fr-g9-repeat-152521.log (QEMU guest pauses on the host; QEMU proves
+ *            function, never timing).
+ *   Both: UNBLK returns only after the server's delayed reply.
  */
 #include <errno.h>
 #include <pthread.h>
@@ -33,6 +41,9 @@
 #define N_UNBLK        20
 #define TIMEOUT_NS     2000000ull     /* the proposed guardian -> arm send timeout */
 #define UNBLK_DELAY_NS 20000000ull    /* server reply delay in the UNBLK case */
+/* QEMU-only upper bound: far above every QEMU value seen (6.314 ms worst), and
+ * still fails a timeout that does not fire as set. Not a timing claim. */
+#define FUNCTION_CEILING_NS 20000000ull
 
 typedef struct {
     int      chid;
@@ -106,12 +117,16 @@ static void report(const char *name, uint64_t *v, int n)
 }
 
 /* Run one case; returns 1 if every sample met its condition. */
+/* Samples above hi_ns fail. Samples above soft_hi_ns (when below hi_ns) are only
+ * counted and reported. */
 static int run_case(const char *name, unsigned chflags, int with_server, int reply_after_unblock,
-                    int n, uint64_t lo_ns, uint64_t hi_ns, int expect_err, uint64_t *samples)
+                    int n, uint64_t lo_ns, uint64_t hi_ns, uint64_t soft_hi_ns, int expect_err,
+                    uint64_t *samples)
 {
     static server_arg_t arg;
     pthread_t tid;
     int ok = 1;
+    int over_soft = 0;
     int coid;
 
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/channelcreate.html */
@@ -148,24 +163,36 @@ static int run_case(const char *name, unsigned chflags, int with_server, int rep
                        (double)lo_ns / 1e6, (double)hi_ns / 1e6);
             }
             ok = 0;
+        } else if (samples[i] > soft_hi_ns) {
+            printf("  %s sample %d: %.3f ms, above %.3f ms (reported, not failed in function mode)\n",
+                   name, i, (double)samples[i] / 1e6, (double)soft_hi_ns / 1e6);
+            over_soft++;
         }
     }
     report(name, samples, n);
+    if (soft_hi_ns < hi_ns) {
+        printf("info %-5s %d of %d samples above %.3f ms (2 ms + 3 ticks); pass limit %.3f ms\n", name,
+               over_soft, n, (double)soft_hi_ns / 1e6, (double)hi_ns / 1e6);
+    }
     return ok;
 }
 
-static int fr_g9_send_timeout_fires_when_server_never_receives(uint64_t *samples, uint64_t tick_ns)
+static int fr_g9_send_timeout_fires_when_server_never_receives(uint64_t *samples, uint64_t tick_ns, int strict)
 {
+    const uint64_t three_ticks = TIMEOUT_NS + 3u * tick_ns;
     const int ok = run_case("SEND", _NTO_CHF_FIXED_PRIORITY | _NTO_CHF_DISCONNECT, 0, 0, N_SAMPLES,
-                            TIMEOUT_NS, TIMEOUT_NS + 3u * tick_ns, ETIMEDOUT, samples);
+                            TIMEOUT_NS, strict ? three_ticks : FUNCTION_CEILING_NS, three_ticks, ETIMEDOUT,
+                            samples);
     printf("%s fr_g9_send_timeout_fires_when_server_never_receives\n", ok ? "PASS" : "FAIL");
     return ok;
 }
 
-static int fr_g9_send_timeout_fires_when_server_never_replies(uint64_t *samples, uint64_t tick_ns)
+static int fr_g9_send_timeout_fires_when_server_never_replies(uint64_t *samples, uint64_t tick_ns, int strict)
 {
+    const uint64_t three_ticks = TIMEOUT_NS + 3u * tick_ns;
     const int ok = run_case("REPLY", _NTO_CHF_FIXED_PRIORITY | _NTO_CHF_DISCONNECT, 1, 0, N_SAMPLES,
-                            TIMEOUT_NS, TIMEOUT_NS + 3u * tick_ns, ETIMEDOUT, samples);
+                            TIMEOUT_NS, strict ? three_ticks : FUNCTION_CEILING_NS, three_ticks, ETIMEDOUT,
+                            samples);
     printf("%s fr_g9_send_timeout_fires_when_server_never_replies\n", ok ? "PASS" : "FAIL");
     return ok;
 }
@@ -174,20 +201,30 @@ static int fr_g9_send_timeout_fires_when_server_never_replies(uint64_t *samples,
 static int fr_g9_unblock_flag_lets_server_delay_timed_out_client(uint64_t *samples)
 {
     const int ok = run_case("UNBLK", _NTO_CHF_FIXED_PRIORITY | _NTO_CHF_DISCONNECT | _NTO_CHF_UNBLOCK, 1, 1,
-                            N_UNBLK, UNBLK_DELAY_NS, UNBLK_DELAY_NS + 50000000ull, EINTR, samples);
+                            N_UNBLK, UNBLK_DELAY_NS, UNBLK_DELAY_NS + 50000000ull,
+                            UNBLK_DELAY_NS + 50000000ull, EINTR, samples);
     printf("%s fr_g9_unblock_flag_lets_server_delay_timed_out_client\n", ok ? "PASS" : "FAIL");
     return ok;
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
     static uint64_t samples[N_SAMPLES];
     struct _clockperiod period;
     struct timespec res;
     uint64_t tick_ns;
     int failures = 0;
+    int strict = 1;                   /* default: the strict (Pi 5) rule */
 
     setvbuf(stdout, NULL, _IOLBF, 0);
+    if (argc == 2 && strcmp(argv[1], "--timing=function") == 0) {
+        strict = 0;
+    } else if (argc == 2 && strcmp(argv[1], "--timing=strict") == 0) {
+        strict = 1;
+    } else if (argc != 1) {
+        printf("FAIL usage: test_send_timeout [--timing=strict|function]\n");
+        return 1;
+    }
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/syspage_entry.html
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/clockcycles.html */
     g_cps = SYSPAGE_ENTRY(qtime)->cycles_per_sec;
@@ -206,9 +243,11 @@ int main(void)
     printf("info clock period (tick) %u ns; clock_getres(CLOCK_MONOTONIC) %ld s %ld ns; ClockCycles %llu /s\n",
            (unsigned)period.nsec, (long)res.tv_sec, res.tv_nsec, (unsigned long long)g_cps);
     printf("info requested timeout %.3f ms\n", (double)TIMEOUT_NS / 1e6);
+    printf("info timing %s: SEND and REPLY fail above %.3f ms\n", strict ? "strict (2 ms + 3 ticks)" : "function (QEMU)",
+           (double)(strict ? TIMEOUT_NS + 3u * tick_ns : FUNCTION_CEILING_NS) / 1e6);
 
-    failures += !fr_g9_send_timeout_fires_when_server_never_receives(samples, tick_ns);
-    failures += !fr_g9_send_timeout_fires_when_server_never_replies(samples, tick_ns);
+    failures += !fr_g9_send_timeout_fires_when_server_never_receives(samples, tick_ns, strict);
+    failures += !fr_g9_send_timeout_fires_when_server_never_replies(samples, tick_ns, strict);
     failures += !fr_g9_unblock_flag_lets_server_delay_timed_out_client(samples);
 
     printf("RESULT %s test_send_timeout\n", failures == 0 ? "PASS" : "FAIL");

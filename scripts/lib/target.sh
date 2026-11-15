@@ -1,5 +1,5 @@
 # Shared helpers for deploy.sh and run-tests.sh. Source, do not run.
-# Usage: target_init <name>   sets T_NAME T_ARCH T_USER T_DIR T_HOST and SSH/SCP arrays.
+# Usage: target_init <name>   sets T_NAME T_ARCH T_USER T_DIR T_HOST T_TIMING and SSH/SCP arrays.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -28,6 +28,8 @@ target_init() {
     v="${T_NAME}_USER"; T_USER="${!v}"
     v="${T_NAME}_DIR";  T_DIR="${!v}"
     v="${T_NAME}_SSH_HOSTKEY_OPTS"; local hostkey_opts="${!v}"
+    v="${T_NAME}_TIMING"; T_TIMING="${!v:-}"
+    case "$T_TIMING" in strict|function) ;; *) die "${T_NAME}_TIMING must be strict or function (scripts/targets.env)" ;; esac
 
     [ -r "$TARGET_KEY" ] || die "SSH key $TARGET_KEY not readable"
 
