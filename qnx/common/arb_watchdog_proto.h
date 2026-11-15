@@ -29,6 +29,18 @@
 #define ARB_WD_NAME            "arbiter_watchdog"           /* /dev/name/local/arbiter_watchdog */
 #define ARB_WD_PROTO_VERSION   1u
 #define ARB_WD_TIMEOUT_MS      10                           /* missed heartbeats -> "stuck" */
+/* FR-W6: the watchdog beats each client every 2 ms; a client that has seen no
+ * beat for 10 ms treats the watchdog as lost (owner decision D7, 2026-11-14;
+ * QEMU function first, Pi 5 values in M3). */
+#define ARB_WD_BEAT_PERIOD_MS  2
+#define ARB_WD_BEAT_TIMEOUT_MS 10
+
+/* Why a client decided the watchdog is gone (FR-W5, FR-W6). */
+enum {
+    ARB_WD_LOST_NONE       = 0,
+    ARB_WD_LOST_CONNECTION = 1,   /* _PULSE_CODE_COIDDEATH: its channel was destroyed (it died) */
+    ARB_WD_LOST_BEATS      = 2    /* no beat for ARB_WD_BEAT_TIMEOUT_MS (stopped, stuck or dead) */
+};
 
 enum { ARB_WD_MSG_REGISTER = _IO_MAX + 16 };
 

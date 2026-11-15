@@ -28,6 +28,7 @@ arb_guard_up() {
 }
 
 arb_down() {
+    kill -CONT "$WD" 2>/dev/null
     kill "$GUARD" "$ARM" 2>/dev/null
     kill -CONT "$GUARD" 2>/dev/null
     wait "$GUARD" 2>/dev/null
@@ -71,7 +72,7 @@ else
     echo "FAIL nfr_i3_arm_runs_fifo_at_its_documented_priority"
     fail=1
 fi
-./test_arm || fail=1
+./test_arm "$WD" || fail=1
 arb_down
 
 echo "## guardian and arm end to end"
@@ -102,12 +103,98 @@ arb_guard_up
 ./test_e2e armkilled "$ARM" || fail=1
 arb_down
 
+echo "## FR-W5: the watchdog killed mid-move"
+arb_wd_up
+arb_arm_up
+arb_guard_up
+./test_e2e wdkilled "$WD" || fail=1
+arb_down
+
+echo "## FR-W6: the watchdog stopped mid-move, then resumed"
+arb_wd_up
+arb_arm_up
+arb_guard_up
+./test_e2e wdstopped "$WD" || fail=1
+arb_down
+
+echo "## FR-W6: the watchdog stopped while its beat is forged"
+arb_wd_up
+arb_arm_up
+arb_guard_up
+./test_e2e wdforged "$WD" || fail=1
+arb_down
+
 echo "## NFR-Q6: trusted processes log through slogger2"
 arb_wd_up
 arb_arm_up
 arb_guard_up
 ./test_e2e log "$GUARD" "$ARM" "$WD" || fail=1
 arb_down
+
+# Last, because it stops the system logger. The QEMU image starts slogger2 at
+# boot; it is restarted here with its original arguments, and the suite fails if
+# that does not work.
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slogger2.html
+echo "## NFR-Q6: slogger2 not running: the trusted processes still start and run"
+set -- $(pidin -P slogger2 arg | tail -1)
+SLOG_PID=$1
+shift
+SLOG_CMD="$*"
+echo "slogger2: pid $SLOG_PID, command '$SLOG_CMD'"
+case "$SLOG_PID" in
+    ''|*[!0-9]*)
+        echo "FAIL nfr_q6_trusted_processes_run_without_slogger2 (slogger2 not found, cannot restore it)"
+        fail=1
+        ;;
+    *)
+        kill "$SLOG_PID"
+        for i in 1 2 3 4 5 6 7 8 9 10; do     # bound: 10 x 0.2 s
+            kill -0 "$SLOG_PID" 2>/dev/null || break
+            sleep 0.2
+        done
+        q6=0
+        if kill -0 "$SLOG_PID" 2>/dev/null; then
+            echo "slogger2 did not stop"
+            q6=1
+        fi
+        ./arb-watchdog 2>wd.err &
+        WD=$!
+        sleep 1
+        ./arb-arm "$CONTRACT" 2>arm.err &
+        ARM=$!
+        sleep 1
+        ./arb-guardian "$CONTRACT" 2>guard.err &
+        GUARD=$!
+        sleep 1
+        for f in wd.err arm.err guard.err; do
+            cat "$f"
+            grep -q "running without the system log" "$f" || { echo "$f: no 'running without the system log'"; q6=1; }
+        done
+        ./test_e2e move || q6=1
+        arb_down
+        rm -f wd.err arm.err guard.err
+        if [ "$q6" -eq 0 ]; then
+            echo "PASS nfr_q6_trusted_processes_run_without_slogger2"
+        else
+            echo "FAIL nfr_q6_trusted_processes_run_without_slogger2"
+            fail=1
+        fi
+        # Restore the logger and prove it works: a fresh watchdog's ready line must be readable.
+        /proc/boot/$SLOG_CMD &
+        sleep 1
+        ./arb-watchdog &
+        WD=$!
+        sleep 1
+        if slog2info -b arb_watchdog | grep "arb_watchdog.$WD " | grep -q "ready as"; then
+            echo "slogger2 restored: $(pidin -P slogger2 arg | tail -1)"
+        else
+            echo "FAIL slogger2 was not restored; reboot the target"
+            fail=1
+        fi
+        kill "$WD"; wait "$WD" 2>/dev/null
+        WD=
+        ;;
+esac
 
 if [ "$fail" -eq 0 ]; then
     echo "RESULT PASS arm_suite"

@@ -20,7 +20,7 @@
 
 #define ARB_TELEM_NAME    "/arbiter_arm_telemetry"   /* /dev/shmem/arbiter_arm_telemetry */
 #define ARB_TELEM_MAGIC   0x4D4C4554u                /* "TELM" */
-#define ARB_TELEM_VERSION 2u                      /* 2: t_ns added */
+#define ARB_TELEM_VERSION 3u                      /* 2: t_ns added; 3: wd_lost, wd_lost_cause */
 #define ARB_TELEM_SLOTS   8192u                      /* 8 s at 1 kHz */
 
 typedef struct {
@@ -46,6 +46,8 @@ typedef struct {
     _Atomic uint64_t disconnects;      /* bound guardian connection lost */
     _Atomic int64_t  bound_pid;        /* process the arm accepts commands from, or -1 */
     _Atomic uint64_t wd_brakes;        /* brakes commanded by the watchdog */
+    _Atomic uint64_t wd_lost;          /* brakes because the watchdog itself was lost (FR-W5, FR-W6) */
+    _Atomic uint64_t wd_lost_cause;    /* ARB_WD_LOST_* of the first such brake, 0 if none */
     arb_telem_sample_t s[ARB_TELEM_SLOTS];
 } arb_telem_t;
 

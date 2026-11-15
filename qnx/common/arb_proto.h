@@ -58,7 +58,8 @@ typedef struct {
     uint32_t arm_pulse_errors;         /* lease/hold/brake pulses the kernel refused */
     uint32_t watchdog_trips;           /* genuine trip events from the watchdog */
     uint32_t foreign_pulses;           /* tick or trip pulses not from our own connection, ignored */
-    uint32_t reserved;                 /* 0 */
+    uint16_t watchdog_lost;            /* times the guardian lost the watchdog (FR-W5, FR-W6) */
+    uint16_t watchdog_lost_cause;      /* ARB_WD_LOST_* of the first loss, 0 if none */
 } arb_status_t;
 
 _Static_assert(sizeof(arb_status_t) == 40, "arb_status_t layout");

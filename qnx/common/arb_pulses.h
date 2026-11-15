@@ -29,9 +29,13 @@
 #define ARB_PULSE_WD_DEATH         (_PULSE_CODE_MINAVAIL + 8)   /* process manager -> watchdog, value = pid */
 #define ARB_PULSE_ARM_WD_BRAKE     (_PULSE_CODE_MINAVAIL + 9)   /* watchdog -> arm (registered event), value = token */
 #define ARB_PULSE_GUARDIAN_WD_TRIP (_PULSE_CODE_MINAVAIL + 10)  /* watchdog -> guardian (registered event), value = token */
+/* The watchdog's own heartbeat to each client (FR-W6), a registered event
+ * delivered every ARB_WD_BEAT_PERIOD_MS, value = the client's token: */
+#define ARB_PULSE_ARM_WD_BEAT      (_PULSE_CODE_MINAVAIL + 11)  /* watchdog -> arm */
+#define ARB_PULSE_GUARDIAN_WD_BEAT (_PULSE_CODE_MINAVAIL + 12)  /* watchdog -> guardian */
 
 _Static_assert(ARB_PULSE_DEMO >= _PULSE_CODE_MINAVAIL && ARB_PULSE_DEMO <= _PULSE_CODE_MAXAVAIL,
                "pulse code outside the user range");
-_Static_assert(ARB_PULSE_GUARDIAN_WD_TRIP <= _PULSE_CODE_MAXAVAIL, "pulse code outside the user range");
+_Static_assert(ARB_PULSE_GUARDIAN_WD_BEAT <= _PULSE_CODE_MAXAVAIL, "pulse code outside the user range");
 
 #endif /* ARB_PULSES_H */

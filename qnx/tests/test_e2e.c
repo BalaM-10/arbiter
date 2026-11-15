@@ -7,6 +7,9 @@
  *   test_e2e killed  <guardian-pid> the guardian is killed mid-move: the arm brakes
  *   test_e2e stopped <guardian-pid> the guardian is stopped mid-move: the lease expires
  *   test_e2e armkilled <arm-pid>    the arm is killed: the watchdog puts the guardian in SAFE_STOP
+ *   test_e2e wdkilled <watchdog-pid>  FR-W5: the watchdog is killed mid-move
+ *   test_e2e wdstopped <watchdog-pid> FR-W6: the watchdog is stopped mid-move, then resumed
+ *   test_e2e wdforged <watchdog-pid>  FR-W6: the watchdog is stopped while its beat is forged
  *   test_e2e log <guardian-pid> <arm-pid> <watchdog-pid>
  *                                   NFR-Q6: state changes, a refused sender, a brake and a
  *                                   watchdog trip are in the system log (slog2info)
@@ -26,11 +29,13 @@
 #include <sys/mman.h>
 #include <sys/dispatch.h>
 #include <sys/neutrino.h>
+#include <sys/wait.h>
 
 #include "arb_arm_model.h"
 #include "arb_arm_proto.h"
 #include "arb_contract.h"
 #include "arb_devctl.h"
+#include "arb_pulses.h"
 #include "arb_telemetry.h"
 #include "arb_watchdog_proto.h"
 #include "arm_motion.h"
@@ -226,6 +231,9 @@ static void fr_w2_watchdog_records_a_stuck_guardian_and_brakes_the_arm(void)
     CHECK_EQ_INT(wd_role(), ARB_WD_ROLE_GUARDIAN);
     CHECK_EQ_INT(wd_cause(), ARB_WD_CAUSE_STUCK);      /* alive but silent: stuck, not dead */
     CHECK(atomic_load((_Atomic uint64_t *)&g_tm->wd_brakes) >= 1u);
+    /* FR-W6: the watchdog kept beating the arm while it beat the stopped guardian
+     * (MsgDeliverEvent() to a stopped client did not hold the watchdog up). */
+    CHECK_EQ_INT(atomic_load((_Atomic uint64_t *)&g_tm->wd_lost), 0);
     (void)kill(g_guardian, SIGCONT);
 }
 
@@ -345,6 +353,142 @@ static void nfr_q2_each_command_is_one_synchronous_request_and_reply(void)
     }
 }
 
+/* ------------------------------------------------- the watchdog's own failure */
+
+static uint64_t tm_count(const _Atomic uint64_t *c)
+{
+    return atomic_load_explicit((_Atomic uint64_t *)c, memory_order_relaxed);
+}
+
+/* FR-W5 / FR-W6: the watchdog dies (SIGKILL) or freezes (SIGSTOP) mid-move. The
+ * arm must brake and latch by itself, the guardian must enter SAFE_STOP with
+ * cause WATCHDOG by itself, and each must record why it decided the watchdog was
+ * gone (want_cause). Times are QEMU measurements, function only. */
+static void watchdog_lost_mid_move(int sig, const char *what, uint64_t want_cause)
+{
+    arb_verdict_wire_t w;
+    arb_telem_sample_t s;
+    arb_status_t st;
+    uint64_t t_fault, t_stop;
+
+    CHECK_EQ_INT(tm_count(&g_tm->wd_lost), 0);
+    CHECK_EQ_INT(submit(-2000000, 0, 3000, &w), EOK);   /* away from the hand area, 3 s */
+    CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+    ms_sleep(150);                                      /* moving, within the silence timeout */
+    CHECK(tm_last(&s) && s.state == ARM_STATE_MOVING);
+    t_fault = ClockCycles();
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/k/kill.html */
+    CHECK(kill(g_watchdog, sig) == 0);
+    t_stop = wait_leaves_moving(100, &s);               /* well inside the 250 ms silence timeout */
+    CHECK(t_stop != 0);
+    if (t_stop != 0) {
+        printf("info watchdog %s: the arm began braking %.2f ms later (beat timeout %d ms; QEMU, function only)\n",
+               what, ms_between(t_fault, t_stop), ARB_WD_BEAT_TIMEOUT_MS);
+        CHECK(ms_between(t_fault, t_stop) < (double)ARB_WD_BEAT_TIMEOUT_MS + 10.0);
+    }
+    CHECK(wait_state(ARM_STATE_BRAKED, 500) != 0);
+    CHECK_EQ_INT(tm_count(&g_tm->wd_lost), 1);
+    CHECK_EQ_INT(tm_count(&g_tm->wd_lost_cause), want_cause);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    CHECK_EQ_INT(st.stop_cause, ARB_STOP_WATCHDOG);
+    CHECK_EQ_INT(st.watchdog_lost, 1);
+    CHECK_EQ_INT(st.watchdog_lost_cause, want_cause);
+    CHECK_EQ_INT(st.watchdog_trips, 0);                 /* the guardian decided this itself */
+}
+
+/* After the loss nothing moves: commands are denied by state and the arm stays put. */
+static void nothing_moves_afterwards(long ms)
+{
+    arb_verdict_wire_t w;
+    arb_telem_sample_t s0, s1;
+    arb_status_t st;
+
+    CHECK(tm_last(&s0));
+    for (long i = 0; i < ms / 50; i++) {                /* bound: ms / 50 commands */
+        CHECK_EQ_INT(submit(s0.pos_urad[0] + 50000, 0, 500, &w), EOK);   /* a small, valid move */
+        CHECK(w.verdict == ARB_VERDICT_DENY && w.rule == ARB_RULE_STATE);
+        ms_sleep(50);
+    }
+    CHECK(tm_last(&s1));
+    CHECK_EQ_INT(s1.state, ARM_STATE_BRAKED);
+    CHECK_EQ_INT(s1.segment, s0.segment);
+    CHECK_EQ_INT(s1.pos_urad[0], s0.pos_urad[0]);
+    CHECK_EQ_INT(s1.pos_urad[1], s0.pos_urad[1]);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+}
+
+static void fr_w5_watchdog_killed_mid_move_guardian_safe_stops_and_arm_brakes(void)
+{
+    watchdog_lost_mid_move(SIGKILL, "killed", ARB_WD_LOST_CONNECTION);
+}
+
+static void fr_w5_nothing_moves_after_the_watchdog_died(void)
+{
+    nothing_moves_afterwards(300);
+}
+
+static void fr_w6_watchdog_stopped_mid_move_guardian_safe_stops_and_arm_brakes(void)
+{
+    watchdog_lost_mid_move(SIGSTOP, "stopped", ARB_WD_LOST_BEATS);
+}
+
+/* The watchdog runs again (SIGCONT): it must not restart motion. Only an
+ * operator reset may (FR-G5, M2 P4). */
+static void fr_w6_resumed_watchdog_does_not_restart_motion(void)
+{
+    CHECK(kill(g_watchdog, SIGCONT) == 0);
+    ms_sleep(200);
+    CHECK(kill(g_watchdog, 0) == 0);                    /* it is running again */
+    nothing_moves_afterwards(300);
+}
+
+/* FR-W6: a process cannot keep the system moving by forging the watchdog's
+ * beat. While the watchdog is stopped, a forked untrusted child sends beat-coded
+ * pulses with guessed values to the arm (by its name) and to the guardian (on
+ * its /dev/arbiter connection) every millisecond. The arm and the guardian must
+ * still decide the watchdog is lost, and count every forged beat. */
+static void fr_w6_forged_watchdog_beats_are_ignored(void)
+{
+    const uint64_t rej0 = tm_count(&g_tm->rejected);
+    arb_status_t st0, st;
+    pid_t child;
+    int status = 0;
+
+    CHECK_EQ_INT(get_status(&st0), EOK);
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/fork.html */
+    child = fork();
+    if (child == 0) {
+        const int arm = name_open(ARB_ARM_NAME, 0);
+        const int dev = open(ARB_DEV_PATH, O_RDONLY);
+        int sent = 0;
+
+        if (arm == -1 || dev == -1) {
+            _exit(10);
+        }
+        for (int i = 0; i < 400; i++) {                 /* bound: 400 rounds, ~0.4 s */
+            const long guess = (long)((uint64_t)(i + 1) * 0x9e3779b97f4a7c15ull) ^ (long)i;
+            /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsendpulse.html */
+            sent += MsgSendPulse(arm, 10, ARB_PULSE_ARM_WD_BEAT, i < 2 ? (long)i : guess) == 0;
+            sent += MsgSendPulse(dev, 10, ARB_PULSE_GUARDIAN_WD_BEAT, i < 2 ? (long)i : guess) == 0;
+            ms_sleep(1);
+        }
+        _exit(sent == 800 ? 0 : 11);
+    }
+    CHECK(child > 0);
+    ms_sleep(20);                                       /* the forger is running */
+    watchdog_lost_mid_move(SIGSTOP, "stopped while beats were forged", ARB_WD_LOST_BEATS);
+    (void)waitpid(child, &status, 0);
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 0);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    printf("info forged beats counted: arm %llu, guardian %u (800 sent)\n",
+           (unsigned long long)(tm_count(&g_tm->rejected) - rej0), st.foreign_pulses - st0.foreign_pulses);
+    CHECK(tm_count(&g_tm->rejected) - rej0 >= 400u);    /* every forged beat to the arm */
+    CHECK(st.foreign_pulses - st0.foreign_pulses >= 400u);   /* every forged beat to the guardian */
+    (void)kill(g_watchdog, SIGCONT);
+}
+
 /* ---------------------------------------------------------------- log mode */
 
 #define LOG_TEXT_MAX 65536
@@ -462,6 +606,15 @@ static const arb_test_case_t stopped_cases[] = {
     ARB_TEST_CASE(fr_w2_arm_stays_braked_after_a_stuck_guardian_resumes),
 };
 static const arb_test_case_t armkilled_cases[] = { ARB_TEST_CASE(fr_w2_arm_death_puts_the_guardian_in_safe_stop) };
+static const arb_test_case_t wdkilled_cases[] = {
+    ARB_TEST_CASE(fr_w5_watchdog_killed_mid_move_guardian_safe_stops_and_arm_brakes),
+    ARB_TEST_CASE(fr_w5_nothing_moves_after_the_watchdog_died),
+};
+static const arb_test_case_t wdstopped_cases[] = {
+    ARB_TEST_CASE(fr_w6_watchdog_stopped_mid_move_guardian_safe_stops_and_arm_brakes),
+    ARB_TEST_CASE(fr_w6_resumed_watchdog_does_not_restart_motion),
+};
+static const arb_test_case_t wdforged_cases[] = { ARB_TEST_CASE(fr_w6_forged_watchdog_beats_are_ignored) };
 static const arb_test_case_t log_cases[] = { ARB_TEST_CASE(nfr_q6_trusted_processes_log_through_slog2) };
 
 int main(int argc, char **argv)
@@ -497,6 +650,18 @@ int main(int argc, char **argv)
         g_arm = (pid_t)strtol(argv[3], NULL, 10);
         g_watchdog = (pid_t)strtol(argv[4], NULL, 10);
         return arb_test_run("test_e2e log", log_cases, 1);
+    }
+    if (argc == 3 && strncmp(mode, "wd", 2) == 0) {
+        g_watchdog = (pid_t)strtol(argv[2], NULL, 10);
+        if (strcmp(mode, "wdkilled") == 0) {
+            return arb_test_run("test_e2e wdkilled", wdkilled_cases, 2);
+        }
+        if (strcmp(mode, "wdstopped") == 0) {
+            return arb_test_run("test_e2e wdstopped", wdstopped_cases, 2);
+        }
+        if (strcmp(mode, "wdforged") == 0) {
+            return arb_test_run("test_e2e wdforged", wdforged_cases, 1);
+        }
     }
     if (argc == 3) {
         g_guardian = (pid_t)strtol(argv[2], NULL, 10);

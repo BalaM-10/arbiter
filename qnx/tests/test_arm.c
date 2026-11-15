@@ -22,6 +22,7 @@
 #include <sys/dispatch.h>
 #include <sys/mman.h>
 #include <sys/neutrino.h>
+#include <signal.h>
 #include <sys/wait.h>
 
 #include "arb_arm_model.h"
@@ -29,6 +30,7 @@
 #include "arb_prio.h"
 #include "arb_pulses.h"
 #include "arb_telemetry.h"
+#include "arb_watchdog_proto.h"
 #include "arm_motion.h"
 #include "arb_test.h"
 
@@ -38,6 +40,7 @@
 static const arb_telem_t *g_tm;
 static int g_coid = -1;
 static uint32_t g_seq;
+static pid_t g_watchdog;                   /* arm_suite.sh passes the watchdog's pid */
 
 /* ---------------------------------------------------------------- helpers */
 
@@ -451,6 +454,36 @@ static void fr_g5_brake_pulse_latches(void)
     CHECK(wait_state(ARM_STATE_BRAKED, 500, 1));       /* latched even while renewals arrive */
 }
 
+/* FR-W6 on the arm alone (and the arm-side latch of judge-review M1-J1): the
+ * watchdog is stopped, so its beats stop. The arm must brake by itself, count
+ * the loss with cause BEATS, and then refuse every setpoint from its bound
+ * guardian, also after the watchdog runs again. Must be the last case: it
+ * leaves the arm latched. */
+static void fr_w6_arm_refuses_setpoints_after_losing_the_watchdog(void)
+{
+    arb_telem_sample_t s0, s1;
+
+    CHECK(g_watchdog > 0);
+    CHECK_EQ_INT(move_to(-300000, 0, 1000), ARB_ARM_OK);   /* control: setpoints work before */
+    renew_for(g_coid, 100);
+    CHECK_EQ_INT(tm_counter(&g_tm->wd_lost), 0);
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/k/kill.html */
+    CHECK(kill(g_watchdog, SIGSTOP) == 0);
+    CHECK(wait_state(ARM_STATE_BRAKED, 200, 1));       /* brakes although the "guardian" keeps renewing */
+    CHECK_EQ_INT(tm_counter(&g_tm->wd_lost), 1);
+    CHECK_EQ_INT(tm_counter(&g_tm->wd_lost_cause), ARB_WD_LOST_BEATS);
+    CHECK(tm_last(&s0));
+    CHECK_EQ_INT(move_to(-600000, 0, 1000), ARB_ARM_REJECTED);
+    CHECK(kill(g_watchdog, SIGCONT) == 0);             /* the watchdog runs again ... */
+    ms_sleep(200);
+    CHECK_EQ_INT(move_to(-600000, 0, 1000), ARB_ARM_REJECTED);   /* ... and still nothing moves */
+    ms_sleep(50);
+    CHECK(tm_last(&s1));
+    CHECK_EQ_INT(s1.state, ARM_STATE_BRAKED);
+    CHECK_EQ_INT(s1.segment, s0.segment);
+    CHECK_EQ_INT(s1.pos_urad[0], s0.pos_urad[0]);
+}
+
 /* FR-A1 (the loop is driven by the arm's own QNX timer), judge-review M1-J6:
  * tick-coded pulses from any other connection, even the bound guardian's, do
  * not run the control loop. Each loop run publishes one telemetry sample, so
@@ -519,14 +552,16 @@ static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_a4_guardian_disconnect_brakes_at_once),
     ARB_TEST_CASE(fr_g5_hold_pulse_stops_without_latching),
     ARB_TEST_CASE(fr_g5_brake_pulse_latches),
+    ARB_TEST_CASE(fr_w6_arm_refuses_setpoints_after_losing_the_watchdog),   /* last: leaves the arm latched */
 };
 
-int main(void)
+int main(int argc, char **argv)
 {
     struct sched_param sp;
     int fd;
 
     setvbuf(stdout, NULL, _IOLBF, 0);
+    g_watchdog = argc == 2 ? (pid_t)strtol(argv[1], NULL, 10) : 0;   /* test_arm <watchdog-pid> */
     memset(&sp, 0, sizeof sp);
     sp.sched_priority = TEST_PRIO;
     (void)pthread_setschedparam(pthread_self(), SCHED_FIFO, &sp);
