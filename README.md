@@ -31,7 +31,8 @@ do. What Arbiter defends against, and what it does not, is in
 | Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link | |
 | Arm controller (`arb-arm`): 1 kHz loop on its own timer, simulated 2-joint arm, its own speed and limit checks, guardian-only sender binding, 10 ms motion lease, brake on guardian loss, read-only telemetry; end to end with the guardian | |
 | Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred | |
-| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-15-qemu/004658/report.html) | |
+| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-15-qemu/103021/report.html) | |
+| System log (M2): guardian, arm and watchdog record startup, state changes, brakes, refused senders and watchdog trips through the QNX system logger, read on the target with `slog2info -b arb_guardian` (or `arb_arm`, `arb_watchdog`) | |
 | Message-passing sample from M0: send/receive/reply, malformed messages, pulses, sender identity (7 checks) | |
 
 On QEMU every result proves function only, never timing; timing claims will
