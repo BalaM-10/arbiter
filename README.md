@@ -19,19 +19,23 @@ right, wrong, silent, flooding or dead, Arbiter decides on QNX what the arm may
 do. What Arbiter defends against, and what it does not, is in
 [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
-## Status: milestone M1 (safety core), in progress
+## Status: milestone M1 (safety core)
 
 | Works today, on QNX 8.0 in QEMU | Not built yet |
 | --- | --- |
-| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Fault bench (M1 day 7) |
-| QEMU x86_64 target built with `mkqnximage`, reached over SSH | Evidence logger, gateway |
-| Message-passing sample: two processes, send/receive/reply, rejection of malformed messages, pulses, sender identity (7 checks) | Planner, fault bench, dashboard |
-| Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target and timing measurements |
-| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 64 tests on the host and on QNX | |
+| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Gateway and planner (M2) |
+| QEMU x86_64 target built with `mkqnximage`, reached over SSH | Security policy, evidence logger (M2) |
+| Scripted build, deploy and on-target test run, with every log saved | Fault scenarios F2, F3, F7, F8, F10 to F15 (M2) |
+| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 64 tests on the host and on QNX | Raspberry Pi 5 target, timing measurements, dashboard (M3) |
 | Contract compiler (`arbiter contract`): strict YAML validation, binary table, checked against the C loader on the host and on QNX | |
 | Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link | |
 | Arm controller (`arb-arm`): 1 kHz loop on its own timer, simulated 2-joint arm, its own speed and limit checks, guardian-only sender binding, 10 ms motion lease, brake on guardian loss, read-only telemetry; end to end with the guardian | |
 | Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred | |
+| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-14-qemu/190337/report.html) | |
+| Message-passing sample from M0: send/receive/reply, malformed messages, pulses, sender identity (7 checks) | |
+
+On QEMU every result proves function only, never timing; timing claims will
+come only from the Raspberry Pi 5 (M3).
 
 ## Quick start (QEMU)
 
@@ -46,15 +50,24 @@ source ~/qnx800/qnxsdp-env.sh
 sudo ./scripts/qemu-br0-dhcp.sh                                        # QEMU network, once per boot
 (cd targets/qemu-x86_64 && mkqnximage --run=-h && mkqnximage --getip)  # boot QNX
 ./scripts/run-tests.sh qemu                                            # build, deploy, run on QNX
+.venv/bin/arbiter bench run --target qemu                              # fault bench: F1, F4, F5, F6, F9
 ./scripts/host-checks.sh                                               # host unit tests, analyzers, traceability
 ```
 
-Expected: `RESULT PASS test_libcontract 64/64`, `RESULT PASS test_contract_file 11/11`,
-`RESULT PASS watchdog_suite`, `RESULT PASS arm_suite`, `RESULT PASS guardian_suite` and `SUMMARY 9/9 tests passed on qemu`,
-then `SUMMARY host-checks: PASS`.
+Expected:
+
+- `run-tests.sh`: `RESULT PASS test_libcontract 64/64`, `RESULT PASS test_contract_file 11/11`,
+  `RESULT PASS watchdog_suite`, `RESULT PASS arm_suite`, `RESULT PASS guardian_suite` and
+  `SUMMARY 9/9 tests passed on qemu`. The log is saved under `evidence/runs/`.
+- `arbiter bench run` (about a minute): one line per check for each scenario, then
+  `SUMMARY bench 5/5 scenarios passed on qemu` and the path of `report.html` under
+  `evidence/bench/`. Open it: each scenario states its pass condition, lists every check
+  with what decided it, and shows a top view of the arm's path next to the operator's hand
+  area. On QEMU, F1 measures and prints control-tick spacing but does not judge it; the
+  same check is strict on the Pi 5 (see [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md), F1).
+- `host-checks.sh`: `SUMMARY host-checks: PASS`.
 
 To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/default.yaml -o build/contract.bin`.
-The full log is saved under `evidence/runs/`.
 
 ## Where to look
 
@@ -65,7 +78,8 @@ The full log is saved under `evidence/runs/`.
 - [`docs/REQUIREMENTS_SUMMARY.md`](docs/REQUIREMENTS_SUMMARY.md): the requirement IDs cited in code, tests and commits.
 - [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md): each requirement, the code that implements it, its tests and where they passed.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): how the guardian decides, units, path checking, and leaving a keep-out zone.
-- [`evidence/`](evidence/): saved on-target run logs and the host record.
+- [`evidence/`](evidence/): saved on-target run logs, bench reports with their raw records, and the host record.
+- [`host/arbiter/bench/`](host/arbiter/bench/): the fault bench: one module per scenario, and the independent checks.
 - [`qnx/samples/msgpass/msgpass.c`](qnx/samples/msgpass/msgpass.c): the message-passing sample.
 
 QNX SDP files and images built from them are QNX-licensed and are never

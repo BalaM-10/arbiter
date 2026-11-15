@@ -155,9 +155,9 @@ planner keeps a long motion going by re-sending its target (or the next waypoint
 faster than that. This is FR-G5 as written: silence is a fault, whatever the arm
 is doing at the time.
 
-Not yet in the guardian (M1 days 4 to 6): motion-lease renewals and heartbeats,
-the HOLD setpoint on silence, system logging through `slog2`, and the operator
-reset.
+Added during M1: motion-lease renewals and watchdog heartbeats on every tick,
+and the hold pulse to the arm on entering HOLD. Not yet in the guardian (M2):
+system logging through `slog2`, and the operator reset of `SAFE_STOP`.
 
 ## The arm controller (`arb-arm`)
 

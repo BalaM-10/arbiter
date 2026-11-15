@@ -17,8 +17,7 @@
  * Design: docs/DESIGN_M1_ADDENDUM.md. Threat model: docs/THREAT_MODEL.md.
  * Toward the arm (docs/DESIGN_M1_ADDENDUM.md section 2): a lease renewal pulse
  * every tick unless in SAFE_STOP; a hold pulse on entering HOLD; a latching brake
- * pulse on entering SAFE_STOP. Not yet: watchdog heartbeats (M1 day 6), slog2
- * logging, operator reset.
+ * pulse on entering SAFE_STOP. Not yet (M2): slog2 logging, operator reset.
  */
 #include <errno.h>
 #include <fcntl.h>

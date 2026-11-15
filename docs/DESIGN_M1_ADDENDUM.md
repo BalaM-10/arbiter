@@ -173,22 +173,21 @@ if (rc == -1 && errno == ETIMEDOUT) -> fault ARM_TIMEOUT
   `PROCMGR_AID_HIGH_RESOLUTION_TIMER` [TimerTimeout]; M1 does not use them.
 
 **Measured on QEMU (function only, not timing evidence)** with
-`qnx/tests/test_send_timeout.c`, 2 ms requested, n = 1000 per case. The tick read
-with `ClockPeriod()` and `clock_getres()` is 1 ms:
+`qnx/tests/test_send_timeout.c`, 2 ms requested. Every value below is copied
+from the saved run `evidence/runs/2026-11-13-qemu/run-133305.log` (lines
+140-146). The tick read with `ClockPeriod()` and `clock_getres()` is 1 ms:
 
-| Case | min | median | 99.9th pct | max | Result |
-| --- | --- | --- | --- | --- | --- |
-| SEND: server never receives | 2.357 ms | 2.996 ms | 3.718 ms | 3.718 ms | every send `ETIMEDOUT` |
-| REPLY: received, never replied, channel without `_NTO_CHF_UNBLOCK` | 2.393 ms | 2.996 ms | 3.608 ms | 3.608 ms | every send `ETIMEDOUT` |
-| Same with `_NTO_CHF_UNBLOCK`, server replies 20 ms later (n = 20) | 23.498 ms | 24.007 ms | 24.703 ms | 24.703 ms | client held until the server answered |
+| Case | n | min | median | 99.9th pct | max | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| SEND: server never receives | 1000 | 2.397 ms | 2.998 ms | 3.494 ms | 3.494 ms | every send `ETIMEDOUT` |
+| REPLY: received, never replied, channel without `_NTO_CHF_UNBLOCK` | 1000 | 2.545 ms | 2.998 ms | 3.747 ms | 3.747 ms | every send `ETIMEDOUT` |
+| Same with `_NTO_CHF_UNBLOCK`, server replies 20 ms later | 20 | 23.505 ms | 24.059 ms | 24.380 ms | 24.380 ms | client held until the server answered |
 
-So the 2 ms timeout is supported: it never fired early and fired by the second
-tick after expiry. The **effective bound is 2 to 4 ms**, and that is the value
-used when budgeting the guardian's worst case. The third row confirms on target
-why the arm's channel must not set `_NTO_CHF_UNBLOCK`. The table is from the
-development run; the committed evidence run (`evidence/runs/2026-11-13-qemu/run-133305.log`)
-gave SEND 2.397 / 2.998 / 3.494 ms and REPLY 2.545 / 2.998 / 3.747 ms (min /
-median / max), consistent with it. The Pi 5 value is measured in M3.
+So on QEMU the 2 ms timeout never fired early and fired by the second tick
+after expiry: an observed range of 2 to 4 ms. This is a QEMU function result,
+used only as a working budget until the Pi 5 bound is measured in M3; it is
+not a timing claim. The third row confirms on target why the arm's channel
+must not set `_NTO_CHF_UNBLOCK`.
 
 The same bound applies to the guardian's state query to the arm (section 5).
 
@@ -405,7 +404,7 @@ arm.
 - `nfr_q5_trace_of_flood`: a `tracelogger` capture of the flood, showing the
   trusted threads running while the flooder is ready (`qnx-trace-capture`).
 
-## 7. Fault bench: judged from telemetry, not from verdicts (M1 day 7)
+## 7. Fault bench: judged from telemetry, not from verdicts (M1)
 
 `arbiter bench run --target qemu` runs F1, F4, F5, F6 and F9 against the live
 target. For each scenario it starts a fresh watchdog, arm and guardian

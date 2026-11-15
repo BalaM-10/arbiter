@@ -1093,7 +1093,8 @@ static void fr_g9_arm_send_timeout_fault_enters_safe_stop(void)
 {
     /* Decision-logic half of FR-G9: the guardian reports an arm-send timeout as
      * a fault, which must enter SAFE_STOP. (The timeout itself is tested on the
-     * target with the guardian, M1 day 3-4.) */
+     * target with the guardian: fr_g9_arm_never_replies_times_out_and_safe_stops
+     * in test_guardian.c.) */
     const arb_contract_table_t t = make_table(0);
     arb_guard_t g;
 
