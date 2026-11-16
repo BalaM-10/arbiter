@@ -26,12 +26,12 @@ do. What Arbiter defends against, and what it does not, is in
 | QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Gateway and planner (M2) |
 | QEMU x86_64 target built with `mkqnximage`, reached over SSH | Security policy, evidence logger (M2) |
 | Scripted build, deploy and on-target test run, with every log saved | Fault scenarios F2, F3, F7, F8, F10 to F15 (M2) |
-| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 64 tests on the host and on QNX | Raspberry Pi 5 target, timing measurements, dashboard (M3) |
+| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 72 tests on the host and on QNX; keep-out checks both links of the arm as segments | Raspberry Pi 5 target, timing measurements, dashboard (M3) |
 | Contract compiler (`arbiter contract`): strict YAML validation, binary table, checked against the C loader on the host and on QNX | |
 | Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link | |
 | Arm controller (`arb-arm`): 1 kHz loop on its own timer, simulated 2-joint arm, its own speed and limit checks, guardian-only sender binding, 10 ms motion lease, brake on guardian loss, read-only telemetry; end to end with the guardian | |
 | Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred | |
-| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-15-qemu/211305/report.html) | |
+| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-16-qemu/093319/report.html) | |
 | Watchdog failure is fail-safe (M2): if the watchdog dies or freezes, the arm brakes and latches and the guardian enters SAFE_STOP, each on its own; a watchdog that comes back restarts nothing | |
 | Emergency stop and operator reset (M2): `arb-ctl estop` from any client stops everything; `arb-ctl reset` works only for the operator's user ID, and only once a watchdog is running | |
 | Isolation without the security policy (M2): every process runs as its own user; the trusted ones drop root and keep only the abilities they need, and check at startup that the rest is refused; the arm accepts only the guardian's user, and the guardian and the arm check who serves a name before trusting it. F11 (bypass, TM-C2) passes all four cases with the policy off | |
@@ -63,7 +63,7 @@ Expected:
 
 - `run-tests.sh`: `RESULT PASS test_libcontract 64/64`, `RESULT PASS test_contract_file 11/11`,
   `RESULT PASS watchdog_suite`, `RESULT PASS arm_suite`, `RESULT PASS guardian_suite` and
-  `SUMMARY 9/9 tests passed on qemu`. The log is saved under `evidence/runs/`.
+  `SUMMARY 10/10 tests passed on qemu`. The log is saved under `evidence/runs/`.
 - `arbiter bench run` (about a minute): one line per check for each scenario, then
   `SUMMARY bench 5/5 scenarios passed on qemu` and the path of `report.html` under
   `evidence/bench/`. Open it: each scenario states its pass condition, lists every check
