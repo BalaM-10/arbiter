@@ -3,6 +3,7 @@
 # the arm alone with test_arm playing the guardian, then the real guardian and the
 # real arm end to end. Exit status 0 only if every case passed.
 cd "$(dirname "$0")" || exit 1
+. ./arb_suite_lib.sh
 CONTRACT=contract-corpus/contract.bin
 fail=0
 ARM=
@@ -94,26 +95,9 @@ echo "## NFR-I5: own users, priorities kept, dropped abilities refused"
 for n in arb-watchdog arb-arm arb-guardian; do pidin -p "$n" -F "%a %U %V %b %p %n"; done
 i5p=0
 i5d=0
-i5_check() {       # i5_check <name> <slog2 set> <pid> <uid> <prio> <expected drop line>
-    if pidin -p "$1" -F "%a %U %V %b %p" | grep -q "^ *$3  *$4  *$4  *1  *${5}f"; then
-        echo "  ok   $1: pid $3 user $4 group $4, FIFO $5"
-    else
-        echo "  FAIL $1: expected pid $3 user $4 group $4, FIFO $5"
-        i5p=1
-    fi
-    if slog2info -b "$2" | grep "$2.$3 " | grep -qF "$6"; then
-        echo "  ok   $1: $6"
-    else
-        echo "  FAIL $1: no slog2 line '$6'"
-        i5d=1
-    fi
-}
-i5_check arb-watchdog arb_watchdog "$WD" 812 66 \
-    "privileges dropped: uid 812 gid 812; kept PRIORITY 1-70; refused as expected: setuid(0), priority 71, fork()"
-i5_check arb-arm arb_arm "$ARM" 811 70 \
-    "privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()"
-i5_check arb-guardian arb_guardian "$GUARD" 810 64 \
-    "privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()"
+i5_check arb-watchdog arb_watchdog "$WD" 812 66 "$I5_WD_LINE"
+i5_check arb-arm arb_arm "$ARM" 811 70 "$I5_ARM_LINE"
+i5_check arb-guardian arb_guardian "$GUARD" 810 64 "$I5_GUARD_LINE"
 if [ "$i5p" -eq 0 ]; then
     echo "PASS nfr_i5_trusted_processes_keep_their_priority_after_dropping_privileges"
 else

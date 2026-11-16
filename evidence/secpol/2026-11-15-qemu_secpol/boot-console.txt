@@ -1,0 +1,27 @@
+# Boot console of the qemu_secpol image (mkqnximage --secpol=secure, policy qnx/image/policy/arbiter.secpol), from its QEMU serial output (output/qemu.out), first 40 lines; terminal escape codes removed.
+# The policy is pushed ("Loading security policy") before any other service starts; the Arbiter processes start later, from the test shell.
+SeaBIOS (version 1.15.0-1)
+iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+3FF8B1F0+3FECB1F0 CA00
+Press Ctrl-B to configure iPXE (PCI 00:03.0)...                                                                               
+Booting from ROM..
+non UEFI or UEFI+CSM boot
+ACPI table not found (0x4746434d)
+overriding mask for controller 2, vector_base 0
+---> Loading security policy
+---> Starting slogger2
+---> Starting PCI Services
+---> Starting fsevmgr
+# ---> Starting devb
+---> Mounting file systems
+Path=0 - Intel 82371SB
+ target=0 lun=0     Direct-Access(0) -          QEMU HARDDISK    Rev: 2.5+
+Path=1 - Intel 82371SB
+ target=0 lun=0            CD-ROM(5) - QEMU     QEMU DVD-ROM     Rev: 2.5+
+---> Mounting file systems
+---> Starting Networking
+---> Starting sshd
+---> Starting misc
+To exit QEMU, type <ctrl>a x
+Process count:22
+Startup complete
+QNX arbiter-secpol 8.0.0 2026/02/27-11:02:56EST x86pc x86_64

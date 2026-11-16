@@ -19,6 +19,8 @@
 cd "$(dirname "$0")" || exit 1
 MODE=${1:-off}
 case "$MODE" in off|on) ;; *) echo "usage: $0 [off|on]"; exit 2 ;; esac
+if [ -e /proc/boot/secpolpush ]; then image=on; else image=off; fi
+[ "$image" = "$MODE" ] || { echo "FAIL f11_suite: mode $MODE on an image with the policy $image"; exit 1; }
 CONTRACT=contract-corpus/contract.bin
 UNTRUSTED_UID=820                      # ARB_UID_UNTRUSTED (qnx/common/arb_ids.h)
 fail=0
@@ -203,7 +205,7 @@ if [ "$MODE" = off ]; then
 else
     out=$(attacker squat arm 100)
     printf '%s\n' "$out"
-    check 4a "the attacker cannot register the arm's name: refused by the policy" "$(printf '%s\n' "$out" | grep -q '^STEP name_attach rc -1 '; echo $?)"
+    check 4a "the attacker cannot register the arm's name: refused by the policy (EACCES, no attach rule)" "$(printf '%s\n' "$out" | grep -q '^STEP name_attach rc -1 errno 13 '; echo $?)"
     arm_up; guard_up
     check 4a "the real arm and guardian then start and run" "$(kill -0 "$ARM" 2>/dev/null && kill -0 "$GUARD" 2>/dev/null; echo $?)"
 fi
@@ -235,12 +237,18 @@ if [ "$MODE" = off ]; then
 else
     out=$(attacker squat watchdog 100)
     printf '%s\n' "$out"
-    check 4b "the attacker cannot register the watchdog's name: refused by the policy" "$(printf '%s\n' "$out" | grep -q '^STEP name_attach rc -1 '; echo $?)"
+    check 4b "the attacker cannot register the watchdog's name: refused by the policy (EACCES, no attach rule)" "$(printf '%s\n' "$out" | grep -q '^STEP name_attach rc -1 errno 13 '; echo $?)"
     wd_up; arm_up; guard_up
     check 4b "the real watchdog, arm and guardian then start and run" "$(kill -0 "$WD" 2>/dev/null && kill -0 "$ARM" 2>/dev/null && kill -0 "$GUARD" 2>/dev/null; echo $?)"
 fi
 all_down
 if [ "$c" -eq 0 ]; then echo "PASS f11_untrusted_cannot_impersonate_the_watchdog_by_its_name ($MODE)"; else echo "FAIL f11_untrusted_cannot_impersonate_the_watchdog_by_its_name ($MODE)"; fail=1; fi
+
+# FR-S6: the code-level checks stand on their own. On the policy-off image, every
+# case above was refused by Arbiter's own checks and the kernel's abilities alone.
+if [ "$MODE" = off ]; then
+    if [ "$fail" -eq 0 ]; then echo "PASS fr_s6_f11_holds_without_the_policy"; else echo "FAIL fr_s6_f11_holds_without_the_policy"; fi
+fi
 
 if [ "$fail" -eq 0 ]; then
     echo "RESULT PASS f11_suite ($MODE)"

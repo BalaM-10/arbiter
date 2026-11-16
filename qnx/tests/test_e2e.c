@@ -671,7 +671,16 @@ static void fr_w5_motion_resumes_only_after_watchdog_back_and_reset(void)
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/e/execl.html */
     wd = fork();
     if (wd == 0) {
-        execl("./arb-watchdog", "arb-watchdog", (char *)NULL);
+        /* On the security-policy image (secpolpush in the boot image) the watchdog
+         * must run as its own type, as every trusted process does there; `on`
+         * replaces itself with the program, so wd stays the watchdog's pid.
+         * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/o/on.html
+         * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/a/access.html */
+        if (access("/proc/boot/secpolpush", F_OK) == 0) {
+            execl("/proc/boot/on", "on", "-T", "arb_watchdog_t", "./arb-watchdog", (char *)NULL);
+        } else {
+            execl("./arb-watchdog", "arb-watchdog", (char *)NULL);
+        }
         _exit(127);
     }
     CHECK(wd > 0);

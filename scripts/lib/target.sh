@@ -1,5 +1,5 @@
 # Shared helpers for deploy.sh and run-tests.sh. Source, do not run.
-# Usage: target_init <name>   sets T_NAME T_ARCH T_USER T_DIR T_HOST T_TIMING and SSH/SCP arrays.
+# Usage: target_init <name>   sets T_NAME T_ARCH T_USER T_DIR T_HOST T_TIMING T_POLICY and SSH/SCP arrays.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -18,7 +18,7 @@ sdp_env() {
 
 target_init() {
     T_NAME="${1:-}"
-    [ -n "$T_NAME" ] || die "usage: $0 <target>   (targets: qemu, pi5)"
+    [ -n "$T_NAME" ] || die "usage: $0 <target>   (targets: qemu, qemu_secpol, pi5)"
     # shellcheck disable=SC1091
     . "$REPO_ROOT/scripts/targets.env"
 
@@ -30,6 +30,8 @@ target_init() {
     v="${T_NAME}_SSH_HOSTKEY_OPTS"; local hostkey_opts="${!v}"
     v="${T_NAME}_TIMING"; T_TIMING="${!v:-}"
     case "$T_TIMING" in strict|function) ;; *) die "${T_NAME}_TIMING must be strict or function (scripts/targets.env)" ;; esac
+    v="${T_NAME}_POLICY"; T_POLICY="${!v:-}"
+    case "$T_POLICY" in off|on) ;; *) die "${T_NAME}_POLICY must be off or on (scripts/targets.env)" ;; esac
 
     [ -r "$TARGET_KEY" ] || die "SSH key $TARGET_KEY not readable"
 
@@ -37,12 +39,13 @@ target_init() {
 
     T_HOST="${TARGET_HOST:-}"
     if [ -z "$T_HOST" ]; then
-        if [ "$T_NAME" = qemu ]; then
-            [ -d "$REPO_ROOT/$qemu_IMAGE_DIR" ] || die "no QEMU image in $qemu_IMAGE_DIR (see docs/TARGETS.md)"
-            T_HOST="$(cd "$REPO_ROOT/$qemu_IMAGE_DIR" && mkqnximage --getip 2>/dev/null)" || T_HOST=""
+        v="${T_NAME}_IMAGE_DIR"; local image_dir="${!v:-}"
+        if [ -n "$image_dir" ]; then          # a QEMU image built by mkqnximage
+            [ -d "$REPO_ROOT/$image_dir" ] || die "no QEMU image in $image_dir (see docs/TARGETS.md)"
+            T_HOST="$(cd "$REPO_ROOT/$image_dir" && mkqnximage --getip 2>/dev/null)" || T_HOST=""
             [ -n "$T_HOST" ] || die "QEMU target not reachable: 'mkqnximage --getip' found no address.
   1. sudo ./scripts/qemu-br0-dhcp.sh        (after every WSL restart)
-  2. cd $qemu_IMAGE_DIR && mkqnximage --run=-h
+  2. cd $image_dir && mkqnximage --run=-h   (only one QEMU image at a time)
   3. retry"
         else
             v="${T_NAME}_HOST"; T_HOST="${!v:-}"

@@ -9,19 +9,20 @@
 #
 # Output: arb-inject's records, then ALIVE and LOG lines. Exit: arb-inject's status.
 cd "$(dirname "$0")" || exit 1
+. ./arb_suite_lib.sh             # on the policy image each process starts as its type
 CONTRACT="${1:?usage: bench_scenario.sh <contract.bin>}"
 LOGDIR=/tmp/arbiter-bench
 mkdir -p "$LOGDIR"
 rm -f "$LOGDIR"/*.log
 cat >"$LOGDIR/script.txt"     # read the script before anything else can touch stdin
 
-./arb-watchdog </dev/null >"$LOGDIR/watchdog.log" 2>&1 &
+$ARB_ON_WD ./arb-watchdog </dev/null >"$LOGDIR/watchdog.log" 2>&1 &
 WD=$!
 sleep 1
-./arb-arm "$CONTRACT" </dev/null >"$LOGDIR/arm.log" 2>&1 &
+$ARB_ON_ARM ./arb-arm "$CONTRACT" </dev/null >"$LOGDIR/arm.log" 2>&1 &
 ARM=$!
 sleep 1
-./arb-guardian "$CONTRACT" </dev/null >"$LOGDIR/guardian.log" 2>&1 &
+$ARB_ON_GUARD ./arb-guardian "$CONTRACT" </dev/null >"$LOGDIR/guardian.log" 2>&1 &
 GUARD=$!
 sleep 1
 

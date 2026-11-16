@@ -100,6 +100,36 @@ every test, and saves the whole output under `evidence/runs/<date>-qemu/`.
 The guest's address comes from DHCP and can change between boots; the scripts
 always look it up with `mkqnximage --getip`.
 
+## The two QEMU images: policy off and policy on (M2 P5, D5)
+
+| Target name | Directory | Built with | Security policy | What runs there |
+| --- | --- | --- | --- | --- |
+| `qemu` | `targets/qemu-x86_64` | `./scripts/build-image.sh qemu` | none (`--secpol=no`) | every on-target test and the bench: the code-level checks alone (FR-S6) |
+| `qemu_secpol` | `targets/qemu-x86_64-secpol` | `./scripts/build-image.sh qemu_secpol` | `qnx/image/policy/arbiter.secpol`, enforced (`--secpol=secure`) | `policy_suite.sh`, `f11_suite.sh on` and the bench, every Arbiter process as its own type |
+
+Only one QEMU image runs at a time (they share the `br0` bridge):
+
+```sh
+(cd targets/qemu-x86_64 && mkqnximage --stop)
+./scripts/build-image.sh qemu_secpol               # checks the policy compiles, then builds (no root needed)
+(cd targets/qemu-x86_64-secpol && mkqnximage --run=-h)
+./scripts/run-tests.sh qemu_secpol
+./.venv/bin/arbiter bench run --target qemu_secpol
+(cd targets/qemu-x86_64-secpol && mkqnximage --stop)
+```
+
+On `qemu_secpol` the SSH root login runs as type `user_root_t`. The policy lets it
+start the Arbiter types and the attacker's type and use `/dev/arbiter` like any
+client, but not connect to the arm or the watchdog (owner decision 2026-11-15),
+so the tests that play the guardian or the watchdog (`test_arm`, `test_watchdog`,
+`guardian_suite.sh`, `test_e2e wdforged` and `log`) run on `qemu` only.
+
+To redraft the policy: `./scripts/build-image.sh qemu_secpol develop` builds the
+same image with `secpolgenerate` recording what runs (nothing is refused in that
+mode); exercise the system, copy `/dev/secpolgenerate/policy` off the target
+with `ssh ... cat` (the docs say not scp), then edit by hand as the header of
+`arbiter.secpol` describes, and rebuild with `./scripts/build-image.sh qemu_secpol`.
+
 ## QEMU networking: `scripts/qemu-br0-dhcp.sh`
 
 **How `mkqnximage --run` networks the guest.** Through a host bridge `br0`

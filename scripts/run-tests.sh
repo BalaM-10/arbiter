@@ -7,7 +7,8 @@ set -euo pipefail
 . "$(dirname "$0")/lib/target.sh"
 
 # Each entry: <command run in the target directory>:<what it covers>
-TESTS=(
+# Policy off (targets.env <target>_POLICY=off): every on-target test.
+TESTS_POLICY_OFF=(
     "hello:M0 toolchain: qcc-built binary runs"
     "msgpass:M0 message passing (M0-MSG-1..7, previews NFR-Q2)"
     "test_libcontract:libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)"
@@ -19,6 +20,15 @@ TESTS=(
     "guardian_suite.sh:arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)"
     "f11_suite.sh off:F11 bypass with the policy off: an untrusted user's setpoint to the arm, binding the arm before the guardian starts, attaching /dev/arbiter first (F11, FR-G6)"
 )
+# Policy on (the security-policy image, D5): the policy read back and checked,
+# F11 refused in the kernel, and the end-to-end cases that use only the
+# guardian's public path. The tests that play the guardian or the watchdog run on
+# the policy-off image: the root test shell may not connect to the arm or the
+# watchdog under the policy (owner decision 2026-11-15).
+TESTS_POLICY_ON=(
+    "policy_suite.sh:the loaded security policy and the system under it: types, connect and attach rules read back with secpol, pushed at boot, end to end, NFR-I5, operator console (FR-S1..S5, NFR-I5, FR-W4, FR-G5)"
+    "f11_suite.sh on:F11 bypass with the policy on: the same four cases, refused in the kernel before any Arbiter code runs (F11, FR-S2, FR-S3)"
+)
 ALL_ARCHS=(x86_64 aarch64le)
 
 REPEAT="${REPEAT:-1}"
@@ -27,6 +37,7 @@ case "$REPEAT" in
 esac
 
 target_init "${1:-}"
+if [ "$T_POLICY" = on ]; then TESTS=("${TESTS_POLICY_ON[@]}"); else TESTS=("${TESTS_POLICY_OFF[@]}"); fi
 
 STAMP_DATE="$(date +%F)"
 STAMP_TIME="$(date +%H%M%S)"
@@ -36,7 +47,7 @@ mkdir -p "$OUTDIR"
 
 {
     dirty="$(git -C "$REPO_ROOT" status --porcelain -- qnx scripts)"
-    echo "# run-tests $T_NAME — $(date -Is), REPEAT=$REPEAT"
+    echo "# run-tests $T_NAME — $(date -Is), REPEAT=$REPEAT, security policy $T_POLICY"
     echo "# commit: $(git -C "$REPO_ROOT" rev-parse --short HEAD)${dirty:+ (UNCOMMITTED changes in qnx/ or scripts/)}"
     echo "# host: $(lsb_release -ds 2>/dev/null || uname -sr); qcc $(qcc -V 2>&1 | awk '/default/{print $1}')"
     echo

@@ -142,10 +142,11 @@ def f1_tick_spacing_is_strict_on_the_pi5_and_on_unknown_targets() -> None:
 
 
 def f1_tick_spacing_on_qemu_is_reported_with_the_reason_not_judged() -> None:
-    c = ck.no_missed_cycle(_cycle_run("qemu", late=True), Script())
-    assert c.passed and c.data["tick_spacing_judged"] is False
-    assert c.data["intervals_2_periods_or_more"] == 1                 # still measured and shown
-    assert "not judged" in c.detail and "enforced on the Pi 5" in c.detail
+    for target in ("qemu", "qemu_secpol"):                            # both QEMU images, policy off and on
+        c = ck.no_missed_cycle(_cycle_run(target, late=True), Script())
+        assert c.passed and c.data["tick_spacing_judged"] is False
+        assert c.data["intervals_2_periods_or_more"] == 1             # still measured and shown
+        assert "not judged" in c.detail and "enforced on the Pi 5" in c.detail
 
 
 def f1_lease_expiry_or_send_fault_fails_on_every_target() -> None:

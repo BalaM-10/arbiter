@@ -256,8 +256,9 @@ def stayed_at(run: Run, pos: tuple[int, int], from_ms: int, to_ms: int, name: st
 # Targets whose tick spacing is reported but not judged. Owner decision 2026-11-13:
 # QEMU proves function, never timing (NFR-T7), so on QEMU the 2-period rule is
 # measured and shown, and enforced only on real hardware (the Pi 5). Any other
-# target name, known or not, gets the strict rule.
-TIMING_NOT_JUDGED = frozenset({"qemu"})
+# target name, known or not, gets the strict rule. qemu_secpol is the same QEMU
+# target with the security policy loaded (M2 P5).
+TIMING_NOT_JUDGED = frozenset({"qemu", "qemu_secpol"})
 TIMING_POLICY = ("tick spacing on QEMU is measured and reported but not judged (owner decision 2026-11-13: "
                  "QEMU proves function, never timing); the rule of no interval of 2 control periods or more "
                  "is enforced on the Pi 5")

@@ -45,7 +45,7 @@ BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract
         $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh \
         $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/arm_suite.sh \
         $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh \
-        $(OUT)/arb-inject $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh
+        $(OUT)/arb-inject $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh
 
 .PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
@@ -141,6 +141,13 @@ $(OUT)/arb-untrusted: tests/arb_untrusted.c common/arb_arm_proto.h common/arb_te
 	$(CC) $(CFLAGS) -o $@ $<
 
 $(OUT)/f11_suite.sh: tests/f11_suite.sh | $(OUT)
+	install -m 755 $< $@
+
+$(OUT)/policy_suite.sh: tests/policy_suite.sh | $(OUT)
+	install -m 755 $< $@
+
+# Sourced by the suites; executable so deploy.sh copies it.
+$(OUT)/arb_suite_lib.sh: tests/arb_suite_lib.sh | $(OUT)
 	install -m 755 $< $@
 
 # --------------------------------------------------------------- host checks

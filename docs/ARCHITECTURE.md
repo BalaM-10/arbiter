@@ -266,7 +266,7 @@ rather than run half-dropped.
 
 | Process | User | Done as root, before the drop | Kept after the drop | Why each kept ability |
 | --- | --- | --- | --- | --- |
-| `arb-watchdog` | 812 | FIFO 66, status memory, channel, death-notice registration, name `arbiter_watchdog` | PRIORITY 1-70 | Keeps its own 66; `MsgDeliverEvent()` needs PRIORITY to deliver the arm's events at 70. No CONNECTION: delivering events its clients registered needs none (measured: FR-W2 passes without it) |
+| `arb-watchdog` | 812 | FIFO 66, status memory, channel, death-notice registration, name `arbiter_watchdog` | PRIORITY 1-66 | Keeps its own 66, nothing above: it still delivers the arm's events at 70 (measured under the security policy, which allows it only 1-66: FR-W2 and FR-W5 pass). No CONNECTION: delivering events its clients registered needs none (measured: FR-W2 passes without it) |
 | `arb-arm` | 811 | FIFO 70, telemetry memory, channel, name `arbiter_arm` | PRIORITY 1-70, CONNECTION, XPROCESS_QUERY for user 812 | Keeps its own 70; heartbeat pulses to the watchdog, another user (`MsgSendPulse()` needs CONNECTION); reading the watchdog's `/proc/<pid>/ctl` to check who serves its name |
 | `arb-guardian` | 810 | FIFO 64, channel, `/dev/arbiter` (`resmgr_attach()` needs PATHSPACE) | PRIORITY 1-64, CONNECTION, XPROCESS_QUERY for users 811-812 | Keeps its own 64; lease, hold and brake pulses to the arm and heartbeats to the watchdog, other users; checking who serves the arm's and the watchdog's names |
 

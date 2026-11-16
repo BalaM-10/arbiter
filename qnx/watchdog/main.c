@@ -22,8 +22,10 @@
  * Exit status: 3 scheduling, 5 setup, 8 privilege drop failed.
  * Privileges (NFR-I5): started as root; once its name and the death notices are
  * set up it switches to user ARB_UID_WATCHDOG for good, keeping only PRIORITY up
- * to 70: it delivers the arm's events at the arm's priority, and MsgDeliverEvent()
- * needs PRIORITY for a pulse above the unprivileged range (arb_privdrop.h).
+ * to its own 66 (arb_privdrop.h). It still delivers the arm's events at 70:
+ * measured on QEMU with the security policy, which allows the watchdog only
+ * priorities 1-66, every FR-W2 and FR-W5 delivery to the arm worked
+ * (evidence/runs/<date>-qemu_secpol/), so it does not need PRIORITY up to 70.
  *
  * FIFO 66: above the guardian, so a guardian spinning in a loop cannot starve it;
  * below only the arm's control loop (owner decision 2026-11-13, arb_prio.h).
@@ -492,7 +494,7 @@ int main(int argc, char **argv)
         const char *what;
         int err;
 
-        if (arb_privdrop(ARB_UID_WATCHDOG, ARB_PRIO_ARM, 0, 0, 0, &what, &err, report) != 0) {
+        if (arb_privdrop(ARB_UID_WATCHDOG, ARB_PRIO_WATCHDOG, 0, 0, 0, &what, &err, report) != 0) {
             arb_log_fail(what, err);
             return 8;
         }

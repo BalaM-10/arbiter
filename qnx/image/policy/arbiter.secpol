@@ -1,0 +1,661 @@
+# Arbiter security policy (FR-S1 to FR-S5), for the QEMU image built with
+# mkqnximage --secpol=secure --policy=qnx/image/policy/arbiter.secpol
+# (scripts/build-image.sh). Compiled at image build time by secpolcompile.
+#
+# How it was made (docs/QNX_EVIDENCE.md, security policies):
+# 1. Drafted by secpolgenerate on a --secpol=develop image while the Arbiter
+#    processes ran their normal paths with their types (test_e2e move, operator,
+#    killed, wdkilled, armkilled, log; arb-ctl; arb-inject), never the F11
+#    attacker. The draft is kept unchanged as
+#    evidence/secpol/2026-11-15-qemu_secpol/secpolgenerate-draft.secpol.
+#    Develop mode lets everything through, so the trusted processes there were
+#    a scratch build without their startup self-check (it refuses to run when
+#    setuid(0) succeeds, which it does in develop mode).
+# 2. Tightened by hand; every change from the draft:
+#    - arb_arm_t, arb_guardian_t, arb_watchdog_t: no setuid:0 in the non-root
+#      set (recorded from the self-check's own probe, which develop mode let
+#      succeed); priority ranges start at 1, as the code keeps them.
+#    - user_root_t (the SSH root shell that runs the tests): may start the
+#      Arbiter types and the attacker's type (settypeid), as users 800 and 820,
+#      and may connect to the guardian like any client, but NOT to the arm or
+#      the watchdog (owner decision 2026-11-15): channel_connect:arb_arm_t
+#      removed; and it may no longer attach /dev/name/local/arbiter_watchdog
+#      (recorded when a test restarted the watchdog untyped; the test now starts
+#      it as arb_watchdog_t).
+#    - user_root_t may also send SIGSTOP (23) and SIGCONT (25): the tests that
+#      stop the guardian or the watchdog mid-move (FR-W2, FR-W6) did not run
+#      while the draft was recorded.
+#    - arb_untrusted_t added by hand (the attacker never ran in develop mode);
+#      user_root_t's gain_priv adds public_channel, which secpolcompile requires
+#      before user_root_t may start a type that has it (the attacker needs a
+#      channel of its own to try to register a name: F11 case 4).
+# The rules for QNX's own services are as generated.
+#
+# This represents a policy that should allow a system to perform all the
+# same actions as have been observed since the policy generator has been
+# running.
+
+# There have been one or more uses of secpol_resmgr_attach() that can have
+# permissions set for them in the policy. See the mount_point entries at
+# the end.
+
+# Don't want any default abilities
+type default_rules;
+allow default_rules self:ability {};
+
+type arb_arm_t;
+type arb_guardian_t;
+type arb_watchdog_t;
+type arb_untrusted_t;
+type console_t;
+type default;
+type devb_t;
+type devb_t__run;
+type devc_pty_t;
+type devc_pty_t__run;
+type devc_t;
+type devc_t__run;
+type dhcpcd_t;
+type dumper_t;
+type dumper_t__run;
+type fsevmgr_t;
+type fsevmgr_t__run;
+type io_sock_t;
+type io_sock_t__run;
+type io_usb_t;
+type mqueue_t;
+type mqueue_t__run;
+type pci_server_t;
+type pipe_t;
+type pipe_t__run;
+type qconn_t;
+type random_t;
+type random_t__run;
+type slogger_t;
+type slogger_t__run;
+type sshd_t;
+type sshd_t__privsep;
+type user_root_t;
+
+ability iofunc/dup allow { root };
+ability vfs/mount-blk allow { root };
+ability vfs/pregrow allow { root };
+ability vfs/relearn allow { root };
+ability vfs/stats-clear allow { root };
+ability vfs/fs-control allow { root };
+ability network/privport allow { root };
+ability network/rawsocket allow { root };
+ability network/reuseport allow { root };
+ability network/ipsec allow { root };
+ability network/admin allow { root };
+ability network/jailroot allow { root nonroot };
+
+# === Rules for type arb_arm_t ============
+allow_attach arb_arm_t {
+    /dev/name/local/arbiter_arm
+};
+allow arb_arm_t self:ability {
+    nonroot
+    priority:1-70
+    connection
+    xprocess_query:812
+};
+allow arb_arm_t self:ability {
+    setuid:811
+    setgid:0,811
+    mem_lock
+    prot_exec
+    priority:1-70
+    map_fixed
+    public_channel
+    channel_connect:slogger_t,devb_t
+};
+allow arb_arm_t {
+    user_root_t
+    arb_watchdog_t
+}:channel connect;
+
+# === Rules for type arb_guardian_t ============
+allow_attach arb_guardian_t {
+    /dev/arbiter
+};
+allow arb_guardian_t self:ability {
+    nonroot
+    priority:1-64
+    connection
+    xprocess_query:811-812
+};
+allow arb_guardian_t self:ability {
+    setuid:810
+    setgid:0,810
+    pathspace
+    prot_exec
+    priority:1-64
+    map_fixed
+    public_channel
+    channel_connect:slogger_t,devb_t
+};
+allow arb_guardian_t {
+    user_root_t
+    arb_watchdog_t
+    arb_arm_t
+}:channel connect;
+
+# === Rules for type arb_watchdog_t ============
+allow_attach arb_watchdog_t {
+    /dev/name/local/arbiter_watchdog
+};
+allow arb_watchdog_t self:ability {
+    nonroot
+    priority:1-66
+    signal:0
+};
+allow arb_watchdog_t self:ability {
+    setuid:812
+    setgid:0,812
+    prot_exec
+    priority:1-66
+    map_fixed
+    public_channel
+    channel_connect:slogger_t
+};
+
+# === Rules for type console_t ============
+allow console_t self:ability {
+    prot_exec
+    pgrp
+    map_fixed
+};
+
+# === Rules for type default ============
+allow_link default {
+    /proc/boot/libsecpol.so.1
+};
+
+# === Rules for type devb_t ============
+allow_attach devb_t {
+    mount:/
+    /dev/hd0
+    /dev/hd0t177
+    /dev/hd0t178
+    /dev/hd0t179
+    /boot
+    /system
+    /data
+};
+allow devb_t self:ability {
+    nonroot
+    pathspace
+    rsrcdbmgr
+    prot_exec
+    map_fixed
+};
+allow devb_t self:ability {
+    setuid:20
+    setgid:20
+    mem_lock
+    interrupt:14-15
+    io:1
+    priority:0-253
+    public_channel
+    channel_connect:slogger_t,pci_server_t,fsevmgr_t
+    settypeid:devb_t__run
+};
+derive_type devb_t run devb_t__run;
+
+# === Rules for type devb_t__run ============
+allow_attach devb_t__run {
+    /boot
+    /system
+    /data
+};
+allow devb_t__run self:ability {
+    nonroot
+    pathspace
+    rsrcdbmgr
+    prot_exec
+    map_fixed
+};
+allow devb_t__run self:ability {
+    setuid:20
+    setgid:20
+};
+
+# === Rules for type devc_pty_t ============
+allow_attach devc_pty_t {
+    /dev/ttyp0
+    /dev/ptyp0
+    /dev/ttyp1
+    /dev/ptyp1
+    /dev/ttyp2
+    /dev/ptyp2
+    /dev/ttyp3
+    /dev/ptyp3
+    /dev/ttyp4
+    /dev/ptyp4
+    /dev/ttyp5
+    /dev/ptyp5
+    /dev/ttyp6
+    /dev/ptyp6
+    /dev/ttyp7
+    /dev/ptyp7
+};
+allow devc_pty_t self:ability {
+    nonroot
+    setuid:37
+    setgid:37
+    pathspace
+    rsrcdbmgr
+    prot_exec
+    map_fixed
+    public_channel
+    settypeid:devc_pty_t__run
+};
+allow devc_pty_t {
+    slogger_t
+}:channel connect;
+derive_type devc_pty_t run devc_pty_t__run;
+
+# === Rules for type devc_t ============
+allow_attach devc_t {
+    /dev/ser1
+    /dev/ser2
+};
+allow devc_t self:ability {
+    nonroot
+    pathspace
+    rsrcdbmgr
+    prot_exec
+    interrupt:3-4
+    io:0
+    priority:0-253
+    map_fixed
+    public_channel
+    settypeid:devc_t__run
+};
+derive_type devc_t run devc_t__run;
+
+# === Rules for type dhcpcd_t ============
+allow dhcpcd_t self:ability {
+    nonroot
+    spawn
+    fork
+    prot_exec
+    pgrp
+    map_fixed
+    network/privport
+    network/rawsocket
+    network/admin
+    network/jailroot
+};
+allow dhcpcd_t self:ability {
+    setuid:38
+    channel_connect:io_sock_t
+};
+allow dhcpcd_t {
+    slogger_t
+    devb_t
+    random_t
+    pipe_t
+    io_sock_t
+}:channel connect;
+
+# === Rules for type dumper_t ============
+allow_attach dumper_t {
+    dumper+:/proc/dumper
+};
+allow dumper_t self:ability {
+    nonroot
+    pathspace
+    mem_lock
+    prot_exec
+    map_fixed
+    public_channel
+    settypeid:dumper_t__run
+};
+allow dumper_t {
+    slogger_t
+}:channel connect;
+derive_type dumper_t run dumper_t__run;
+
+# === Rules for type fsevmgr_t ============
+allow_attach fsevmgr_t {
+    /dev/fsmgr
+    /dev/fsnotify
+};
+allow fsevmgr_t self:ability {
+    nonroot
+    pathspace
+    prot_exec
+    map_fixed
+    public_channel
+    settypeid:fsevmgr_t__run
+};
+allow fsevmgr_t {
+    slogger_t
+    devb_t
+}:channel connect;
+derive_type fsevmgr_t run fsevmgr_t__run;
+
+# === Rules for type fsevmgr_t__run ============
+allow fsevmgr_t__run {
+    devb_t
+}:channel connect;
+
+# === Rules for type io_sock_t ============
+allow_attach io_sock_t {
+    socket+:/dev/socket/1
+    socket+:/dev/socket/2
+    socket+:/dev/socket/28
+    socket+:/dev/socket/17
+    socket+:/dev/socket/27
+    /dev/tun
+    /dev/tap
+    /dev/vmnet
+    mount:/
+    /dev/io-sock
+    /dev/netmap
+    /dev/bpf
+    /dev/pfil
+    /dev/pf
+};
+allow io_sock_t self:ability {
+    nonroot
+    getid
+    pathspace
+    rlimit:14
+    mem_phys:4273541120-4273545215
+    mem_lock
+    prot_exec
+    interrupt:256-258
+    io:0
+    priority:0-253
+    map_fixed
+    public_channel
+    able_create
+    xprocess_query:33
+    settypeid:io_sock_t__run
+};
+allow io_sock_t {
+    slogger_t
+    pci_server_t
+    devb_t
+    random_t
+    io_usb_t
+}:channel connect;
+derive_type io_sock_t run io_sock_t__run;
+
+# === Rules for type io_sock_t__run ============
+allow io_sock_t__run self:ability {
+    nonroot
+    getid
+};
+allow io_sock_t__run {
+    devb_t
+    io_usb_t
+}:channel connect;
+
+# === Rules for type io_usb_t ============
+allow_attach io_usb_t {
+    mount+:/dev/usb/io-usb-otg
+    mount+:/dev/usb/ctrl
+    mount+:/dev/usb/devu-uhci.so
+    mount+:/dev/usb/devu-hcd-ehci.so
+    mount+:/dev/usb/devu-hcd-xhci.so
+};
+allow io_usb_t self:ability {
+    nonroot
+    pathspace
+    prot_exec
+    io:0
+    priority:0-253
+    map_fixed
+    public_channel
+    xprocess_query:44
+    xprocess_mem_read:33
+};
+allow io_usb_t {
+    slogger_t
+    devb_t
+}:channel connect;
+
+# === Rules for type mqueue_t ============
+allow_attach mqueue_t {
+    mqueue:/
+    /dev/mqueue
+};
+allow mqueue_t self:ability {
+    nonroot
+    pathspace
+    confset:19-20,32
+    prot_exec
+    map_fixed
+    public_channel
+    settypeid:mqueue_t__run
+};
+derive_type mqueue_t run mqueue_t__run;
+
+# === Rules for type pci_server_t ============
+allow_attach pci_server_t {
+    all+:/dev/pci/server_id_1
+};
+allow pci_server_t self:ability {
+    nonroot
+    pathspace
+    rsrcdbmgr
+    mem_phys:0-4095,2147483648-2147487743,3758096384-3758100479,4026531840-4026535935,4273541120-4273545215
+    mem_peer:33
+    mem_lock
+    prot_exec
+    io:0
+    map_fixed
+    public_channel
+    xprocess_query:34
+};
+allow pci_server_t {
+    slogger_t
+}:channel connect;
+
+# === Rules for type pipe_t ============
+allow_attach pipe_t {
+    pipe:/
+    /dev/pipe
+};
+allow pipe_t self:ability {
+    nonroot
+    pathspace
+    prot_exec
+    priority:0-70
+    map_fixed
+    public_channel
+    settypeid:pipe_t__run
+};
+derive_type pipe_t run pipe_t__run;
+
+# === Rules for type pipe_t__run ============
+allow pipe_t__run self:ability {
+    nonroot
+    priority:0-70
+};
+
+# === Rules for type qconn_t ============
+allow_attach qconn_t {
+    /dev/profiler
+};
+allow qconn_t self:ability {
+    nonroot
+    pathspace
+    prot_exec
+    map_fixed
+    public_channel
+    xprocess_debug:29
+    xprocess_mem_read:29
+    network/jailroot
+};
+allow qconn_t {
+    devb_t
+    io_sock_t
+}:channel connect;
+
+# === Rules for type random_t ============
+allow_attach random_t {
+    /dev/random
+    /dev/urandom
+};
+allow random_t self:ability {
+    nonroot
+    srandom
+    settypeid:random_t__run
+};
+allow random_t self:ability {
+    setuid:22
+    setgid:22
+    pathspace
+    mem_lock
+    prot_exec
+    map_fixed
+    public_channel
+    channel_connect:slogger_t
+};
+allow random_t {
+    devb_t
+}:channel connect;
+derive_type random_t run random_t__run;
+
+# === Rules for type random_t__run ============
+allow random_t__run self:ability {
+    nonroot
+    srandom
+};
+
+# === Rules for type slogger_t ============
+allow_attach slogger_t {
+    /dev/slog
+    /dev/slog2/notify
+    /dev/slog2/stdout
+    /dev/slog2/stderr
+    /dev/console
+};
+allow slogger_t self:ability {
+    nonroot
+    pathspace
+    prot_exec
+    priority:0-70
+    map_fixed
+    public_channel
+    xprocess_query:0,37-38,44,47
+    settypeid:slogger_t__run
+};
+allow slogger_t {
+    random_t
+}:channel connect;
+derive_type slogger_t run slogger_t__run;
+
+# === Rules for type slogger_t__run ============
+allow slogger_t__run self:ability {
+    nonroot
+    priority:0-70
+    xprocess_query:0,37-38,44,47
+};
+allow slogger_t__run {
+    random_t
+}:channel connect;
+
+# === Rules for type sshd_t ============
+allow sshd_t self:ability {
+    nonroot
+    setuid:15
+    setgid:15
+    spawn
+    fork
+    prot_exec
+    pgrp
+    map_fixed
+    chroot:0
+    settypeid:user_root_t
+    network/privport
+    network/jailroot
+};
+allow sshd_t self:ability {
+    gain_priv:setuid,setgid,channel_connect
+};
+allow sshd_t {
+    slogger_t
+    devb_t
+    random_t
+    pipe_t
+    io_sock_t
+}:channel connect;
+derive_type sshd_t privsep sshd_t__privsep;
+
+# === Rules for type user_root_t ============
+allow user_root_t self:ability {
+    nonroot
+    setuid:0
+    setgid:0
+    fork
+    prot_exec
+    map_fixed
+    network/jailroot
+};
+allow user_root_t self:ability {
+    spawn_setuid:800,820
+    spawn_setgid:820
+    setuid:800-801
+    setgid:0
+    spawn
+    priority:0-66
+    signal:0,9,15,23,25
+    pgrp
+    public_channel
+    xprocess_query:20-22,24-25,29-30,33-34,37-38,43-44,47-48,810-812
+    channel_connect:slogger_t,devb_t,pipe_t,arb_guardian_t
+    settypeid:arb_watchdog_t,arb_arm_t,arb_guardian_t,arb_untrusted_t
+};
+allow user_root_t self:ability {
+    gain_priv:priority,connection,signal,xprocess_query,channel_connect,public_channel
+};
+allow user_root_t {
+    devb_t
+    io_sock_t
+    arb_guardian_t
+}:channel connect;
+
+# === Rules for type arb_untrusted_t (hand-written: the F11 attacker) ============
+# Runs as user 820. Enough to run a program and print to the shell that started
+# it; no rule to connect to the arm or the watchdog, no attach rule for any path.
+allow arb_untrusted_t self:ability {
+    nonroot
+    prot_exec
+    map_fixed
+    public_channel
+};
+allow arb_untrusted_t {
+    user_root_t
+    slogger_t
+    pipe_t
+}:channel connect;
+
+# === Mount point permission rules ============
+# These represent uses of secpol_resmgr_attach(). By using mount_point
+# rules you can set the permissions used for these mount points.
+# mount_point ... /dev/pci/server_id_1;
+# mount_point ... /dev/ser1;
+# mount_point ... /dev/ser2;
+# mount_point ... /dev/fsmgr;
+# mount_point ... /dev/fsnotify;
+# mount_point ... /dev/random;
+# mount_point ... /dev/socket/1;
+# mount_point ... /dev/socket/2;
+# mount_point ... /dev/socket/28;
+# mount_point ... /dev/socket/17;
+# mount_point ... /dev/socket/27;
+# mount_point ... /dev/tun;
+# mount_point ... /dev/tap;
+# mount_point ... /dev/vmnet;
+# mount_point ... /;
+# mount_point ... /dev/io-sock/;
+# mount_point ... /dev/netmap;
+# mount_point ... /dev/bpf;
+# mount_point ... /dev/pfil;
+# mount_point ... /dev/pf;

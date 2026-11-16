@@ -64,7 +64,7 @@ its left is assumed hostile.
 | ID | Claim | Against | Mechanism | Shown by | Status (2026-11-13) |
 | --- | --- | --- | --- | --- | --- |
 | TM-C1 | No command from the untrusted side moves the arm outside the contract: joint limits, speed limit, keep-out zones along the whole path, move duration | A1, A2, A3 | The guardian decides every command with `libcontract`; the arm independently enforces the speed limit, the start tolerance and the motion lease | F1, F4, F5, F6, F9; `qnx/tests/test_libcontract.c` | Decision logic tested on host and QEMU; end to end on QEMU by the fault bench, judged from the arm's telemetry (`evidence/bench/2026-11-14-qemu/190337`). Against A3 only from M2: it depends on TM-C2, and in M1 every process runs as root |
-| TM-C2 | No untrusted process can get the arm to act on a setpoint | A3 | Every process runs as its own user and the trusted ones drop root (NFR-I5); the arm binds only a connection with the guardian's user ID and refuses every other connection's setpoints and pulses; trusted clients accept the server of a name only if it runs as the expected user (M2 P5); the kernel security policy refuses the connection itself (M2 P5, policy image) | F11 cases 1 to 4 with the policy off and on; `fr_g6_arm_*` | Policy off: F11 cases 1 to 4 on QEMU (M2 P5). Policy on: pending (security-policy image) |
+| TM-C2 | No untrusted process can get the arm to act on a setpoint | A3 | Every process runs as its own user and the trusted ones drop root (NFR-I5); the arm binds only a connection with the guardian's user ID and refuses every other connection's setpoints and pulses; trusted clients accept the server of a name only if it runs as the expected user (M2 P5); the kernel security policy refuses the connection itself (M2 P5, policy image) | F11 cases 1 to 4 with the policy off and on; `fr_g6_arm_*` | Policy off: F11 cases 1 to 4 on QEMU (M2 P5). Policy on: F11 cases 1 to 4 on the QEMU policy image, refused in the kernel (M2 P5) |
 | TM-C3 | Untrusted message content, pulse floods, rate or CPU use cannot starve the arm's control loop, the watchdog or any stop path; their delays are measured, not assumed | A1, A3 | Strict fixed priorities with every trusted thread in the privileged range (64 and above) that no untrusted process can use; `_NTO_CHF_FIXED_PRIORITY` on trusted channels; synchronous sends that block the sender; bounded work per command (`docs/DESIGN_M1_ADDENDUM.md` sections 4 and 6) | F3 (message and pulse floods), F12 | Designed |
 | TM-C4 | Losing the untrusted side leaves the arm safe: planner or gateway silence, death or hang leads to `HOLD`; guardian death or hang leads to a brake | A1, A3, A4 | Silence timeout; the resource manager's close handler; the arm's motion lease, disconnect pulse and the watchdog (addendum section 2) | F2, F10, F13; `fr_a4_*`, `fr_g5_guardian_silence_holds_the_arm` | Tested on QEMU: silence holds the arm; guardian killed or stopped brakes it (lease, disconnect and watchdog); arm killed puts the guardian in SAFE_STOP. F2, F10, F13 in the bench |
 | TM-C5 | Replayed, reordered or out-of-date commands are refused; the sender's clock is never trusted | A1, A3 | Sequence numbers with wrap-safe comparison; rate limit on the guardian's own clock | F9; `fr_g4_sequence_*`, `fr_g4_rate_limit_uses_guardian_clock_not_sender_clock` | Tested on host and QEMU (decision logic) |
@@ -74,22 +74,25 @@ its left is assumed hostile.
 
 ## Known gaps today (M2)
 
-- **The security policy is not loaded yet** (FR-S1 to FR-S6, M2 P5). Since M2
-  P5 every Arbiter process runs as its own user and the trusted ones drop root
-  (NFR-I5), so TM-C2 is shown against A3 with the policy off (F11 cases 1 to
-  4). The policy's own layer, refusing the connection in the kernel, is pending.
-  A process started as root by the operator is trusted (O1).
+- **The security policy is shown on QEMU only.** TM-C2 holds against A3 on both
+  QEMU images: with the policy off, by Arbiter's own checks (each process its
+  own user, the trusted ones without root, the arm's user check, the clients'
+  server check); with the policy on, also in the kernel, before any Arbiter code
+  runs (F11 cases 1 to 4). Whether the Pi 5 image supports the policy is checked
+  first in M3. A process started as root by the operator is trusted (O1); on the
+  policy image the root test shell may start the Arbiter types, by design.
 - Pulse floods from an untrusted process that has a connection to the arm are
   bounded only once a channel pulse pool is confirmed, or once the M2 policy
   removes the connection (addendum section 6).
 - The gateway does not exist yet; A2 applies from M2.
 - **Closed in M2 P5, policy off: first-come binding.** The guardian now runs as
   user 810 and the arm binds only that user, so the startup order no longer
-  matters (F11 case 2, TM-C2). The policy-on run of the same case is pending.
+  matters (F11 case 2, TM-C2). With the policy on, the attacker cannot even
+  connect (TM-C2).
 - **Closed in M2 P5, policy off: who serves a name.** `name_open()` does not
   authenticate the server, so the guardian and the arm now check, before
   sending anything, that the server of `arbiter_arm` or `arbiter_watchdog` runs
   as that process's user, and refuse to start otherwise (F11 case 4, TM-C2). A
   squatter can still stop the system from starting, a denial of service, but
   receives nothing. With the policy loaded, only the right type may attach the
-  name (pending).
+  name, so the squatter is refused at once and the system starts (TM-C2).
