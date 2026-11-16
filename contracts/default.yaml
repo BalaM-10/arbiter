@@ -42,8 +42,9 @@ violations:
   window_ms: 1000
 
 # Rectangles on the bench, seen from above (arm base at the origin, x along
-# the arm at rest). Neither the elbow nor the tip may enter one, anywhere along
-# a move.
+# the arm at rest). No part of either link (upper arm or forearm) may enter
+# one, anywhere along a move. The links are checked as lines: add their
+# half-width to a zone. A zone must keep 20 mm from the base.
 keep_out_zones:
   - name: operator_hand_area      # where the person's hands work, 0.2 x 0.2 m
     x_mm: [200, 400]

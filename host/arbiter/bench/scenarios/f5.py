@@ -12,14 +12,15 @@ from .common import baseline
 ID = "F5"
 TITLE = "Keep-out violation"
 PASS_CONDITION = (
-    "An allowed walk ends with the elbow under 30 mm from the operator's hand area; from there a target "
-    "inside the area and a target outside it "
-    "whose straight path sweeps through it are each DENY with the keep-out rule; telemetry, checked with "
-    "the bench's own kinematics, shows neither the elbow nor the tip ever inside the area, and the arm "
-    "holding where it was after each denial."
+    "An allowed walk ends with the forearm under 30 mm from the operator's hand area; from there a target "
+    "inside the area, a target outside it whose straight path sweeps through it, and a target whose "
+    "elbow and tip are both outside the area but whose forearm lies across it are each DENY with the "
+    "keep-out rule; telemetry, checked with the bench's own kinematics, shows no part of either link "
+    "ever inside the area, and the arm holding where it was after each denial."
 )
 
-BESIDE = (deg(27), 0)          # an allowed walk that ends with the elbow about 14 mm from the area
+BESIDE = (deg(18), 0)          # allowed walk's end: forearm about 19 mm below the area's corner
+ACROSS = (deg(25), deg(25))    # midpoint review B1: elbow and tip outside, forearm across the area
 
 
 def build(spec: Spec) -> Script:
@@ -30,6 +31,8 @@ def build(spec: Spec) -> Script:
     s.send((deg(40), 0), 2000, "violation", moves=False)        # elbow target inside the area
     s.dwell(450)
     s.send((deg(90), 0), 3000, "violation", moves=False)        # target outside, path through it
+    s.dwell(450)
+    s.send(ACROSS, 2000, "violation", moves=False)              # elbow and tip clear, forearm across
     s.dwell(450)
     s.marks["end"] = s.t_ms
     s.status()

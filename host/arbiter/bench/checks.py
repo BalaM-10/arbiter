@@ -169,6 +169,7 @@ def joint_limits_never_exceeded(run: Run, spec: Spec) -> Check:
 
 
 def keepout_never_entered(run: Run, spec: Spec) -> Check:
+    """No point of either link (upper arm, forearm) touches a zone, at any sample or substep."""
     best = {z.name: float("inf") for z in spec.zones}
     entered = None
     pts = run.samples
@@ -178,14 +179,14 @@ def keepout_never_entered(run: Run, spec: Spec) -> Check:
             f = k / KEEPOUT_SUBSTEPS
             q0 = a.pos[0] + (b.pos[0] - a.pos[0]) * f
             q1 = a.pos[1] + (b.pos[1] - a.pos[1]) * f
-            elbow, tip = kin.elbow_tip(q0, q1)
-            for z in spec.zones:
-                for name, p in (("elbow", elbow), ("tip", tip)):
-                    best[z.name] = min(best[z.name], kin.clearance(p, z))
-                    if kin.inside(p, z) and entered is None:
+            for name, p0, p1 in kin.links(q0, q1):
+                for z in spec.zones:
+                    d = kin.segment_clearance(p0, p1, z)
+                    best[z.name] = min(best[z.name], d)
+                    if d == 0.0 and entered is None:
                         entered = (f"{name} inside {z.name} near sample {a.index} "
-                                   f"at ({p[0]:.1f}, {p[1]:.1f}) mm")
-    detail = entered or "elbow and tip stayed outside; min clearance " + ", ".join(
+                                   f"(from ({p0[0]:.1f}, {p0[1]:.1f}) to ({p1[0]:.1f}, {p1[1]:.1f}) mm)")
+    detail = entered or "both links stayed outside; min clearance " + ", ".join(
         f"{n} {d:.1f} mm" for n, d in best.items())
     return Check("keepout_never_entered", entered is None, detail, {"min_clearance_mm": best})
 

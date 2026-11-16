@@ -740,6 +740,10 @@ static void fr_g4_keepout_clear_path_allowed(void)
     CHECK(v.verdict == ARB_VERDICT_ALLOW);
 }
 
+/* Elbow bent 1.5 rad (86 deg): with the elbow left of the zone, the forearm points
+ * up and away from it, so only the elbow's clearance is tested. */
+#define FOREARM_AWAY 1500000
+
 /* Angle (urad, rounded down) that puts the elbow at x = x_um, upper half plane. */
 static int32_t elbow_angle_for_x(double x_um)
 {
@@ -751,8 +755,8 @@ static void fr_g4_keepout_just_outside_by_less_than_margin_denied(void)
     const arb_contract_table_t t = make_table(1);
     /* Elbow ends 0.28..0.5 um left of the zone's x_min edge (y inside the band). */
     const int32_t q = elbow_angle_for_x(199999.5);
-    const int32_t start[2] = { q + 100, 0 };             /* start further from the zone */
-    const arb_cmd_t c = make_cmd(1, q, 0, 5000);
+    const int32_t start[2] = { q + 100, FOREARM_AWAY };             /* start further from the zone */
+    const arb_cmd_t c = make_cmd(1, q, FOREARM_AWAY, 5000);
     const arb_verdict_t v = decide_once(&t, &c, start);
 
     /* Within the conservative margin: fail closed. */
@@ -764,8 +768,8 @@ static void fr_g4_keepout_just_outside_by_more_than_margin_allowed(void)
     /* Margin for this move: ~1.2 um sampling + 4 mm start tolerance at 1 rad/s. */
     const arb_contract_table_t t = make_table(1);
     const int32_t q = elbow_angle_for_x(195000.0);       /* 5 mm clear of the edge */
-    const int32_t start[2] = { q + 100, 0 };
-    const arb_cmd_t c = make_cmd(1, q, 0, 5000);
+    const int32_t start[2] = { q + 100, FOREARM_AWAY };
+    const arb_cmd_t c = make_cmd(1, q, FOREARM_AWAY, 5000);
     const arb_verdict_t v = decide_once(&t, &c, start);
 
     CHECK(v.verdict == ARB_VERDICT_ALLOW);
@@ -798,8 +802,8 @@ static void fr_g4_keepout_margin_includes_start_tolerance(void)
      * (fr_g4_keepout_just_outside_by_more_than_margin_allowed). */
     const arb_contract_table_t t = make_table(1);
     const int32_t q = elbow_angle_for_x(197000.0);       /* 3 mm clear of the edge */
-    const int32_t start[2] = { q + 100, 0 };
-    const arb_cmd_t c = make_cmd(1, q, 0, 5000);
+    const int32_t start[2] = { q + 100, FOREARM_AWAY };
+    const arb_cmd_t c = make_cmd(1, q, FOREARM_AWAY, 5000);
     arb_contract_table_t slow = t;
     arb_verdict_t v;
 
@@ -946,6 +950,76 @@ static void fr_g4_keepout_exit_through_another_zone_denied(void)
     t.zones[1].y_max_um = 265000;
     seal(&t);
     v = decide_once(&t, &c, ELBOW_IN_ZONE);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+/* Review B1 pose: elbow and tip outside the hand area, the forearm across it
+ * (about 63 mm deep, inflated zone). */
+static const int32_t FOREARM_ACROSS[2] = { 436332, 436332 };   /* 25 deg, 25 deg */
+
+static void fr_g4_keepout_forearm_starting_across_zone_exits_allowed(void)
+{
+    const arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 87266, 436332, 5000);   /* shoulder down to 5 deg */
+    arb_guard_t g;
+    arb_verdict_t v;
+
+    arb_guard_init(&g, &t, T0);
+    arb_guard_check(&g, &c, sizeof c, FOREARM_ACROSS, T0, &v);
+    CHECK(v.verdict == ARB_VERDICT_ALLOW && v.rule == ARB_RULE_NONE);
+    CHECK((v.flags & ARB_VFLAG_KEEPOUT_EXIT) != 0u);
+    CHECK_EQ_INT(g.violation_fill, 0);
+}
+
+static void fr_g4_keepout_forearm_from_inside_going_deeper_denied(void)
+{
+    /* To (60, 10) deg: ends clear, but on the way the forearm reaches about
+     * 104 mm deep and the upper arm enters as well. */
+    const arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 1047198, 174533, 5000);
+    const arb_verdict_t v = decide_once(&t, &c, FOREARM_ACROSS);
+
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_forearm_turning_back_in_on_the_way_out_denied(void)
+{
+    /* To (-20, 90) deg: ends clear and never deeper than at the start, but the
+     * forearm's depth rises again part of the way: not strictly shallower at every
+     * sample (owner decision 2026-11-16). */
+    const arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, -349066, 1570796, 5000);
+    const arb_verdict_t v = decide_once(&t, &c, FOREARM_ACROSS);
+
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_forearm_from_inside_not_ending_clear_denied(void)
+{
+    const arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 349066, 436332, 5000);  /* shoulder to 20 deg: still across */
+    const arb_verdict_t v = decide_once(&t, &c, FOREARM_ACROSS);
+
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_link_exit_through_another_zone_denied(void)
+{
+    /* Shoulder 25 -> -30 deg with the elbow straight leaves the hand area, but the
+     * upper arm sweeps through a second zone on the x axis (x 100..150 mm). */
+    arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, -523599, 0, 5000);
+    arb_verdict_t v;
+
+    v = decide_once(&t, &c, FOREARM_ACROSS);
+    CHECK(v.verdict == ARB_VERDICT_ALLOW && (v.flags & ARB_VFLAG_KEEPOUT_EXIT) != 0u);
+    t.zone_count = 2;
+    t.zones[1].x_min_um = 100000;
+    t.zones[1].y_min_um = -10000;
+    t.zones[1].x_max_um = 150000;
+    t.zones[1].y_max_um = 10000;
+    seal(&t);
+    v = decide_once(&t, &c, FOREARM_ACROSS);
     CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
 }
 
@@ -1362,6 +1436,11 @@ static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_g4_keepout_from_inside_going_deeper_denied),
     ARB_TEST_CASE(fr_g4_keepout_from_inside_not_ending_outside_denied),
     ARB_TEST_CASE(fr_g4_keepout_exit_through_another_zone_denied),
+    ARB_TEST_CASE(fr_g4_keepout_forearm_starting_across_zone_exits_allowed),
+    ARB_TEST_CASE(fr_g4_keepout_forearm_from_inside_going_deeper_denied),
+    ARB_TEST_CASE(fr_g4_keepout_forearm_turning_back_in_on_the_way_out_denied),
+    ARB_TEST_CASE(fr_g4_keepout_forearm_from_inside_not_ending_clear_denied),
+    ARB_TEST_CASE(fr_g4_keepout_link_exit_through_another_zone_denied),
     ARB_TEST_CASE(fr_g4_keepout_normal_moves_carry_no_exit_flag),
     ARB_TEST_CASE(fr_g4_checks_run_in_the_specified_order),
     ARB_TEST_CASE(fr_g4_forward_kinematics_reference_poses),

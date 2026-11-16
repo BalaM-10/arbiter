@@ -82,28 +82,43 @@ operator reset, which returns to `HOLD`. Replay protection survives a reset.
 
 The arm moves along a straight line in joint space from its current position to
 the target, with both joints arriving together. The guardian checks exactly
-that line, for the elbow and the tip, at 129 evenly spaced samples.
+that line at 129 evenly spaced samples, and at each sample it tests both links
+as line segments: the upper arm (base to elbow) and the forearm (elbow to tip).
+Until 2026-11-16 only the elbow and tip points were tested, which let an allowed
+move lay the forearm across a zone with both points outside (midpoint review,
+B1); `fr_g4_keepout_forearm_across_zone_denied_though_elbow_and_tip_clear` is
+that case.
 
-Between two samples the joints move by at most s₁ and s₂ radians, so the tip
-moves at most D = (L₁ + L₂)·s₁ + L₂·s₂ and the elbow at most L₁·s₁ ≤ D. Any
-point between two samples lies within D/2 of one of them. Each zone is therefore
-inflated by D/2 + 1 µm before the samples are tested: if no sample is inside an
-inflated zone, no point of the path is inside the real zone. The margin grows
+**Depth of a link.** The depth of a point in a zone is its smallest distance to
+the zone's four sides (> 0 inside). The depth of a link is the largest depth of
+any point on it. Along the segment each of the four distances is linear, so the
+largest "smallest of four" lies at an end or where two of them cross: at most 8
+candidate points, computed exactly (`link_depth()` in `arb_contract.c`).
+
+Between two samples the joints move by at most s₁ and s₂ radians, so no point of
+either link moves more than the tip does, D = (L₁ + L₂)·s₁ + L₂·s₂. Every point a
+link sweeps between two samples lies within D/2 of that link at one of them. Each
+zone is therefore inflated by D/2 + 1 µm before the samples are tested: if no
+sampled link meets an inflated zone, no point of the arm is inside the real zone. The margin grows
 with the length of the move; for a 0.5 rad move of joint 1 it is about 1.1 mm.
 
 ## Leaving a keep-out zone the arm starts in
 
-The arm can start a move with the elbow or tip inside a zone (inflated by that
-move's margin): for example if it was stopped there, or if a new contract adds
-a zone around its current pose. Two mechanisms apply:
+The arm can start a move with a link inside a zone (inflated by that move's
+margin): for example if it was stopped there, or if a new contract adds a zone
+around its current pose. Two mechanisms apply:
 
-1. **An exit-only move is allowed.** A move that starts inside a zone is allowed
-   only if, at every sample, each point already inside a zone gets no deeper in
-   that zone than at the previous sample, no point enters a zone it was not in,
-   and the final pose is outside every inflated zone. Such a verdict carries the
-   flag `ARB_VFLAG_KEEPOUT_EXIT`, and the move does not count as a violation.
-   Between two samples a point can be at most D/2 deeper than at the nearer
-   sample; that bound is the same one the margin uses.
+1. **An exit-only move is allowed.** A move that starts with a link inside a zone
+   is allowed only if, at every sample, each link inside a zone is strictly
+   shallower in that zone than at the previous sample, no link enters a zone it
+   was not in, and the final pose has both links outside every inflated zone
+   (owner decision 2026-11-16). Such a verdict carries the flag
+   `ARB_VFLAG_KEEPOUT_EXIT`, and the move does not count as a violation. Between
+   two samples a link can be at most D/2 deeper than at the nearer sample; that
+   bound is the same one the margin uses. Limits: a link may still move sideways
+   inside the zone while its deepest point gets shallower; and the difference
+   between "strictly shallower" and "not deeper" shows only at exactly equal
+   depths, which a continuous path almost never produces, so no test isolates it.
 2. **Any other move from inside is denied** with rule `KEEPOUT` and counts as a
    violation. Repeated attempts reach the threshold and enter `SAFE_STOP`.
 
@@ -111,10 +126,19 @@ a zone around its current pose. Two mechanisms apply:
 After a reset with the arm still inside a zone, the only way out is an exit-only
 move. There is no override that lets a non-exit move through.
 
+A zone that comes within 20 mm of the arm's base is refused by the contract
+compiler (`fr_c2_zone_at_the_arm_base_rejected`): the upper arm always touches
+the base, so the arm could never leave such a zone.
+
 Tests: `fr_g4_keepout_exit_only_move_from_inside_allowed`,
 `fr_g4_keepout_from_inside_going_deeper_denied`,
 `fr_g4_keepout_from_inside_not_ending_outside_denied`,
-`fr_g4_keepout_exit_through_another_zone_denied` in
+`fr_g4_keepout_exit_through_another_zone_denied`,
+`fr_g4_keepout_forearm_starting_across_zone_exits_allowed`,
+`fr_g4_keepout_forearm_from_inside_going_deeper_denied`,
+`fr_g4_keepout_forearm_turning_back_in_on_the_way_out_denied`,
+`fr_g4_keepout_forearm_from_inside_not_ending_clear_denied`,
+`fr_g4_keepout_link_exit_through_another_zone_denied` in
 `qnx/tests/test_libcontract.c`.
 
 ## The guardian process (`arb-guardian`)
@@ -303,7 +327,8 @@ by the process's own type (M2 P5, the security-policy image).
 
 - It decides commands; it does not move anything. Whether the arm follows the
   decided path is the arm controller's job (M1, `docs/DESIGN_M1_ADDENDUM.md`).
-- Collisions of the links themselves with a zone (only the elbow and tip points
-  are checked), self-collision, and obstacles not in the contract.
+- The links' width: they are checked as lines, so a contract must add their
+  half-width to each zone. Also self-collision, and obstacles not in the
+  contract.
 - Timing: `libcontract` has no clock. Deadlines are measured on the target, and
   timing is claimed only from Raspberry Pi 5 runs.

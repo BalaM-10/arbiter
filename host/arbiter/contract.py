@@ -30,6 +30,10 @@ JOINT_NAMES = ("shoulder", "elbow")
 URAD_PER_DEG = math.pi / 180.0 * 1e6
 
 
+# A keep-out zone must keep this far from the arm's base (the shoulder joint).
+BASE_CLEARANCE_MM = 20.0
+
+
 class ContractError(ValueError):
     """The contract is invalid. ``str(err)`` lists every problem, one per line."""
 
@@ -194,6 +198,7 @@ def validate(doc: Any, source_sha256: bytes) -> Table:
                     else:
                         names.add(zone_name)
                 bounds: list[int] = []
+                ext: list[tuple[float, float]] = []     # as written, mm: x then y
                 for axis in ("x_mm", "y_mm"):
                     v = z.get(axis)
                     if axis not in z:
@@ -209,11 +214,19 @@ def validate(doc: Any, source_sha256: bytes) -> Table:
                         c.problems.append(f"{p}.{axis}: min ({lo:g}) must be less than max ({hi:g})")
                         continue
                     bounds += [_mm_outward(lo, True), _mm_outward(hi, False)]
+                    ext.append((lo, hi))
                 lim = tbl.const("ARB_WORKSPACE_LIMIT_UM")
                 if len(bounds) == 4 and any(abs(b) > lim for b in bounds):
                     c.problems.append(f"{p}: rounds outside the workspace limit of {ws_mm:g} mm")
                 elif len(bounds) == 4:
-                    zones.append(Zone(bounds[0], bounds[2], bounds[1], bounds[3]))
+                    # The upper arm always touches the base, so a zone there could
+                    # never be left (owner decision 2026-11-16).
+                    near = math.hypot(*(max(lo - 0.0, 0.0, 0.0 - hi) for lo, hi in ext))
+                    if near < BASE_CLEARANCE_MM:
+                        c.problems.append(f"{p}: comes within {BASE_CLEARANCE_MM:g} mm of the arm's base "
+                                          f"({near:.1f} mm)")
+                    else:
+                        zones.append(Zone(bounds[0], bounds[2], bounds[1], bounds[3]))
 
     # Cross-field rule (mirrors arb_contract_load): a full-range move at vmax
     # must fit within max_move_duration_ms.

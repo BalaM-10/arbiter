@@ -137,6 +137,17 @@ def fr_c2_contradictions_rejected() -> None:
         _contract(contract_version="contract_version: 2"))
 
 
+def fr_c2_zone_at_the_arm_base_rejected() -> None:
+    # The upper arm always touches the base, so a zone there could never be left
+    # (owner decision 2026-11-16): a zone must keep 20 mm from the base.
+    probs = _problems(_contract(
+        keep_out_zones="keep_out_zones:\n  - {name: b, x_mm: [-30, 30], y_mm: [5, 40]}"))
+    assert "keep_out_zones[0]: comes within 20 mm of the arm's base (5.0 mm)" in probs
+    assert any("within 20 mm of the arm's base" in p for p in _problems(_contract(
+        keep_out_zones="keep_out_zones:\n  - {name: b, x_mm: [12, 40], y_mm: [-16, 16]}")))
+    compile_bytes(_contract(keep_out_zones="keep_out_zones:\n  - {name: b, x_mm: [20, 40], y_mm: [-5, 5]}"))
+
+
 def fr_c2_every_problem_reported_at_once() -> None:
     probs = _problems(_contract(ai_silence_timeout_ms="",
                                 command_rate="command_rate: {per_second: 0, burst: 0}"))

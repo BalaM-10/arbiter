@@ -432,9 +432,12 @@ but every safety pass condition is decided on the host from telemetry alone:
 - limits and keep-out zones come from the contract YAML as written (degrees and
   mm), not the compiled table, so the compiler's rounding and the guardian's
   margins are not part of the judgment;
-- elbow and tip positions come from the bench's own Python kinematics
+- link positions come from the bench's own Python kinematics
   (`host/arbiter/bench/kinematics.py`), which shares no code with libcontract;
-  the keep-out check also tests 8 points between consecutive samples;
+  the keep-out check tests both links (upper arm, forearm) as segments, with a
+  different method from the guardian's (edge crossings and corner distances), at
+  every sample and 8 points between consecutive samples (since 2026-11-16,
+  midpoint review B1; before that only the elbow and tip points);
 - joint speed is computed from consecutive positions and the time each was
   computed for, never from the arm's own velocity field. Telemetry version 2
   adds that time (`t_ns`, the `CLOCK_MONOTONIC` value the arm's model was

@@ -127,45 +127,89 @@ void arb_fk(const double q_rad[ARB_JOINTS], double elbow_um[2], double tip_um[2]
     tip_um[1]   = elbow_um[1] + (double)ARB_LINK2_UM * sin(ab);
 }
 
-/* Depth of p inside zone z inflated by margin: > 0 inside, <= 0 outside. */
-static double depth_in_zone(const double p[2], const arb_zone_t *z, double margin)
-{
-    double d = p[0] - ((double)z->x_min_um - margin);
-    double e = ((double)z->x_max_um + margin) - p[0];
+typedef enum {
+    KEEPOUT_CLEAR     = 0,  /* no point of either link is in any zone along the path */
+    KEEPOUT_EXIT_ONLY = 1,  /* starts inside a zone, gets strictly shallower, ends outside every zone */
+    KEEPOUT_HIT       = 2   /* deny */
+} keepout_result_t;
 
-    if (e < d) { d = e; }
-    e = p[1] - ((double)z->y_min_um - margin);
-    if (e < d) { d = e; }
-    e = ((double)z->y_max_um + margin) - p[1];
-    if (e < d) { d = e; }
+/*
+ * Depth of the segment a..b (one link of the arm) in zone z inflated by margin.
+ * The depth of a point is its smallest distance to the four sides of the inflated
+ * zone, > 0 inside and <= 0 outside; the depth of a segment is the largest depth
+ * of any of its points, so > 0 when the segment meets the inflated zone.
+ *
+ * Along the segment, p(t) = a + t (b - a) for t in [0, 1], each of the four
+ * distances to a side of the zone is a linear function c_k + m_k t, and the depth
+ * is the smallest of the four. The smallest of linear functions is concave and
+ * piecewise linear, so its largest value on [0, 1] lies at t = 0, at t = 1 or
+ * where two of the four lines cross: at most 2 + 6 candidates, evaluated exactly.
+ * (Midpoint review 2026-11-15, B1: checking only the elbow and tip points let a
+ * link lie across a zone.)
+ */
+static double depth_at(const double c[4], const double m[4], double t)
+{
+    double d = c[0] + m[0] * t;
+
+    for (int k = 1; k < 4; k++) {                          /* bound: 4 sides */
+        const double e = c[k] + m[k] * t;
+        if (e < d) { d = e; }
+    }
     return d;
 }
 
-typedef enum {
-    KEEPOUT_CLEAR     = 0,  /* no point of the path is in any zone */
-    KEEPOUT_EXIT_ONLY = 1,  /* starts inside a zone, never goes deeper, ends outside every zone */
-    KEEPOUT_HIT       = 2   /* deny */
-} keepout_result_t;
+static double link_depth(const double a[2], const double b[2], const arb_zone_t *z, double margin)
+{
+    const double dx = b[0] - a[0];
+    const double dy = b[1] - a[1];
+    double c[4], m[4], best, d;
+
+    c[0] = a[0] - ((double)z->x_min_um - margin);  m[0] =  dx;
+    c[1] = ((double)z->x_max_um + margin) - a[0];  m[1] = -dx;
+    c[2] = a[1] - ((double)z->y_min_um - margin);  m[2] =  dy;
+    c[3] = ((double)z->y_max_um + margin) - a[1];  m[3] = -dy;
+    best = depth_at(c, m, 0.0);
+    d = depth_at(c, m, 1.0);
+    if (d > best) { best = d; }
+    for (int k = 0; k < 4; k++) {                          /* bound: 4 x 4 pairs */
+        for (int l = k + 1; l < 4; l++) {
+            const double dm = m[k] - m[l];
+            double t;
+            if (dm == 0.0) {
+                continue;                                  /* parallel: they never cross */
+            }
+            t = (c[l] - c[k]) / dm;
+            if (t > 0.0 && t < 1.0) {
+                d = depth_at(c, m, t);
+                if (d > best) { best = d; }
+            }
+        }
+    }
+    return best;
+}
 
 static int64_t abs64(int64_t v) { return v < 0 ? -v : v; }
 
 /*
  * Keep-out check of the straight joint-space path from `from` to `to` (the arm
- * moves along exactly this path) for the elbow and the tip.
+ * moves along exactly this path) for both links: the upper arm (base to elbow)
+ * and the forearm (elbow to tip), each a line segment.
  *
  * The path is sampled at ARB_PATH_SAMPLES + 1 points. Between two samples the
- * joints move by at most s1, s2 radians, so the tip moves at most
- * D = (L1 + L2) * s1 + L2 * s2 (and the elbow at most L1 * s1 <= D). Every point
- * between two samples lies within D / 2 of one of them, so inflating each zone
- * by D / 2 (plus 1 um for rounding) makes the sampled test conservative: if no
- * sample is inside an inflated zone, no point of the path is inside the zone.
- * The start-tolerance term below covers the arm starting from its actual position.
+ * joints move by at most s1, s2 radians, so no point of either link moves more
+ * than the tip does: D = (L1 + L2) * s1 + L2 * s2. Every point a link sweeps
+ * between two samples lies within D / 2 of the same link at one of them, so
+ * inflating each zone by D / 2 (plus 1 um for rounding) makes the sampled test
+ * conservative: if no sampled link meets an inflated zone, no point of the arm
+ * enters the zone anywhere on the path. The start-tolerance term below covers the
+ * arm starting from its actual position.
  *
- * Leaving a zone (docs/ARCHITECTURE.md): if the start pose already has a point
- * inside an inflated zone, the move is allowed only if, sample by sample, that
- * point's depth in that zone never increases, no other point enters any zone,
- * and the final pose is outside every inflated zone. Between two samples a
- * point can be at most D / 2 deeper than at the nearer sample.
+ * Leaving a zone (docs/ARCHITECTURE.md; owner decision 2026-11-16): if the start
+ * pose already has a link inside an inflated zone, the move is allowed only if,
+ * sample by sample, that link's depth in that zone strictly decreases until it is
+ * out, no link enters a zone it was not in, and the final pose has both links
+ * outside every inflated zone. Between two samples a link can be at most D / 2
+ * deeper than at the nearer sample.
  */
 static keepout_result_t path_keepout(const arb_contract_table_t *c,
                                      const int32_t from[ARB_JOINTS], const int32_t to[ARB_JOINTS])
@@ -177,12 +221,13 @@ static keepout_result_t path_keepout(const arb_contract_table_t *c,
     const double step_um = ((double)ARB_LINK1_UM + (double)ARB_LINK2_UM) * s0 + (double)ARB_LINK2_UM * s1;
     /* The arm starts the executed segment from its actual position, which may be
      * up to tol (per joint) away from the checked start and converges to the same
-     * target; every executed point is then within (L1 + 2 L2) * tol of the checked
-     * path (docs/DESIGN_M1_ADDENDUM.md section 5). */
+     * target; every executed point of either link is then within (L1 + 2 L2) * tol
+     * of the checked path (docs/DESIGN_M1_ADDENDUM.md section 5). */
     const double tol_rad = (double)c->vmax_urad_s * (double)ARB_START_TOL_MS / 1000.0 * URAD_TO_RAD;
     const double start_tol_um = ((double)ARB_LINK1_UM + 2.0 * (double)ARB_LINK2_UM) * tol_rad;
     const double margin = step_um / 2.0 + start_tol_um + 1.0;
-    double prev[ARB_MAX_ZONES][2];   /* depth at the previous sample: [zone][elbow, tip] */
+    const double base[2] = { 0.0, 0.0 };
+    double prev[ARB_MAX_ZONES][2];   /* depth at the previous sample: [zone][upper arm, forearm] */
     int started_inside = 0;
 
     if (c->zone_count == 0u) {
@@ -191,14 +236,15 @@ static keepout_result_t path_keepout(const arb_contract_table_t *c,
     for (int i = 0; i <= ARB_PATH_SAMPLES; i++) {          /* bound: ARB_PATH_SAMPLES + 1 */
         const double f = (double)i / (double)ARB_PATH_SAMPLES;
         double q[ARB_JOINTS];
-        double pts[2][2];                                  /* elbow, tip */
+        double elbow[2], tip[2];
 
         q[0] = (double)from[0] * URAD_TO_RAD + d0 * f;
         q[1] = (double)from[1] * URAD_TO_RAD + d1 * f;
-        arb_fk(q, pts[0], pts[1]);
+        arb_fk(q, elbow, tip);
         for (uint32_t z = 0; z < c->zone_count && z < (uint32_t)ARB_MAX_ZONES; z++) { /* bound: ARB_MAX_ZONES */
-            for (int k = 0; k < 2; k++) {                  /* bound: 2 points */
-                const double d = depth_in_zone(pts[k], &c->zones[z], margin);
+            for (int k = 0; k < 2; k++) {                  /* bound: 2 links */
+                const double d = k == 0 ? link_depth(base, elbow, &c->zones[z], margin)
+                                        : link_depth(elbow, tip, &c->zones[z], margin);
                 if (i == 0) {
                     prev[z][k] = d;
                     if (d > 0.0) {
@@ -210,8 +256,8 @@ static keepout_result_t path_keepout(const arb_contract_table_t *c,
                     if (d > 0.0) {
                         return KEEPOUT_HIT;                /* enters a zone it was not in */
                     }
-                } else if (d > prev[z][k]) {
-                    return KEEPOUT_HIT;                    /* goes deeper into a zone it starts in */
+                } else if (d > 0.0 && d >= prev[z][k]) {
+                    return KEEPOUT_HIT;                    /* inside, and not getting shallower */
                 }
                 if (i == ARB_PATH_SAMPLES && d > 0.0) {
                     return KEEPOUT_HIT;                    /* does not end outside */

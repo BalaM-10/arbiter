@@ -57,10 +57,10 @@ def fr_b2_bench_reads_limits_from_the_contract_as_written() -> None:
 
 # ---------------------------------------------- each check can fail
 
-def fr_b2_keepout_check_fails_when_the_elbow_enters_the_zone() -> None:
+def fr_b2_keepout_check_fails_when_the_arm_enters_the_zone() -> None:
     run = _run(_line((deg(15), 0), (deg(40), 0), 200))
     c = ck.keepout_never_entered(run, SPEC)
-    assert not c.passed and "elbow inside" in c.detail
+    assert not c.passed and "inside operator_hand_area" in c.detail
 
 
 def fr_b2_keepout_check_catches_a_crossing_between_two_samples() -> None:
