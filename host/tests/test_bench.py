@@ -8,6 +8,7 @@ judgment fails: a check that cannot fail proves nothing.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from itertools import pairwise
 from pathlib import Path
 
@@ -18,7 +19,7 @@ from arbiter.bench import kinematics as kin
 from arbiter.bench.records import Run, Sample, Status, Verdict, parse
 from arbiter.bench.scenarios import ALL
 from arbiter.bench.script import Script, deg
-from arbiter.bench.spec import RULE, VERDICT, Spec, load_spec
+from arbiter.bench.spec import RULE, VERDICT, Rect, Spec, load_spec
 
 ROOT = Path(__file__).resolve().parents[2]
 SPEC: Spec = load_spec(ROOT / "contracts" / "default.yaml")
@@ -69,6 +70,43 @@ def fr_b2_keepout_check_catches_a_crossing_between_two_samples() -> None:
         e, t = kin.elbow_tip(*s.pos)
         assert not kin.inside(e, SPEC.zones[0]) and not kin.inside(t, SPEC.zones[0])
     assert not ck.keepout_never_entered(run, SPEC).passed
+
+
+B1_POSE = (deg(25), deg(25))     # midpoint review B1: elbow and tip clear, forearm across the area
+
+
+def fr_b2_keepout_check_fails_when_the_forearm_crosses_the_zone() -> None:
+    # Review B1: at the end pose the elbow and the tip are both outside the area,
+    # but the forearm between them lies across it.
+    elbow, tip = kin.elbow_tip(*B1_POSE)
+    assert not kin.inside(elbow, SPEC.zones[0]) and not kin.inside(tip, SPEC.zones[0])
+    run = _run(_line((0, 0), B1_POSE, 200))
+    c = ck.keepout_never_entered(run, SPEC)
+    assert not c.passed and "forearm inside" in c.detail
+
+
+def fr_b2_keepout_check_fails_when_the_upper_arm_crosses_a_zone() -> None:
+    small = replace(SPEC, zones=(Rect("near_base", 100.0, 150.0, 30.0, 60.0),))
+    run = _run(_line((0, 0), (deg(20), 0), 100))
+    c = ck.keepout_never_entered(run, small)
+    assert not c.passed and "upper arm inside" in c.detail
+
+
+def fr_b2_link_clearance_is_exact_for_segments() -> None:
+    r = Rect("r", 0.0, 10.0, 0.0, 10.0)
+    assert kin.segment_clearance((-5.0, 5.0), (15.0, 5.0), r) == 0.0        # straight through
+    assert kin.segment_clearance((-5.0, 13.0), (15.0, 13.0), r) == pytest.approx(3.0)  # above
+    assert kin.segment_clearance((13.0, 14.0), (20.0, 30.0), r) == pytest.approx(5.0)  # off a corner
+    assert kin.segment_clearance((-3.0, 8.0), (8.0, -3.0), r) == 0.0        # clips a corner only
+    assert kin.segment_clearance((-6.0, 4.0), (4.0, -6.0), r) == pytest.approx(math.sqrt(2.0))
+
+
+def fr_b2_f5_denies_a_move_whose_forearm_would_cross_the_area() -> None:
+    # F5 must exercise B1: a denied target whose elbow and tip are clear at the end.
+    s = ALL["F5"].build(SPEC)
+    targets = [c.target for c in s.commands if c.tag == "violation"]
+    assert B1_POSE in targets
+    assert not ck.keepout_never_entered(_run([B1_POSE]), SPEC).passed   # the pose itself crosses
 
 
 def fr_b2_keepout_check_passes_beside_the_zone() -> None:

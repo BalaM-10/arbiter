@@ -813,6 +813,78 @@ static void fr_g4_keepout_margin_includes_start_tolerance(void)
     CHECK(v.verdict == ARB_VERDICT_ALLOW);
 }
 
+/* Point on the segment a..b at fraction f. */
+static void lerp2(const double a[2], const double b[2], double f, double out[2])
+{
+    out[0] = a[0] + (b[0] - a[0]) * f;
+    out[1] = a[1] + (b[1] - a[1]) * f;
+}
+
+static int in_hand_area(const double p[2])
+{
+    return p[0] > 200000 && p[0] < 400000 && p[1] > 150000 && p[1] < 350000;
+}
+
+static void fr_g4_keepout_forearm_across_zone_denied_though_elbow_and_tip_clear(void)
+{
+    /* Midpoint review 2026-11-15, B1: from home, shoulder 25 deg and elbow 25 deg.
+     * At the end pose the elbow (272, 127) mm and the tip (433, 318) mm are both
+     * outside the hand area, but the straight forearm between them crosses it. */
+    const arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 436332, 436332, 5000);
+    double q[2], e[2], p[2], mid[2];
+    arb_verdict_t v;
+
+    q[0] = 0.436332; q[1] = 0.436332;
+    arb_fk(q, e, p);
+    CHECK(!in_hand_area(e) && !in_hand_area(p));
+    lerp2(e, p, 0.5, mid);
+    CHECK(in_hand_area(mid));
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_upper_arm_across_zone_denied_though_elbow_and_tip_clear(void)
+{
+    /* A small zone near the base that only the upper arm (base to elbow) can
+     * reach: shoulder 0 -> 20 deg sweeps the upper arm across it; the elbow and
+     * the tip stay at radius 300 mm and beyond, far outside. */
+    arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 349066, 0, 5000);
+    double q[2], e[2], p[2], base[2] = { 0.0, 0.0 }, on_link[2];
+    arb_verdict_t v;
+
+    t.zones[0].x_min_um = 100000;
+    t.zones[0].y_min_um = 30000;
+    t.zones[0].x_max_um = 150000;
+    t.zones[0].y_max_um = 60000;
+    seal(&t);
+    q[0] = 0.349066; q[1] = 0.0;
+    arb_fk(q, e, p);
+    lerp2(base, e, 125000.0 / 300000.0, on_link);       /* 125 mm along the upper arm */
+    CHECK(on_link[0] > 100000 && on_link[0] < 150000 && on_link[1] > 30000 && on_link[1] < 60000);
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
+static void fr_g4_keepout_forearm_sweeping_through_zone_denied(void)
+{
+    /* Elbow bends 0 -> 90 deg with the shoulder at 0: the forearm sweeps through
+     * a small zone 110 to 140 mm from the elbow. Start and end poses are clear,
+     * the elbow never moves and the tip (250 mm from the elbow) never enters. */
+    arb_contract_table_t t = make_table(1);
+    const arb_cmd_t c = make_cmd(1, 0, 1570796, 5000);
+    arb_verdict_t v;
+
+    t.zones[0].x_min_um = 350000;
+    t.zones[0].y_min_um = 94000;
+    t.zones[0].x_max_um = 370000;
+    t.zones[0].y_max_um = 114000;
+    seal(&t);
+    v = decide_once(&t, &c, HOME);
+    CHECK(v.verdict == ARB_VERDICT_DENY && v.rule == ARB_RULE_KEEPOUT);
+}
+
 static void fr_g4_keepout_overrides_clamp(void)
 {
     const arb_contract_table_t t = make_table(1);
@@ -1282,6 +1354,9 @@ static const arb_test_case_t cases[] = {
     ARB_TEST_CASE(fr_g4_keepout_just_outside_by_more_than_margin_allowed),
     ARB_TEST_CASE(fr_g4_keepout_brief_crossing_of_thin_zone_denied),
     ARB_TEST_CASE(fr_g4_keepout_margin_includes_start_tolerance),
+    ARB_TEST_CASE(fr_g4_keepout_forearm_across_zone_denied_though_elbow_and_tip_clear),
+    ARB_TEST_CASE(fr_g4_keepout_upper_arm_across_zone_denied_though_elbow_and_tip_clear),
+    ARB_TEST_CASE(fr_g4_keepout_forearm_sweeping_through_zone_denied),
     ARB_TEST_CASE(fr_g4_keepout_overrides_clamp),
     ARB_TEST_CASE(fr_g4_keepout_exit_only_move_from_inside_allowed),
     ARB_TEST_CASE(fr_g4_keepout_from_inside_going_deeper_denied),
