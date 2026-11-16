@@ -45,7 +45,7 @@ typedef struct {
 
 _Static_assert(sizeof(arb_verdict_wire_t) == 32, "arb_verdict_wire_t layout");
 
-/* Guardian status (for tests and the dashboard). 40 bytes. */
+/* Guardian status (for tests, the gateway and the dashboard). 56 bytes. */
 typedef struct {
     uint16_t version;
     uint8_t  state;                    /* HOLD=1, NORMAL=2, SAFE_STOP=3 */
@@ -64,9 +64,15 @@ typedef struct {
     uint16_t resets;                   /* operator resets done (FR-G5) */
     uint16_t resets_refused;           /* resets refused: not the operator, wrong state, no watchdog, arm */
     uint16_t reserved;                 /* 0 */
+    uint32_t last_seq;                 /* FR-G10: newest sequence number consumed; the next
+                                          command must be newer (valid when has_seq is 1) */
+    uint8_t  has_seq;                  /* 1 once any command passed the sequence check */
+    uint8_t  reserved1;                /* 0 */
+    uint16_t submits_refused;          /* FR-G10: SUBMITs refused: not the gateway user, or
+                                          not the current submitter's open */
 } arb_status_t;
 
-_Static_assert(sizeof(arb_status_t) == 48, "arb_status_t layout");
+_Static_assert(sizeof(arb_status_t) == 56, "arb_status_t layout");
 
 /* devctl() payload for a command: the command in, the verdict out (same buffer). */
 typedef union {

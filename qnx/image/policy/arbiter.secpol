@@ -25,6 +25,9 @@
 #    - user_root_t may also send SIGSTOP (23) and SIGCONT (25): the tests that
 #      stop the guardian or the watchdog mid-move (FR-W2, FR-W6) did not run
 #      while the draft was recorded.
+#    - user_root_t may also take the gateway's user ID 814 (setuid:814, which
+#      seteuid() uses): the test tools submit commands as the gateway's user,
+#      the only user the guardian accepts commands from (FR-G10, 2026-11-16).
 #    - arb_untrusted_t added by hand (the attacker never ran in develop mode);
 #      user_root_t's gain_priv adds public_channel, which secpolcompile requires
 #      before user_root_t may start a type that has it (the attacker needs a
@@ -601,7 +604,7 @@ allow user_root_t self:ability {
 allow user_root_t self:ability {
     spawn_setuid:800,820
     spawn_setgid:820
-    setuid:800-801
+    setuid:800-801,814
     setgid:0
     spawn
     priority:0-66

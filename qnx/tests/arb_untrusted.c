@@ -11,6 +11,8 @@
  *                                   setpoint, then keep the connection open for
  *                                   hold_ms while the real guardian starts
  *   arb-untrusted attach            try to attach /dev/arbiter before the guardian
+ *   arb-untrusted submit            open /dev/arbiter for writing and submit a
+ *                                   command, as the gateway would (FR-G10)
  *   arb-untrusted squat <arm|watchdog> <hold_ms>
  *                                   register the arm's or the watchdog's name before
  *                                   the real one starts, and serve it for hold_ms:
@@ -118,6 +120,29 @@ static void send_setpoint(int coid, uint32_t seq)
     sp.target_urad[0] = 100000;            /* 0.1 rad: small, inside every limit */
     sp.duration_ms = 1000;
     send_to_arm("setpoint", coid, &sp, sizeof sp);
+}
+
+/* F11 case 5: submit a valid, harmless command on /dev/arbiter (FR-G10).
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/o/open.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
+static void submit_dev(void)
+{
+    arb_submit_t u;
+    int fd, rc;
+
+    fd = open(ARB_DEV_PATH, O_RDWR);
+    step("open", fd, errno);
+    if (fd == -1) {
+        return;
+    }
+    memset(&u, 0, sizeof u);
+    u.cmd.version = ARB_PROTO_VERSION;
+    u.cmd.seq = 0x7fff0000u;              /* far ahead: would also jam the real planner's sequence */
+    u.cmd.target_urad[0] = -100000;       /* a small move away from the hand area */
+    u.cmd.duration_ms = 1000;
+    rc = devctl(fd, ARB_DCMD_SUBMIT, &u, sizeof u, NULL);   /* returns an errno value, not -1 */
+    printf("STEP submit rc %d errno %d %s\n", rc == EOK ? 0 : -1, rc, rc == EOK ? "ok" : strerror(rc));
+    (void)close(fd);
 }
 
 static void attach_dev(void)
@@ -252,6 +277,10 @@ int main(int argc, char **argv)
         counters("held");
         return 0;
     }
+    if (strcmp(mode, "submit") == 0 && argc == 2) {
+        submit_dev();
+        return 0;
+    }
     if (strcmp(mode, "attach") == 0 && argc == 2) {
         attach_dev();
         return 0;
@@ -261,6 +290,6 @@ int main(int argc, char **argv)
         squat(strcmp(argv[2], "arm") == 0 ? ARB_ARM_NAME : ARB_WD_NAME, strtol(argv[3], NULL, 10));
         return 0;
     }
-    fprintf(stderr, "usage: arb-untrusted setpoint | bind <hold_ms> | attach | squat <arm|watchdog> <hold_ms>\n");
+    fprintf(stderr, "usage: arb-untrusted setpoint | bind <hold_ms> | submit | attach | squat <arm|watchdog> <hold_ms>\n");
     return 2;
 }

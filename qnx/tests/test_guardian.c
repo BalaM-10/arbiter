@@ -13,6 +13,7 @@
  */
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +23,9 @@
 #include <sys/neutrino.h>
 #include <sys/stat.h>
 #include <sys/syspage.h>
+#include <sys/wait.h>
 
+#include "arb_as_gateway.h"
 #include "arb_contract.h"
 #include "arb_devctl.h"
 #include "arb_pulses.h"
@@ -52,8 +55,9 @@ static int submit(int fd, const arb_cmd_t *c, arb_verdict_wire_t *w)
 
     memset(&u, 0, sizeof u);
     u.cmd = *c;
-    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
-    rc = devctl(fd, ARB_DCMD_SUBMIT, &u, sizeof u, NULL);
+    /* As the gateway's user (FR-G10).
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
+    rc = arb_devctl_gw(fd, ARB_DCMD_SUBMIT, &u, sizeof u);
     *w = u.verdict;
     return rc;
 }
@@ -162,10 +166,10 @@ static void nfr_i6_devctl_wrong_size_rejected(void)
     uint8_t buf[64];
 
     memset(buf, 0, sizeof buf);
-    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_SUBMIT, buf, sizeof(arb_submit_t) - 1u, NULL), EBADMSG);
-    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_SUBMIT, buf, sizeof(arb_submit_t) + 1u, NULL), EBADMSG);
-    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_SUBMIT, buf, 0, NULL), EBADMSG);
-    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_SUBMIT, buf, sizeof buf, NULL), EBADMSG);
+    CHECK_EQ_INT(arb_devctl_gw(g_fd, ARB_DCMD_SUBMIT, buf, sizeof(arb_submit_t) - 1u), EBADMSG);
+    CHECK_EQ_INT(arb_devctl_gw(g_fd, ARB_DCMD_SUBMIT, buf, sizeof(arb_submit_t) + 1u), EBADMSG);
+    CHECK_EQ_INT(arb_devctl_gw(g_fd, ARB_DCMD_SUBMIT, buf, 0), EBADMSG);
+    CHECK_EQ_INT(arb_devctl_gw(g_fd, ARB_DCMD_SUBMIT, buf, sizeof buf), EBADMSG);
 }
 
 static void nfr_i6_unknown_devctl_command_rejected(void)
@@ -210,7 +214,7 @@ static void nfr_i6_random_payloads_never_crash_the_guardian(void)
         for (size_t k = 0; k < sizeof u; k++) {
             p[k] = (uint8_t)xorshift64(&seed);
         }
-        CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_SUBMIT, &u, sizeof u, NULL), EOK);
+        CHECK_EQ_INT(arb_devctl_gw(g_fd, ARB_DCMD_SUBMIT, &u, sizeof u), EOK);
         if (u.verdict.verdict != ARB_VERDICT_DENY) {
             accepted++;
         }
@@ -289,6 +293,178 @@ static void fr_g5_last_client_close_enters_hold(void)
     CHECK_EQ_INT(s.clients, 1);
 }
 
+/* ------------------------------------------- FR-G10: the guardian's front door */
+
+static double ms_since(uint64_t t0);   /* below, with the faulty-arm cases */
+
+static void fr_g10_only_the_gateway_user_may_submit(void)
+{
+    /* Root, the operator, the untrusted user and the guardian's own user, all on
+     * the same read-write descriptor: the guardian asks the kernel who sent each
+     * message, so only the gateway's user gets a verdict. */
+    static const uid_t others[] = { 0, ARB_UID_OPERATOR, ARB_UID_UNTRUSTED, ARB_UID_GUARDIAN };
+    arb_status_t a, b;
+    arb_verdict_wire_t w;
+    arb_cmd_t c;
+
+    ms_sleep(250);                                  /* refill the rate bucket */
+    CHECK_EQ_INT(status(&a), EOK);
+    for (unsigned i = 0; i < sizeof others / sizeof others[0]; i++) {   /* bound: 4 */
+        arb_submit_t u;
+        memset(&u, 0, sizeof u);
+        u.cmd = cmd(-100000, 0, 1000);
+        CHECK_EQ_INT(arb_devctl_as(others[i], g_fd, ARB_DCMD_SUBMIT, &u, sizeof u), EPERM);
+    }
+    CHECK_EQ_INT(status(&b), EOK);
+    CHECK_EQ_INT(b.decisions, a.decisions);         /* refused before any decision */
+    CHECK_EQ_INT(b.submits_refused - a.submits_refused, 4);
+    c = cmd(-100000, 0, 1000);
+    CHECK_EQ_INT(submit(g_fd, &c, &w), EOK);        /* the gateway's user */
+    CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+}
+
+static void fr_g10_a_second_submitter_is_refused_until_the_first_closes(void)
+{
+    arb_verdict_wire_t w;
+    arb_status_t a, b;
+    arb_cmd_t c;
+    int second;
+
+    ms_sleep(250);
+    c = cmd(-100000, 0, 1000);
+    CHECK_EQ_INT(submit(g_fd, &c, &w), EOK);        /* g_fd is the submitter */
+    second = open(ARB_DEV_PATH, O_RDWR);
+    CHECK(second >= 0);
+    CHECK_EQ_INT(status(&a), EOK);
+    c = cmd(-100000, 0, 1000);
+    CHECK_EQ_INT(submit(second, &c, &w), EBUSY);    /* the same user, another open */
+    CHECK_EQ_INT(status(&b), EOK);
+    CHECK_EQ_INT(b.submits_refused - a.submits_refused, 1);
+    CHECK_EQ_INT(b.decisions, a.decisions);
+    (void)close(g_fd);                              /* the first submitter goes away */
+    g_fd = second;
+    c = cmd(-100000, 0, 1000);
+    CHECK_EQ_INT(submit(g_fd, &c, &w), EOK);
+    CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);     /* now this open is the submitter */
+}
+
+static void fr_g10_status_reports_the_last_sequence(void)
+{
+    const arb_cmd_t c = cmd(-100000, 0, 1000);
+    arb_verdict_wire_t w;
+    arb_status_t s;
+
+    ms_sleep(250);
+    CHECK_EQ_INT(submit(g_fd, &c, &w), EOK);
+    CHECK_EQ_INT(status(&s), EOK);
+    CHECK_EQ_INT(s.has_seq, 1);
+    CHECK_EQ_INT(s.last_seq, c.seq);
+}
+
+static void fr_g10_restarted_client_resumes_after_the_published_sequence(void)
+{
+    /* A planner (or gateway) that restarts knows nothing of its old numbers: it
+     * reads the status and continues after last_seq. One sequence space for the
+     * guardian's lifetime, so an old command replayed in a new session is denied. */
+    arb_cmd_t c = cmd(-100000, 0, 1000);
+    arb_verdict_wire_t w;
+    arb_status_t s;
+
+    ms_sleep(250);
+    CHECK_EQ_INT(submit(g_fd, &c, &w), EOK);
+    (void)close(g_fd);                              /* the client goes away ... */
+    CHECK(open_rw() >= 0);                          /* ... and a new one starts */
+    CHECK_EQ_INT(status(&s), EOK);
+    CHECK_EQ_INT(s.has_seq, 1);
+    CHECK_EQ_INT(s.last_seq, c.seq);
+    c = cmd(-100000, 0, 1000);
+    c.seq = s.last_seq;                             /* the old session's last command */
+    CHECK_EQ_INT(submit(g_fd, &c, &w), EOK);
+    CHECK(w.verdict == ARB_VERDICT_DENY && w.rule == ARB_RULE_SEQUENCE);
+    c.seq = s.last_seq + 1u;
+    CHECK_EQ_INT(submit(g_fd, &c, &w), EOK);
+    CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+    if ((int32_t)(c.seq - g_seq) > 0) {             /* only ever forward: later tests keep working */
+        g_seq = c.seq;
+    }
+}
+
+static void fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once(void)
+{
+    /* Review M1: with a logger or dashboard holding /dev/arbiter open, the
+     * gateway's death must still be noticed at once, not after the 250 ms silence
+     * timeout. The child plays the gateway; this process keeps a read-only open. */
+    const arb_cmd_t c = cmd(-100000, 0, 2000);
+    int ready[2];
+    arb_status_t s;
+    pid_t child;
+    char b = 0;
+    uint64_t t0;
+    double held_ms = -1.0;
+
+    ms_sleep(250);
+    (void)close(g_fd);                              /* release the submitter slot */
+    g_fd = open(ARB_DEV_PATH, O_RDONLY);            /* the status reader */
+    CHECK(g_fd >= 0);
+    CHECK(pipe(ready) == 0);
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/fork.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/setuid.html */
+    child = fork();
+    if (child == 0) {
+        arb_submit_t u;
+        const int fd = open(ARB_DEV_PATH, O_RDWR);
+        char ok = 0;
+
+        memset(&u, 0, sizeof u);
+        u.cmd = c;
+        if (fd != -1 && setuid((uid_t)ARB_UID_GATEWAY) == 0 &&
+            devctl(fd, ARB_DCMD_SUBMIT, &u, sizeof u, NULL) == EOK && u.verdict.verdict == ARB_VERDICT_ALLOW) {
+            ok = 1;
+        }
+        (void)write(ready[1], &ok, 1);
+        for (;;) {                                  /* bound: killed by the parent */
+            (void)pause();
+        }
+    }
+    CHECK(child > 0);
+    (void)close(ready[1]);
+    CHECK(read(ready[0], &b, 1) == 1 && b == 1);
+    (void)close(ready[0]);
+    CHECK_EQ_INT(status(&s), EOK);
+    CHECK_EQ_INT(s.state, ARB_STATE_NORMAL);
+    CHECK_EQ_INT(s.clients, 2);
+    t0 = ClockCycles();
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/k/kill.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/w/waitpid.html */
+    CHECK(kill(child, SIGKILL) == 0);
+    (void)waitpid(child, NULL, 0);
+    for (int i = 0; i < 100; i++) {                 /* bound: 100 x 1 ms */
+        if (status(&s) == EOK && s.state == ARB_STATE_HOLD) {
+            held_ms = ms_since(t0);
+            break;
+        }
+        ms_sleep(1);
+    }
+    printf("  info submitter killed -> HOLD after %.3f ms (-1: not within 100 ms), clients %u\n",
+           held_ms, (unsigned)s.clients);
+    CHECK(held_ms >= 0.0 && held_ms < 50.0);        /* far inside the 250 ms silence timeout */
+    CHECK_EQ_INT(s.clients, 1);                     /* the reader is still open */
+    (void)close(g_fd);
+    CHECK(open_rw() >= 0);
+}
+
+static void fr_g5_reset_through_the_gateway_is_refused(void)
+{
+    /* docs/ARCHITECTURE.md: the operator resets locally, never through the gateway. */
+    arb_status_t a, b;
+
+    CHECK_EQ_INT(status(&a), EOK);
+    CHECK_EQ_INT(arb_devctl_gw(g_fd, ARB_DCMD_RESET, NULL, 0), EPERM);
+    CHECK_EQ_INT(status(&b), EOK);
+    CHECK_EQ_INT(b.resets_refused - a.resets_refused, 1);
+    CHECK_EQ_INT(b.resets, a.resets);
+}
+
 /* ------------------------------------------------------------ faulty arms */
 
 static double ms_since(uint64_t t0)
@@ -353,6 +529,12 @@ static const arb_test_case_t normal_cases[] = {
     ARB_TEST_CASE(nfr_i6_random_payloads_never_crash_the_guardian),
     ARB_TEST_CASE(fr_g5_forged_tick_and_trip_pulses_are_ignored_and_counted),
     ARB_TEST_CASE(fr_g5_silence_enters_hold_over_devctl),
+    ARB_TEST_CASE(fr_g10_only_the_gateway_user_may_submit),
+    ARB_TEST_CASE(fr_g10_a_second_submitter_is_refused_until_the_first_closes),
+    ARB_TEST_CASE(fr_g10_status_reports_the_last_sequence),
+    ARB_TEST_CASE(fr_g10_restarted_client_resumes_after_the_published_sequence),
+    ARB_TEST_CASE(fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once),
+    ARB_TEST_CASE(fr_g5_reset_through_the_gateway_is_refused),
     ARB_TEST_CASE(fr_g5_last_client_close_enters_hold),
 };
 static const arb_test_case_t hang_cases[] = { ARB_TEST_CASE(fr_g9_arm_never_replies_times_out_and_safe_stops) };

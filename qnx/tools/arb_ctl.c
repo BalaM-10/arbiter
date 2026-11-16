@@ -52,9 +52,10 @@ static int status(int fd)
         printf("arb-ctl: status: %s\n", strerror(rc));
         return 1;
     }
-    printf("state %s cause %s estops %u resets %u resets_refused %u watchdog_lost %u decisions %u\n",
+    printf("state %s cause %s estops %u resets %u resets_refused %u watchdog_lost %u decisions %u "
+           "submits_refused %u last_seq %u has_seq %u\n",
            state_name(st.state), cause_name(st.stop_cause), st.estops, st.resets, st.resets_refused,
-           st.watchdog_lost, st.decisions);
+           st.watchdog_lost, st.decisions, st.submits_refused, st.last_seq, st.has_seq);
     return 0;
 }
 

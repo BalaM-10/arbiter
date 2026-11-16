@@ -45,6 +45,7 @@ an untrusted party cannot do cite the claim in `docs/THREAT_MODEL.md` (TM-C1 to 
 | FR-G7 | The guardian emits a heartbeat every control cycle |
 | FR-G8 | Every decision and its measured latency go to a ring buffer without blocking |
 | FR-G9 | After initialization: no memory allocation, no unbounded loop, no blocking call except the message receive and, per command, two `TimerTimeout()`-bounded sends to the arm (the state query, then the setpoint); a timeout of either enters `SAFE_STOP` (reworded Nov 15, judge-review M1-J7) |
+| FR-G10 | Only the gateway's user may submit commands (kernel-reported sender, checked on every submit), on one submitter connection at a time; losing that connection enters `HOLD` at once; the status publishes the last sequence number (added Nov 16, midpoint review) |
 
 ## Arm controller (FR-A)
 

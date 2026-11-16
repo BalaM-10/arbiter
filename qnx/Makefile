@@ -86,7 +86,7 @@ $(OUT)/arb-guardian: $(GUARDIAN_SRC) $(GUARDIAN_HDR) $(LIBCONTRACT_SRC) $(LIBCON
 $(OUT)/arb_arm_stub: tests/arb_arm_stub.c common/arb_arm_proto.h common/arb_ids.h | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
-$(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
+$(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h tests/arb_as_gateway.h common/arb_ids.h common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
 $(OUT)/guardian_suite.sh: tests/guardian_suite.sh | $(OUT)
@@ -106,7 +106,7 @@ $(OUT)/test_arm_motion: tests/test_arm_motion.c tests/arb_test.h arm/arm_motion.
 $(OUT)/test_arm: tests/test_arm.c tests/arb_test.h $(ARM_HDR) $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
 
-$(OUT)/test_e2e: tests/test_e2e.c tests/arb_test.h $(ARM_HDR) common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
+$(OUT)/test_e2e: tests/test_e2e.c tests/arb_test.h tests/arb_as_gateway.h common/arb_ids.h $(ARM_HDR) common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
 
 $(OUT)/arm_suite.sh: tests/arm_suite.sh | $(OUT)
@@ -130,7 +130,7 @@ $(OUT)/arb-ctl: tools/arb_ctl.c common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
 # Fault bench client (untrusted; run by `arbiter bench run`).
-$(OUT)/arb-inject: tests/arb_inject.c common/arb_telemetry.h common/arb_devctl.h common/arb_watchdog_proto.h $(LIBCONTRACT_HDR) | $(OUT)
+$(OUT)/arb-inject: tests/arb_inject.c common/arb_ids.h common/arb_telemetry.h common/arb_devctl.h common/arb_watchdog_proto.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
 $(OUT)/bench_scenario.sh: tests/bench_scenario.sh | $(OUT)

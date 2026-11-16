@@ -52,6 +52,7 @@
 
 #include "arb_contract.h"
 #include "arb_devctl.h"
+#include "arb_ids.h"
 #include "arb_telemetry.h"
 #include "arb_watchdog_proto.h"
 
@@ -280,6 +281,14 @@ int main(void)
     if (g_wd == MAP_FAILED || g_wd->magic != ARB_WD_STATUS_MAGIC) {
         fprintf(stderr, "arb-inject: watchdog status %s missing\n", ARB_WD_STATUS_NAME);
         return 4;
+    }
+    /* FR-G10: only the gateway's user may submit, so the bench drives the guardian
+     * as that user. Set once here, outside the timed sends; started as root by
+     * bench_scenario.sh, it never needs root again.
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/seteuid.html */
+    if (seteuid((uid_t)ARB_UID_GATEWAY) == -1) {
+        fprintf(stderr, "arb-inject: seteuid %d: %s\n", ARB_UID_GATEWAY, strerror(errno));
+        return 5;
     }
 
     printf("ARB-INJECT 1\n");

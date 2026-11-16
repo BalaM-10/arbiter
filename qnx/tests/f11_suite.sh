@@ -3,13 +3,14 @@
 #   f11_suite.sh [off|on]     the security-policy mode of the image (default off)
 #
 # The attacker is arb-untrusted, run as user 820 (ARB_UID_UNTRUSTED), never root;
-# with the policy on, also as type arb_untrusted_t. Three cases, each judged here
+# with the policy on, also as type arb_untrusted_t. Five cases, each judged here
 # from arb-untrusted's step results and the arm's own counters:
 #   1. it connects to the arm and sends a setpoint while the guardian is up;
 #   2. it starts before the guardian, connects and tries to bind the arm first;
 #   3. it tries to attach /dev/arbiter before the guardian starts;
 #   4. it registers the arm's (4a) or the watchdog's (4b) name before the real
 #      one, to be the server that the trusted clients connect to.
+#   5. it submits a command on /dev/arbiter as if it were the gateway (FR-G10).
 # Policy off: the connects succeed and the arm refuses (not the guardian's user
 # ID): rejected moves, the refusal is in slog2, and the real guardian still binds.
 # The attach is refused by the kernel: the attacker lacks PATHSPACE (not root).
@@ -243,6 +244,33 @@ else
 fi
 all_down
 if [ "$c" -eq 0 ]; then echo "PASS f11_untrusted_cannot_impersonate_the_watchdog_by_its_name ($MODE)"; else echo "FAIL f11_untrusted_cannot_impersonate_the_watchdog_by_its_name ($MODE)"; fail=1; fi
+
+# Case 5 (FR-G10, midpoint review M1): the untrusted process submits a command
+# on /dev/arbiter as if it were the gateway, with a sequence number far ahead
+# that would also leave the real planner's commands denied as replays.
+echo "## F11 case 5: the untrusted process submits a command to the guardian (policy $MODE)"
+c=0
+wd_up; arm_up; guard_up
+st0=$(./arb-ctl status)
+out=$(attacker submit)
+st1=$(./arb-ctl status)
+printf '%s\n' "$out" "before: $st0" "after:  $st1"
+d0=$(field "$st0" state decisions); d1=$(field "$st1" state decisions)
+s0=$(field "$st0" state last_seq); s1=$(field "$st1" state last_seq)
+r0=$(field "$st0" state submits_refused); r1=$(field "$st1" state submits_refused)
+check 5 "the attacker ran as user $UNTRUSTED_UID" "$(printf '%s\n' "$out" | grep -q "^ARB-UNTRUSTED submit pid [0-9]* uid $UNTRUSTED_UID euid $UNTRUSTED_UID$"; echo $?)"
+if [ "$MODE" = off ]; then
+    check 5 "open succeeds (no policy)" "$(printf '%s\n' "$out" | grep -q '^STEP open rc [0-9]'; echo $?)"
+    check 5 "the guardian refuses the command with EPERM (not the gateway's user)" "$(printf '%s\n' "$out" | grep -q '^STEP submit rc -1 errno 1 '; echo $?)"
+    check 5 "submits_refused +1 ($r0 -> $r1)" "$([ -n "$r0" ] && [ "$r1" -eq $((r0 + 1)) ]; echo $?)"
+else
+    check 5 "open fails in the kernel" "$(printf '%s\n' "$out" | grep -q '^STEP open rc -1 '; echo $?)"
+    check 5 "submits_refused unchanged ($r0 -> $r1): no Arbiter code ran" "$([ -n "$r0" ] && [ "$r1" -eq "$r0" ]; echo $?)"
+fi
+check 5 "no decision was made ($d0 -> $d1)" "$([ -n "$d0" ] && [ "$d1" -eq "$d0" ]; echo $?)"
+check 5 "the published sequence did not move ($s0 -> $s1)" "$([ -n "$s0" ] && [ "$s1" = "$s0" ]; echo $?)"
+all_down
+if [ "$c" -eq 0 ]; then echo "PASS f11_untrusted_cannot_submit_commands_to_the_guardian ($MODE)"; else echo "FAIL f11_untrusted_cannot_submit_commands_to_the_guardian ($MODE)"; fail=1; fi
 
 # FR-S6: the code-level checks stand on their own. On the policy-off image, every
 # case above was refused by Arbiter's own checks and the kernel's abilities alone.

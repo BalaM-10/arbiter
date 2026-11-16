@@ -35,6 +35,7 @@
 
 #include "arb_arm_model.h"
 #include "arb_arm_proto.h"
+#include "arb_as_gateway.h"
 #include "arb_contract.h"
 #include "arb_devctl.h"
 #include "arb_pulses.h"
@@ -89,8 +90,9 @@ static int submit(int32_t q0, int32_t q1, uint32_t ms, arb_verdict_wire_t *w)
     u.cmd.target_urad[0] = q0;
     u.cmd.target_urad[1] = q1;
     u.cmd.duration_ms = ms;
-    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
-    rc = devctl(g_fd, ARB_DCMD_SUBMIT, &u, sizeof u, NULL);
+    /* As the gateway's user (FR-G10).
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
+    rc = arb_devctl_gw(g_fd, ARB_DCMD_SUBMIT, &u, sizeof u);
     *w = u.verdict;
     if (rc != EOK || w->verdict != ARB_VERDICT_ALLOW) {
         printf("info devctl rc %d verdict %u rule %u state %u\n", rc, (unsigned)w->verdict,
