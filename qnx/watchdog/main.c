@@ -25,7 +25,7 @@
  * to its own 66 (arb_privdrop.h). It still delivers the arm's events at 70:
  * measured on QEMU with the security policy, which allows the watchdog only
  * priorities 1-66, every FR-W2 and FR-W5 delivery to the arm worked
- * (evidence/runs/<date>-qemu_secpol/), so it does not need PRIORITY up to 70.
+ * (evidence/runs/2026-11-15-qemu_secpol/run-210754.log), so it does not need PRIORITY up to 70.
  *
  * FIFO 66: above the guardian, so a guardian spinning in a loop cannot starve it;
  * below only the arm's control loop (owner decision 2026-11-13, arb_prio.h).

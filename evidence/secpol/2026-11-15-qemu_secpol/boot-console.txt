@@ -1,4 +1,4 @@
-# Boot console of the qemu_secpol image (mkqnximage --secpol=secure, policy qnx/image/policy/arbiter.secpol), from its QEMU serial output (output/qemu.out), first 40 lines; terminal escape codes removed.
+# Boot console of the qemu_secpol image built at 59cb10a (mkqnximage --secpol=secure, policy qnx/image/policy/arbiter.secpol), from its QEMU serial output (output/qemu.out), first 40 lines; terminal escape codes removed.
 # The policy is pushed ("Loading security policy") before any other service starts; the Arbiter processes start later, from the test shell.
 SeaBIOS (version 1.15.0-1)
 iPXE (https://ipxe.org) 00:03.0 CA00 PCI2.10 PnP PMM+3FF8B1F0+3FECB1F0 CA00
