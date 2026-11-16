@@ -6,7 +6,12 @@ set -euo pipefail
 
 target_init "${1:-}"
 
-make -C "$REPO_ROOT/qnx" ARCH="$T_ARCH" >/dev/null
+# A clean build, so the binaries come from the current sources whatever the
+# files' modification times. run-tests.sh builds (and logs) first, then sets
+# ARB_PREBUILT=1 so that exactly the binaries it logged are deployed.
+if [ "${ARB_PREBUILT:-0}" != 1 ]; then
+    make -C "$REPO_ROOT/qnx" ARCH="$T_ARCH" clean all >/dev/null
+fi
 BUILD="$REPO_ROOT/build/$T_ARCH"
 
 "${SSH[@]}" "mkdir -p '$T_DIR'"

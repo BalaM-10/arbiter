@@ -49,8 +49,10 @@ mkdir -p "$OUTDIR"
     echo
     echo "## build (all architectures)"
     for a in "${ALL_ARCHS[@]}"; do
-        echo "\$ make -C qnx ARCH=$a"
-        mk_out="$(make -C "$REPO_ROOT/qnx" ARCH="$a" 2>&1)" || { printf '%s\n' "$mk_out"; die "build failed for $a"; }
+        # A clean build every time: the binaries must come from the sources of
+        # the commit in the log header, whatever the files' modification times.
+        echo "\$ make -C qnx ARCH=$a clean all"
+        mk_out="$(make -C "$REPO_ROOT/qnx" ARCH="$a" clean all 2>&1)" || { printf '%s\n' "$mk_out"; die "build failed for $a"; }
         printf '%s\n' "$mk_out" | grep -v -E '^make(\[[0-9]+\])?: (Entering|Leaving)' || true
         for f in $(find "$REPO_ROOT/build/$a" -maxdepth 1 -type f -perm -u+x | sort); do
             echo "  $(basename "$f")  sha256 $(sha256sum "$f" | cut -d' ' -f1)"
@@ -60,7 +62,7 @@ mkdir -p "$OUTDIR"
 } 2>&1 | tee "$LOG"
 [ "${PIPESTATUS[0]}" -eq 0 ] || exit 1
 
-"$(dirname "$0")/deploy.sh" "$T_NAME" | tee -a "$LOG"
+ARB_PREBUILT=1 "$(dirname "$0")/deploy.sh" "$T_NAME" | tee -a "$LOG"
 
 {
     echo
