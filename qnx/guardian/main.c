@@ -23,6 +23,9 @@
  * WATCHDOG) on its own when the watchdog itself is lost (fail-safe): the
  * connection to it dies (_PULSE_CODE_COIDDEATH, FR-W5) or its beat stops for
  * ARB_WD_BEAT_TIMEOUT_MS ticks (FR-W6).
+ * Commands (FR-G10): ARB_DCMD_SUBMIT only from the gateway's user, as the kernel
+ * reports the sender, on one submitter open at a time; when that open closes,
+ * NORMAL goes to HOLD at once. The status publishes the last sequence number.
  * E-stop (FR-W4): ARB_DCMD_ESTOP from any client enters SAFE_STOP (cause ESTOP)
  * and brakes the arm before the reply. Operator reset (FR-G5): ARB_DCMD_RESET,
  * only from the operator's user ID on a descriptor opened for writing, only in
@@ -83,12 +86,16 @@ static arb_wd_client_t      g_wd;
 static int                  g_wd_lost;              /* the watchdog itself is gone (FR-W5, FR-W6) */
 static int                  g_operator_set;         /* FR-G5: an operator user ID was given */
 static uid_t                g_operator_uid;
+/* FR-G10: the one open that commands come from (the gateway's), or NULL. Set on
+ * its first accepted SUBMIT, cleared when that open closes. Compared only, never
+ * dereferenced after the close (io_close_ocb clears it before the OCB is freed). */
+static const RESMGR_OCB_T  *g_submitter;
 
 /* What the system log last said (NFR-Q6). Owner: the same thread, after each message. */
 static struct {
     uint8_t  state, cause;
     uint32_t arm_faults, watchdog_trips, foreign_pulses, bad_messages, arm_pulse_errors, watchdog_lost;
-    uint32_t estops, resets, resets_refused;
+    uint32_t estops, resets, resets_refused, submits_refused;
 } g_logged;
 
 static uint64_t now_ns(void)
@@ -226,6 +233,20 @@ static int is_operator(int scoid)
     return ci.cred.euid == g_operator_uid;
 }
 
+/* FR-G10: commands only from the gateway's user, as the kernel reports the
+ * sender of this message (not the opener of the descriptor, and not a field the
+ * client wrote). Same check as is_operator().
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectclientinfo.html */
+static int is_gateway(int scoid)
+{
+    struct _client_info ci;
+
+    if (ConnectClientInfo(scoid, &ci, 0) == -1) {
+        return 0;                          /* unsure: refuse */
+    }
+    return ci.cred.euid == (uid_t)ARB_UID_GATEWAY;
+}
+
 static void to_wire(const arb_verdict_t *v, arb_verdict_wire_t *w)
 {
     memset(w, 0, sizeof *w);
@@ -278,11 +299,20 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
             g_status.bad_messages++;
             return EBADF;                  /* commands need a descriptor opened for writing */
         }
+        if (!is_gateway(ctp->info.scoid)) {
+            g_status.submits_refused++;
+            return EPERM;                  /* FR-G10: not the gateway's user */
+        }
+        if (g_submitter != NULL && g_submitter != ocb) {
+            g_status.submits_refused++;
+            return EBUSY;                  /* FR-G10: another open is the submitter */
+        }
         if (ctp->info.srcmsglen != (ssize64_t)want || ctp->size < want ||
             ctp->info.dstmsglen < (ssize64_t)want) {
             g_status.bad_messages++;
             return EBADMSG;                /* exact size in, room for the full verdict out */
         }
+        g_submitter = ocb;                 /* FR-G10: this open is the submitter until it closes */
         /* Copy the command out first: the reply is written over the same buffer. */
         memcpy(&cmd_copy, _IO_INPUT_PAYLOAD(msg), sizeof cmd_copy);
         {
@@ -310,6 +340,8 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
         g_status.state = g_guard.state;
         g_status.stop_cause = g_guard.stop_cause;
         g_status.clients = g_attr.count;
+        g_status.last_seq = g_guard.last_seq;      /* FR-G10: a restarted planner continues after it */
+        g_status.has_seq = g_guard.have_seq;
         memset(&msg->o, 0, sizeof msg->o);
         memcpy(_IO_OUTPUT_PAYLOAD(msg), &g_status, sizeof g_status);
         return _RESMGR_PTR(ctp, &msg->o, want);
@@ -343,16 +375,23 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
 
 /*
  * Last close of an open: runs when a client closes /dev/arbiter or terminates
- * for any reason, so a dead gateway is noticed at once (TM-C4).
+ * for any reason. When it is the submitter's open, NORMAL goes to HOLD at once,
+ * whatever other clients (logger, dashboard relay, arb-ctl) still hold the device
+ * open, so a dead gateway is noticed at once (TM-C4, FR-G5, FR-G10).
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.prog/topic/process_Client_termination.html
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/i/iofunc_close_ocb_default.html
  */
 static int io_close_ocb(resmgr_context_t *ctp, void *reserved, RESMGR_OCB_T *ocb)
 {
-    const int status = iofunc_close_ocb_default(ctp, reserved, ocb);
+    const int was_submitter = ocb == g_submitter;   /* before the default frees the OCB */
     const uint8_t before = g_guard.state;
+    int status;
 
-    if (g_attr.count == 0u) {
+    if (was_submitter) {
+        g_submitter = NULL;
+    }
+    status = iofunc_close_ocb_default(ctp, reserved, ocb);
+    if (was_submitter) {
         (void)arb_guard_client_lost(&g_guard);
         follow_state(before);
     }
@@ -478,8 +517,8 @@ static void log_count(uint32_t *logged, uint32_t now, uint16_t code, uint8_t sev
 
 /* NFR-Q6: write what changed since the last call. Called by the server loop
  * after each message or pulse is handled (so after its reply), and once at
- * startup with first = 1. Bounded: a fixed number of comparisons, at most six
- * bounded slog2 writes. */
+ * startup with first = 1. Bounded: a fixed number of comparisons and bounded
+ * slog2 writes (at most one per counter). */
 static void log_changes(int first)
 {
     if (first || g_guard.state != g_logged.state || g_guard.stop_cause != g_logged.cause) {
@@ -505,6 +544,8 @@ static void log_changes(int first)
     log_count(&g_logged.resets_refused, g_status.resets_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
               "operator reset refused: not the operator, not opened for writing, not stopped, "
               "no watchdog, or the arm refused (%lld so far)");
+    log_count(&g_logged.submits_refused, g_status.submits_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
+              "refused a command: not the gateway's user, or not the submitter's open (%lld so far)");
     if (g_status.watchdog_lost != g_logged.watchdog_lost) {
         g_logged.watchdog_lost = g_status.watchdog_lost;
         arb_log_c(ARB_LOG_FAULT, SLOG2_ERROR,
@@ -603,8 +644,10 @@ int main(int argc, char **argv)
     iofunc_func_init(_RESMGR_CONNECT_NFUNCS, &g_connect_funcs, _RESMGR_IO_NFUNCS, &g_io_funcs);
     g_io_funcs.devctl = io_devctl;
     g_io_funcs.close_ocb = io_close_ocb;
-    /* M1: 0666 while every process runs as root; M2 narrows access with users and
-     * the security policy (FR-S3). */
+    /* 0666: any user may open; what each may do is checked per message (FR-G10:
+     * commands only from the gateway's user; FR-G5: reset only from the operator;
+     * FR-W4: e-stop from anyone). On the policy image, only the listed types may
+     * connect at all (FR-S2). */
     iofunc_attr_init(&g_attr, S_IFNAM | 0666, NULL, NULL);
 
     memset(&rattr, 0, sizeof rattr);

@@ -2,7 +2,8 @@
 
 Status: **approved by the owner 2026-11-16**, with the exit rule tightened to
 "strictly shallower" (section 1). Responds to the midpoint review of 2026-11-15,
-findings B1 and Major 1. Section 1 is implemented; section 2 is next.
+findings B1 and Major 1. Both sections are implemented (section 2 with the two
+changes under "As built").
 
 ## 1. Keep-out on both links (B1)
 
@@ -93,22 +94,29 @@ area's corner at about 19 mm, and F5 gained a denied B1 command.
 
 | Request | Who | Checked how |
 | --- | --- | --- |
-| open read-only | any process that may connect (policy image: listed types only) | file mode |
-| open for writing | the gateway user (814) and the operator (800) | file mode 0664, owner 814, group with 814 and 800 |
+| open | any process that may connect (policy image: listed types only) | file mode 0666, unchanged (see "As built") |
 | `SUBMIT` (a command) | **the gateway user only**, on its one submitter open | kernel-reported euid of the sender (`ConnectClientInfo()`, as `is_operator()` does today), on every devctl |
 | `GET_STATUS` | any open | |
 | `ESTOP` | any open (D2, confirmed 2026-11-16: stopping is the safe direction) | |
 | `RESET` | the operator only, never through the gateway | existing check |
 
-The file mode is a first layer; the euid check at each `SUBMIT` is the one that
-counts, so it does not depend on the mode or on startup order. On the policy image
+The euid check at each `SUBMIT` is what counts, so it does not depend on the file
+mode, on who opened the descriptor or on startup order. On the policy image
 a new type `arb_gateway_t` may connect only to the guardian (FR-S2, second half),
 added in P6 when the gateway binary exists.
 
-**One submitter at a time.** The first write open by the gateway user takes the
-submitter slot. A second write open by the gateway user while the slot is held is
-refused with `EBUSY` at open. The slot is freed when that open closes for any
-reason, including the process dying (the kernel closes it).
+**One submitter at a time.** The first open that submits as the gateway's user
+takes the submitter slot. A submit on any other open while the slot is held is
+refused with `EBUSY`. The slot is freed when that open closes for any reason,
+including the process dying (the kernel closes it).
+
+**As built (2026-11-16), two changes from the proposal above**, both to stay inside
+what the QNX 8.0 pages document (rule 1): the file mode stays 0666 rather than
+0664 with an owner and group, because no 8.0 page read documents setting the
+attribute's owner after `iofunc_attr_init()`; and `EBUSY` comes at the second
+open's first submit rather than at open, because no 8.0 page read shows an
+`io_open` override. Neither changes who may command the arm: the per-message
+euid check refuses everyone but the gateway's user in both designs.
 
 ### "The gateway died", with several clients
 
@@ -119,15 +127,17 @@ reason, including the process dying (the kernel closes it).
   `NORMAL` to `HOLD`. Unchanged.
 - **Other clients die:** no state change.
 - Test: a status reader holds the device open while the submitter is killed; the
-  guardian is in `HOLD` within one tick and the arm stops on its segment.
+  guardian is in `HOLD` well inside the silence timeout (the test allows 50 ms
+  and reports the time).
 
 ### How a restarted planner learns the sequence number
 
-Proposed: **keep one sequence space for the guardian's lifetime** (as today,
+Decided: **keep one sequence space for the guardian's lifetime** (as today,
 replay protection survives everything) **and publish it**:
 
-- `arb_status_t` gains `last_seq` and a flag "has a sequence" (status layout
-  version bump; 48 to 56 bytes).
+- `arb_status_t` gains `last_seq`, `has_seq` and a `submits_refused` counter
+  (48 to 56 bytes; every reader is built from the same header, so the protocol
+  version stays 1).
 - The gateway reads the status when a planner connects and sends it a hello frame
   with `last_seq`; the planner starts at `last_seq + 1`. A restarted gateway does
   the same before accepting a planner.
@@ -137,21 +147,30 @@ replay protection survives everything) **and publish it**:
 
 ### Tests (written first, before any gateway code)
 
-- `fr_g10_only_the_gateway_user_may_submit`: root, the operator, the untrusted user
-  get `EPERM`; the gateway user gets a verdict.
-- `fr_g10_a_second_submitter_is_refused`: `EBUSY` while the first is open; allowed
-  after it closes.
-- `fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once`.
-- `fr_g10_status_reports_the_last_sequence`, and a restarted client that resumes
-  from it gets `ALLOW`.
-- `fr_g5_reset_through_the_gateway_is_refused` (promised in ARCHITECTURE).
-- F11 case 5: the untrusted user submits a command: `EPERM` with the policy off,
-  refused by the kernel with the policy on.
+All in `qnx/tests/test_guardian.c` unless noted; committed at 694f739 and seen
+failing on QEMU (`evidence/runs/2026-11-16-qemu/run-101158.log`, test_guardian
+normal 14/19, F11 case 5 failing).
 
-Test tools that submit today run as root; they will run as the gateway user.
+- `fr_g10_only_the_gateway_user_may_submit`: root, the operator, the untrusted user
+  and the guardian's user get `EPERM` on the same descriptor; the gateway user gets
+  a verdict.
+- `fr_g10_a_second_submitter_is_refused_until_the_first_closes`.
+- `fr_g10_status_reports_the_last_sequence`.
+- `fr_g10_restarted_client_resumes_after_the_published_sequence`: the old session's
+  last number is denied, the next one is allowed.
+- `fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once`.
+- `fr_g5_reset_through_the_gateway_is_refused` (promised in ARCHITECTURE).
+- F11 case 5 (`qnx/tests/f11_suite.sh`): the untrusted user submits a command:
+  `EPERM` with the policy off, refused at open by the kernel with the policy on.
+
+The test tools still run as root (they kill and stop trusted processes); each
+submit is made with the effective user ID set to the gateway's
+(`qnx/tests/arb_as_gateway.h`); the bench's `arb-inject` switches once at startup.
+The policy lets the root test shell take user 814 for this.
 
 ### Requirement IDs
 
 New **FR-G10** (approved 2026-11-16): "Only the gateway's user may submit commands, on one
 submitter connection at a time; the status publishes the last sequence number."
-FR-G5's client-loss sentence changes from "the last client" to "the submitter".
+FR-G5's client-loss rule now follows the submitter, not the last client
+(ARCHITECTURE, "States").

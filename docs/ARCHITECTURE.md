@@ -73,8 +73,9 @@ carries a setpoint.
 **States (FR-G5).** The guardian starts in `HOLD`. An accepted command (ALLOW or
 CLAMP) moves `HOLD` to `NORMAL`. No accepted command for longer than the
 silence timeout moves `NORMAL` to `HOLD`; denied commands do not count as
-activity. When the last client of `/dev/arbiter` closes or dies, `NORMAL` moves to
-`HOLD` at once (`arb_guard_client_lost()`). `SAFE_STOP` is entered on the violation threshold or an external fault
+activity. When the submitter's open of `/dev/arbiter` (the gateway's, FR-G10)
+closes or its process dies, `NORMAL` moves to `HOLD` at once
+(`arb_guard_client_lost()`), whatever other clients still hold the device open. `SAFE_STOP` is entered on the violation threshold or an external fault
 (arm-send timeout, watchdog, emergency stop) and is left only by an explicit
 operator reset, which returns to `HOLD`. Replay protection survives a reset.
 
@@ -168,8 +169,30 @@ send the setpoint to the arm     (TimerTimeout-bounded; timeout -> SAFE_STOP, DE
 commit: AI not silent, HOLD -> NORMAL; reply ALLOW/CLAMP
 ```
 
-A 1 ms timer pulse runs the silence timeout. When the last client closes or
-dies, the close handler moves `NORMAL` to `HOLD` at once.
+A 1 ms timer pulse runs the silence timeout. When the submitter's open closes or
+its process dies, the close handler moves `NORMAL` to `HOLD` at once.
+
+**Who may submit (FR-G10, midpoint review M1).** `/dev/arbiter` is mode 0666: any
+user may open it, and what each may do is checked per message.
+
+- `ARB_DCMD_SUBMIT` is accepted only from the **gateway's user** (814): the
+  guardian asks the kernel who sent this message (`ConnectClientInfo()` on its
+  scoid, effective user ID), so it does not matter who opened the descriptor, and
+  root is refused like anyone else. Refusals are `EPERM`, counted in
+  `submits_refused` and logged.
+- **One submitter at a time.** The first open that submits as the gateway's user
+  becomes the submitter; a submit on any other open while it is held gets `EBUSY`.
+  The slot is freed when that open closes, including when its process dies.
+- **Losing the submitter** moves `NORMAL` to `HOLD` at once (above), also while a
+  status reader holds the device open
+  (`fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once`).
+- **Sequence numbers after a restart.** There is one sequence space for the
+  guardian's lifetime, so a command captured in one session is denied in the next.
+  `GET_STATUS` publishes `last_seq` (with `has_seq`); a restarted planner, through
+  the gateway, continues after it.
+- On the security-policy image, only the listed types may connect to the guardian
+  at all (FR-S2); the untrusted type has no rule, so its open fails in the kernel
+  (F11 case 5).
 
 **The planner must keep talking.** Silence is measured from the last accepted
 command, not from the end of a move: a planner that sends one long move and then
@@ -196,8 +219,8 @@ commands on `/dev/arbiter`, run by the operator console `arb-ctl`:
   writing whose effective user ID, as the kernel reports it
   (`ConnectClientInfo()`), is the operator user ID given to `arb-guardian` at
   startup. Without that argument every reset is refused. Root is not the operator.
-  The gateway (M2 P6) will run under its own user ID, so a reset sent through it
-  is refused (to be tested in P6). Only in `SAFE_STOP`. The guardian first sends the arm a reset message
+  The gateway runs under its own user ID (814), so a reset sent through it is
+  refused (`fr_g5_reset_through_the_gateway_is_refused`). Only in `SAFE_STOP`. The guardian first sends the arm a reset message
   (bounded, 10 ms; the arm accepts it only from its bound guardian): the arm
   registers again with the watchdog and only then clears its latch, and refuses
   when no watchdog answers. Then the guardian registers again and goes to `HOLD`.
