@@ -185,7 +185,9 @@ user may open it, and what each may do is checked per message.
   The slot is freed when that open closes, including when its process dies.
 - **Losing the submitter** moves `NORMAL` to `HOLD` at once (above), also while a
   status reader holds the device open
-  (`fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once`).
+  (`fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once`: 0.382 ms from
+  the kill to `HOLD` in `evidence/runs/2026-11-16-qemu/run-102007.log` line 637,
+  QEMU, function only).
 - **Sequence numbers after a restart.** There is one sequence space for the
   guardian's lifetime, so a command captured in one session is denied in the next.
   `GET_STATUS` publishes `last_seq` (with `has_seq`); a restarted planner, through
