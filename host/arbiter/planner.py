@@ -50,6 +50,7 @@ class Step:
     gap_ms: int                 # wait before the next command
     tag: str                    # "walk", "dwell", or anything a caller wants
     waypoint: str | None        # set on the command that ends a walk to a named waypoint
+    seq: int | None = None      # a fixed sequence number (the bench replays old ones); None: the next one
 
 
 def scripted_plan(start: tuple[int, int] = (0, 0)) -> list[Step]:
@@ -150,8 +151,13 @@ def run(host: str, port: int, plan: list[Step], *, wait: bool = True,
         if log:
             log(f"WELCOME state {p.STATES.get(w.state, w.state)} has_seq {w.has_seq} last_seq {w.last_seq} "
                 f"session {w.session}: first seq {seq}")
+        # Each command at its planned time from the first, not from the last one's
+        # answer, so waiting for verdicts never stretches the plan.
+        t_start = time.monotonic()
+        t_plan = 0.0
         for step in plan:
-            t0 = time.monotonic()
+            if step.seq is not None:
+                seq = step.seq & 0xFFFFFFFF
             cmd = p.Command(seq, step.duration_ms, time.time_ns(), step.target_urad)
             c.send(cmd)
             r.commands.append(cmd)
@@ -164,8 +170,9 @@ def run(host: str, port: int, plan: list[Step], *, wait: bool = True,
                     f"{step.tag}{' ' + step.waypoint if step.waypoint else ''} -> "
                     f"{p.VERDICTS.get(v.verdict, 'none')} {p.RULES.get(v.rule, v.rule)} result {v.result}")
             seq = (seq + 1) & 0xFFFFFFFF
+            t_plan += step.gap_ms / 1000.0
             if wait:
-                c.pump(step.gap_ms / 1000.0 - (time.monotonic() - t0))
+                c.pump(t_start + t_plan - time.monotonic())
         if r.error is None:
             c.pump(TAIL_S if wait else 0.05)
     except ConnectionError:
@@ -173,6 +180,23 @@ def run(host: str, port: int, plan: list[Step], *, wait: bool = True,
     finally:
         c.close()
     return r
+
+
+def wait_ready(host: str, timeout_s: float = 30.0) -> bool:
+    """The gateway is up when its observer port answers with a WELCOME; the planner
+    port stays free for the planner."""
+    end = time.monotonic() + timeout_s
+    while time.monotonic() < end:
+        try:
+            with socket.create_connection((host, p.OBSERVER_PORT), timeout=2) as s:
+                s.settimeout(2)
+                b = s.recv(p.FRAME_LEN, socket.MSG_WAITALL)
+                if len(b) == p.FRAME_LEN and isinstance(p.decode(b), p.Welcome):
+                    return True
+        except (OSError, ValueError):
+            pass
+        time.sleep(0.2)
+    return False
 
 
 def check(r: RunResult, plan: list[Step]) -> list[str]:

@@ -5,12 +5,18 @@
 # trusted process is still alive, then stop them. Each scenario starts from a
 # clean state (home position, NORMAL, no counted violations).
 #
-#   ./bench_scenario.sh <contract.bin> < script
+#   ./bench_scenario.sh <contract.bin> [gateway] < script
+#
+# With "gateway" (decision D6: the scenarios about the AI side), the commands
+# come from the planner on the host through arb-gateway, and the script holds no
+# command: arb-inject only records the arm's telemetry and the guardian's status,
+# from before the gateway starts until after the host is done.
 #
 # Output: arb-inject's records, then ALIVE, SLOG and LOG lines. Exit: arb-inject's status.
 cd "$(dirname "$0")" || exit 1
 . ./arb_suite_lib.sh             # on the policy image each process starts as its type
-CONTRACT="${1:?usage: bench_scenario.sh <contract.bin>}"
+CONTRACT="${1:?usage: bench_scenario.sh <contract.bin> [gateway]}"
+VIA="${2:-inject}"
 LOGDIR=/tmp/arbiter-bench
 mkdir -p "$LOGDIR"
 rm -f "$LOGDIR"/*.log
@@ -32,8 +38,19 @@ $ARB_ON_LOGD ./arb-logd "$CONTRACT" "$LOGDIR/evidence.log" </dev/null >"$LOGDIR/
 LOGD=$!
 sleep 1
 
-./arb-inject <"$LOGDIR/script.txt"
-rc=$?
+if [ "$VIA" = gateway ]; then
+    ./arb-inject <"$LOGDIR/script.txt" >"$LOGDIR/inject.out" 2>&1 &
+    INJ=$!
+    sleep 0.2
+    $ARB_ON_GW ./arb-gateway </dev/null >"$LOGDIR/gateway.log" 2>&1 &
+    wait "$INJ"
+    rc=$?
+    cat "$LOGDIR/inject.out"
+    slay -f arb-gateway >/dev/null 2>&1
+else
+    ./arb-inject <"$LOGDIR/script.txt"
+    rc=$?
+fi
 
 alive() { kill -0 "$1" 2>/dev/null && echo 1 || echo 0; }
 echo "ALIVE watchdog $(alive "$WD") arm $(alive "$ARM") guardian $(alive "$GUARD")"
@@ -76,7 +93,7 @@ wait "$GUARD" 2>/dev/null
 wait "$ARM" 2>/dev/null
 kill "$WD" 2>/dev/null
 wait "$WD" 2>/dev/null
-for p in watchdog arm guardian logd; do
-    sed "s/^/LOG $p /" "$LOGDIR/$p.log"
+for p in watchdog arm guardian logd gateway; do
+    [ -r "$LOGDIR/$p.log" ] && sed "s/^/LOG $p /" "$LOGDIR/$p.log"
 done
 exit "$rc"

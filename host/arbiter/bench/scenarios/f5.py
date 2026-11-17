@@ -10,6 +10,7 @@ from ..spec import Spec
 from .common import baseline
 
 ID = "F5"
+TRANSPORT = "gateway"   # decision D6: about the AI side, so through the planner and gateway
 TITLE = "Keep-out violation"
 PASS_CONDITION = (
     "An allowed walk ends with the forearm under 30 mm from the operator's hand area; from there a target "

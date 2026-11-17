@@ -10,6 +10,7 @@ from ..spec import Spec
 from .common import baseline
 
 ID = "F4"
+TRANSPORT = "gateway"   # decision D6: about the AI side, so through the planner and gateway
 TITLE = "Joint limit violation"
 PASS_CONDITION = (
     "With the arm 5 degrees from the shoulder limit, a shoulder target 10 degrees past its limit and an "

@@ -5,12 +5,16 @@ from __future__ import annotations
 import datetime as dt
 import gzip
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
+from .. import planner as pl
+from .. import protocol as pr
 from ..contract import compile_file
 from . import checks as ck
 from . import report
+from . import transport as tr
 from .checks import TIMING_POLICY, Check, timing_judged
 from .records import parse
 from .scenarios import ALL
@@ -20,11 +24,40 @@ TARGET_SSH = REPO_ROOT / "scripts" / "target-ssh.sh"
 DEPLOY = REPO_ROOT / "scripts" / "deploy.sh"
 REMOTE_CONTRACT = "bench/contract.bin"
 SCENARIO_TIMEOUT_S = 180
+GATEWAY_READY_S = 30     # the target starts four processes before the gateway
 
 
 def _ssh(target: str, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run([str(TARGET_SSH), target, *args], input=stdin, capture_output=True, text=True,
                           timeout=SCENARIO_TIMEOUT_S, check=False)
+
+
+def _run_scenario(target: str, mod: Any, script: Any) -> tuple[str, int, pl.RunResult | None]:
+    """Run one scenario on the target; returns its output, exit status and, for a
+    scenario played through the gateway (D6), what the planner received."""
+    if getattr(mod, "TRANSPORT", "inject") != "gateway":
+        r = _ssh(target, "run", f"./bench_scenario.sh {REMOTE_CONTRACT}", stdin=script.text())
+        return r.stdout + "".join(f"STDERR {x}\n" for x in r.stderr.splitlines()), r.returncode, None
+    host = _ssh(target, "host").stdout.strip()
+    cmd = f"./bench_scenario.sh {REMOTE_CONTRACT} gateway"
+    with tempfile.TemporaryFile("w+", encoding="ascii") as rec:
+        rec.write(tr.record_only_script(script))
+        rec.seek(0)
+        side = subprocess.Popen([str(TARGET_SSH), target, "run", cmd],
+                                stdin=rec, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result: pl.RunResult | None = None
+    if pl.wait_ready(host, GATEWAY_READY_S):
+        result = pl.run(host, pr.PLANNER_PORT, tr.script_steps(script))
+    try:
+        out, err = side.communicate(timeout=SCENARIO_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        side.kill()
+        out, err = side.communicate()
+    if result is None:
+        err += "the gateway did not answer in time: no command was sent\n"
+    elif result.error is not None:
+        err += f"the gateway sent ERROR {result.error}\n"
+    return out + "".join(f"STDERR {x}\n" for x in err.splitlines()), side.returncode, result
 
 
 def _git(*args: str) -> str:
@@ -67,16 +100,28 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
         mod = ALL[sid]
         script = mod.build(spec)
         text = script.text()
-        print(f"{sid} {mod.TITLE}: {len(script.commands)} commands, {script.end_ms / 1000:.1f} s ...",
-              flush=True)
-        r = _ssh(target, "run", f"./bench_scenario.sh {REMOTE_CONTRACT}", stdin=text)
+        via = "planner -> gateway" if getattr(mod, "TRANSPORT", "inject") == "gateway" else "arb-inject"
+        print(f"{sid} {mod.TITLE}: {len(script.commands)} commands, {script.end_ms / 1000:.1f} s, "
+              f"via {via} ...", flush=True)
+        stdout, rc, played = _run_scenario(target, mod, script)
         (out / "raw" / f"{sid}.script").write_text(text, encoding="utf-8")
         with gzip.open(out / "raw" / f"{sid}.out.gz", "wt", encoding="utf-8") as f:
-            f.write(r.stdout)
-            if r.stderr:
-                f.write("".join(f"STDERR {line}\n" for line in r.stderr.splitlines()))
-        run = parse(r.stdout, r.returncode)
+            f.write(stdout)
+        run = parse(stdout, rc)
         run.target = target
+        transport = getattr(mod, "TRANSPORT", "inject")
+        if played is not None:
+            # D6: the verdicts the planner received, at the guardian's own decision
+            # times (its evidence log), so the windows sit on the arm's samples.
+            run.verdicts = tr.verdicts_from(played, run.evlog)
+            decided = [v.t_send_ns for v in run.verdicts if v.rc == 0]
+            run.t0_ns = decided[0] if decided else 0
+            with gzip.open(out / "raw" / f"{sid}.planner.gz", "wt", encoding="utf-8") as f:
+                for v in played.verdicts:
+                    f.write(f"VERDICT seq {v.seq} result {v.result} verdict {v.verdict} rule {v.rule} "
+                            f"state {v.state} fwd {v.fwd_urad[0]} {v.fwd_urad[1]} {v.fwd_duration_ms}\n")
+                f.write(f"TELEMETRY frames {len(played.telemetry)}; STATE frames {len(played.states)}; "
+                        f"error {played.error}\n")
         # This scenario's system log (SLOG lines from bench_scenario.sh), kept on its own.
         slog_text = "".join(f"{line}\n" for line in run.slog)
         (out / "raw" / f"{sid}.slog2.txt").write_text(slog_text, encoding="utf-8")
@@ -95,6 +140,7 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
             "checks": [{"name": c.name, "passed": c.passed, "detail": c.detail, "data": c.data}
                        for c in checks],
             "samples": len(run.samples), "commands": len(script.commands),
+            "transport": "planner -> gateway" if transport == "gateway" else "arb-inject",
             "raw": f"raw/{sid}.out.gz", "script": f"raw/{sid}.script", "slog2": f"raw/{sid}.slog2.txt",
             "evidence": f"raw/{sid}.evidence.log",
             "paths": report.tip_paths(run)})

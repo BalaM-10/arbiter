@@ -78,6 +78,8 @@ def _scenario_html(sc: dict[str, Any], spec: Spec) -> str:
     return (
         f'<h2>{e(sc["id"])} {e(sc["title"])}: {_status(sc["passed"])}</h2>'
         f'<p><b>Pass condition.</b> {e(sc["pass_condition"])}</p>'
+        f'<p><b>Commands sent by:</b> {e(sc.get("transport", "arb-inject"))}. '
+        f"Judged from the arm's own telemetry, read on the target.</p>"
         f'<div class="row">{_svg(sc, spec)}<div class="checks"><table>{checks}</table></div></div>'
         f"<details><summary>{len(verdicts)} commands and the guardian's verdicts "
         f"(the safety checks above use telemetry, not these)</summary>"

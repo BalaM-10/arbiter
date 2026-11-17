@@ -10,6 +10,7 @@ from ..spec import Spec
 from .common import baseline
 
 ID = "F9"
+TRANSPORT = "gateway"   # decision D6: about the AI side, so through the planner and gateway
 TITLE = "Replay"
 PASS_CONDITION = (
     "While the arm moves to target A, commands reusing the current sequence number or an older one, "

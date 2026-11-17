@@ -19,9 +19,7 @@ The whole output is saved under evidence/runs/<date>-<target>/planner-e2e-<time>
 from __future__ import annotations
 
 import datetime as dt
-import socket
 import subprocess
-import time
 from pathlib import Path
 
 from . import evidence
@@ -45,21 +43,6 @@ def _ssh(target: str, *args: str) -> subprocess.CompletedProcess[str]:
 def _git(*args: str) -> str:
     return subprocess.run(["git", "-C", str(REPO_ROOT), *args], capture_output=True, text=True,
                           check=False).stdout.strip()
-
-
-def _wait_ready(host: str) -> bool:
-    """The gateway is up when its observer port answers with a WELCOME (the planner port stays free)."""
-    end = time.monotonic() + READY_TIMEOUT_S
-    while time.monotonic() < end:
-        try:
-            with socket.create_connection((host, p.OBSERVER_PORT), timeout=2) as s:
-                b = s.recv(p.FRAME_LEN, socket.MSG_WAITALL)
-                if len(b) == p.FRAME_LEN and isinstance(p.decode(b), p.Welcome):
-                    return True
-        except (OSError, ValueError):
-            pass
-        time.sleep(0.5)
-    return False
 
 
 def fr_p1_scripted_planner_runs_pick_and_place_through_the_gateway(target: str, out_root: Path,
@@ -103,7 +86,7 @@ def fr_p1_scripted_planner_runs_pick_and_place_through_the_gateway(target: str, 
     result: pl.RunResult | None = None
     plan = pl.scripted_plan()
     try:
-        if not _wait_ready(host):
+        if not pl.wait_ready(host, READY_TIMEOUT_S):
             problems.append(f"the gateway at {host}:{p.OBSERVER_PORT} did not answer "
                             f"within {READY_TIMEOUT_S} s")
         else:

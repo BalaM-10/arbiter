@@ -12,6 +12,7 @@ from ..spec import Spec
 from .common import baseline
 
 ID = "F6"
+TRANSPORT = "gateway"   # decision D6: about the AI side, so through the planner and gateway
 TITLE = "Over-speed"
 PASS_CONDITION = (
     "Commands asking for up to 10 times the speed limit are CLAMP with the velocity rule, and the first "

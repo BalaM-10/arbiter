@@ -10,6 +10,7 @@ from ..spec import Spec
 from .common import baseline
 
 ID = "F1"
+TRANSPORT = "gateway"   # decision D6: about the AI side, so through the planner and gateway
 TITLE = "Normal operation"
 PASS_CONDITION = (
     "Every command of the pick-and-place path is ALLOW; telemetry shows the arm reaching every waypoint "
