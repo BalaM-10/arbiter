@@ -456,7 +456,8 @@ def fr_b1_gateway_transport_takes_command_times_from_the_guardians_evidence_log(
 # Decision D6: the scenarios about the AI side go planner -> gateway; those that need
 # on-target timing or a trusted process killed or stopped keep arb-inject.
 TRANSPORTS = {"F1": "gateway", "F2": "gateway", "F4": "gateway", "F5": "gateway", "F6": "gateway",
-              "F9": "gateway", "F13": "inject", "F14": "inject", "F15": "gateway"}
+              "F7": "gateway", "F8": "gateway", "F9": "gateway", "F10": "gateway", "F13": "inject",
+              "F14": "inject", "F15": "gateway"}
 
 
 @pytest.mark.parametrize("sid", sorted(TRANSPORTS))
@@ -566,3 +567,111 @@ def f15_tamper_check_names_the_changed_record() -> None:
     assert c.passed, c.detail
     assert "line 2" in c.detail                       # the second decision is line 2 of the log
     assert not ck.tampering_detected(Run()).passed                      # no log, nothing shown
+
+
+# ---------------------------------------------- M2 P7: F7, F8, F10 (host actions)
+
+def _acting_script() -> Script:
+    s = Script()
+    s.send((-100_000, 0), 300, "a", gap_ms=150)
+    s.send((-100_000, 0), 300, "a", gap_ms=100)
+    s.action("reset", gap_ms=400)
+    s.send((-200_000, 0), 300, "b", gap_ms=150)
+    s.action("garbage", "20")
+    s.end(after_ms=200)
+    return s
+
+
+def fr_b1_gateway_transport_plays_host_actions_at_their_time() -> None:
+    """A host action (here the operator reset) is a plan entry at its own time, between commands."""
+    from arbiter.bench import transport as tr
+
+    s = _acting_script()
+    plan = tr.script_steps(s)
+    assert [p.action or "C" for p in plan] == ["C", "C", "reset", "C"]
+    starts = [sum(p.gap_ms for p in plan[:i]) for i in range(len(plan))]
+    assert starts == [0, 150, 250, 650]
+    assert sum(p.gap_ms for p in plan) == s.end_ms
+
+
+def fr_b1_target_actions_go_to_arb_inject_even_through_the_gateway() -> None:
+    from arbiter.bench import transport as tr
+
+    lines = tr.record_only_script(_acting_script()).splitlines()
+    assert [x for x in lines if x.startswith("A ")] == [f"A {650 + 150 + tr.LEAD_MS} garbage 20"]
+    assert not any(x.startswith("C ") for x in lines)
+
+
+def fr_b1_gateway_transport_splits_sessions_at_malformed_frames() -> None:
+    """Malformed frames need the planner slot: the session before them ends, the next one starts after."""
+    from arbiter.bench import transport as tr
+
+    s = Script()
+    s.send((-100_000, 0), 300, "a")
+    s.action("malformed", "truncated")
+    s.action("malformed", "random")
+    s.send((-100_000, 0), 300, "b", seq=2)
+    s.end()
+    segs = tr.sessions(tr.script_steps(s))
+    assert [[p.action or "C" for p in seg] for seg in segs] == [["C"], ["malformed"], ["malformed"], ["C"]]
+
+
+def _f8_run(codes: dict[str, int], bad_messages: int) -> Run:
+    run = Run()
+    run.host_events = [{"name": "malformed", "arg": k, "error": v, "closed": True} for k, v in codes.items()]
+    run.statuses = [Status(0, 2, 0, 0, 0, 0, bad_messages, 0, 0)]
+    return run
+
+
+def f8_malformed_frames_each_get_their_error_and_a_close() -> None:
+    from arbiter.bench.scenarios import f8
+
+    good = {k: v for k, v in f8.EXPECTED_ERROR.items()}
+    assert ck.malformed_refused(_f8_run(good, 0), f8.EXPECTED_ERROR).passed
+    wrong = dict(good)
+    wrong["random"] = 0                                    # accepted, or no ERROR seen
+    assert not ck.malformed_refused(_f8_run(wrong, 0), f8.EXPECTED_ERROR).passed
+    missing = {k: v for k, v in list(good.items())[1:]}
+    assert not ck.malformed_refused(_f8_run(missing, 0), f8.EXPECTED_ERROR).passed
+
+
+def f8_raw_garbage_is_counted_as_bad_messages_exactly() -> None:
+    run = _f8_run({}, 20)
+    run.actions = [__import__("arbiter.bench.records", fromlist=["Action"]).Action(1, "garbage", "20", 0)]
+    assert ck.garbage_counted(run).passed
+    run.statuses = [Status(0, 2, 0, 0, 0, 0, 19, 0, 0)]
+    assert not ck.garbage_counted(run).passed
+
+
+def f10_gateway_kill_must_be_confirmed() -> None:
+    run = Run()
+    run.host_events = [{"name": "kill_gateway", "arg": "-", "rc": 0, "gone": True}]
+    assert ck.host_action_done(run, "kill_gateway").passed
+    run.host_events = [{"name": "kill_gateway", "arg": "-", "rc": 1, "gone": False}]
+    assert not ck.host_action_done(run, "kill_gateway").passed
+    assert not ck.host_action_done(Run(), "kill_gateway").passed
+
+
+def f7_script_reaches_the_threshold_inside_the_window_then_resets() -> None:
+    """The contract's threshold of counted denials falls inside its window, the operator
+    reset comes after the denied commands, and motion is asked for again after it."""
+    from arbiter.bench.scenarios import f7
+
+    s = f7.build(SPEC)
+    viol = [c.t_ms for c in s.commands if c.tag == "violation"]
+    assert len(viol) >= SPEC_VIOLATIONS[0]
+    assert viol[SPEC_VIOLATIONS[0] - 1] - viol[0] < SPEC_VIOLATIONS[1]
+    reset = [t for t, name, _ in s.actions if name == "reset"]
+    assert len(reset) == 1
+    assert all(c.t_ms < reset[0] for c in s.commands if c.tag in ("violation", "after"))
+    assert any(c.t_ms > reset[0] for c in s.commands if c.tag == "resumed")
+
+
+def _violations() -> tuple[int, int]:
+    import yaml
+
+    v = yaml.safe_load((ROOT / "contracts" / "default.yaml").read_text(encoding="utf-8"))["violations"]
+    return int(v["threshold"]), int(v["window_ms"])
+
+
+SPEC_VIOLATIONS = _violations()   # the contract as written: violations.threshold, violations.window_ms
