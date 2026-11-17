@@ -555,3 +555,10 @@ def final_state(run: Run, state: str) -> Check:
     st = run.statuses[-1].state
     return Check(f"guardian_ends_in_{state}", st == STATE[state],
                  f"guardian {STATE_NAME.get(st, st)} at the end")
+
+
+def decided_ms(run: Run, seq: int) -> int | None:
+    """When the guardian decided seq, in ms from the first decision (its evidence log):
+    the target's own clock, not the planned time (the host's sends drift a little)."""
+    d = next((x for x in decisions(run) if x.get("seq") == seq), None)
+    return None if d is None else int((d["t_ns"] - run.t0_ns) / 1e6)

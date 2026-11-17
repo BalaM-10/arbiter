@@ -42,10 +42,12 @@ def build(spec: Spec) -> Script:
 def f2_planner_silence_holds_the_arm_then_resumes(run: Run, script: Script, spec: Spec) -> list[Check]:
     out = baseline(run, script, spec)
     out.append(ck.verdicts_as_expected(run, script, {"move": ("ALLOW", "NONE"), "resume": ("ALLOW", "NONE")}))
-    # Stopped well after the silence timeout, until just before the planner returns.
-    out.append(ck.stopped_short(run, A, spec.silence_timeout_ms + 200, SILENCE_MS - 20,
-                                "arm_stopped_short_while_the_planner_was_silent"))
+    # Stopped well after the silence timeout, until just before the guardian decided the
+    # planner's next command (its evidence log: the target's clock, not the plan's).
     resume = script.commands[script.marks["resume"]]
+    back = ck.decided_ms(run, resume.seq)
+    out.append(ck.stopped_short(run, A, spec.silence_timeout_ms + 200, (back or SILENCE_MS) - 20,
+                                "arm_stopped_short_while_the_planner_was_silent"))
     out.append(ck.hold_recorded_before(run, resume.seq))
     out.append(ck.reached(run, resume, "reached_A_after_resuming"))
     out.append(ck.never_safe_stop(run))

@@ -679,3 +679,13 @@ def _violations() -> tuple[int, int]:
 
 
 SPEC_VIOLATIONS = _violations()   # the contract as written: violations.threshold, violations.window_ms
+
+
+def f2_window_ends_at_the_guardians_decision_time() -> None:
+    """The planner's return is placed by the guardian's own decision time, not the plan's."""
+    run = Run()
+    run.evlog, _ = _evlog([(1, 1, 0), (2, 1, 0)])
+    run.evlog = [x.replace(" t_ns 1 seq 2 ", " t_ns 767000001 seq 2 ") for x in run.evlog]
+    run.t0_ns = 1
+    assert ck.decided_ms(run, 2) == 767
+    assert ck.decided_ms(run, 9) is None

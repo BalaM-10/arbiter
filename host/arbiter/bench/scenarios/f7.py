@@ -54,10 +54,13 @@ def f7_violations_safe_stop_until_operator_reset(run: Run, script: Script, spec:
                                                      "violation": ("DENY", "JOINT_LIMIT"),
                                                      "after": ("DENY", "STATE"),
                                                      "resumed": ("ALLOW", "NONE")}))
-    out.append(ck.stopped_short(run, A, script.marks["stopped"] + 150, RESET_MS - 50,
+    # Braked and still from just after the third violation until the guardian decided the
+    # first command after the reset (its evidence log: the target's clock).
+    first = script.commands[script.marks["resumed"]]
+    back = ck.decided_ms(run, first.seq)
+    out.append(ck.stopped_short(run, A, script.marks["stopped"] + 150, (back or RESET_MS) - 20,
                                 "arm_braked_and_still_in_safe_stop"))
     out.append(ck.host_action_done(run, "reset"))
-    first = script.commands[script.marks["resumed"]]
     out.append(ck.hold_recorded_before(run, first.seq))
     out.append(ck.reached(run, first, "reached_B_after_the_reset"))
     return out
