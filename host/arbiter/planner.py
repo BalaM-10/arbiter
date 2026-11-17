@@ -197,11 +197,13 @@ def check(r: RunResult, plan: list[Step]) -> list[str]:
         if s.waypoint is None or i >= len(r.verdicts):
             continue
         nxt = next((j for j in starts if j > i), len(plan))
-        hit = any(i < after <= nxt and all(abs(t.pos_urad[k] - s.target_urad[k]) <= REACHED_TOL_URAD
-                                           for k in range(2))
-                  for after, t in r.telemetry)
-        if not hit:
-            problems.append(f"waypoint {s.waypoint} {s.target_urad} not reached in the telemetry")
+        window = [t for after, t in r.telemetry if i < after <= nxt]
+        dist = [max(abs(t.pos_urad[k] - s.target_urad[k]) for k in range(2)) for t in window]
+        if not any(d <= REACHED_TOL_URAD for d in dist):
+            problems.append(f"waypoint {s.waypoint} {s.target_urad} not reached in the telemetry: "
+                            f"{len(window)} frames while the planner paused there (after commands {i + 1} "
+                            f"to {nxt}), closest {min(dist) if dist else 'none'} µrad; "
+                            f"{len(r.telemetry)} frames in all")
     return problems
 
 
