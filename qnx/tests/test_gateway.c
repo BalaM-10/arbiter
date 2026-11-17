@@ -9,6 +9,9 @@
  *
  *   test_gateway run|kill <gateway-pid> <watchdog-pid> <arm-pid> <guardian-pid>
  *
+ * run: with the evidence logger (arb-logd) running, which relays the arm's
+ * telemetry to the gateway (decision D1). kill: without it.
+ *
  * QEMU proves function; the times printed are QEMU measurements, not claims.
  *
  * Sockets: the 8.0 C library reference lists the socket calls as "described
@@ -32,9 +35,11 @@
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 #include "arb_contract.h"
 #include "arb_devctl.h"
+#include "arb_ids.h"
 #include "arb_net_proto.h"
 #include "arb_telemetry.h"
 #include "arb_test.h"
@@ -707,6 +712,147 @@ static void fr_n3_a_stopped_gateway_holds_and_trusted_processes_run_on(void)
     ms_sleep(50);
 }
 
+/* Collect TELEMETRY frames for ms; each one is checked against the arm's own
+ * ring at the same index. Returns the number of frames that matched; *bad counts
+ * those that did not, or came out of order, or declared drops. */
+static int telemetry_for(int fd, long ms, int *bad, int *moving)
+{
+    const int64_t end = now_ms() + ms;
+    uint64_t last = 0;
+    int32_t first_pos = 0;
+    int n = 0;
+
+    *bad = 0;
+    *moving = 0;
+    for (int i = 0; i < 5000 && now_ms() < end; i++) {          /* bound: 5000 frames */
+        arb_net_frame_t f;
+        arb_telem_sample_t r;
+        const int got = recv_frame(fd, &f, (int)(end - now_ms()));
+
+        if (got != 1) {
+            break;
+        }
+        if (f.h.type != ARB_NET_TELEMETRY) {
+            continue;
+        }
+        r = g_telem->s[f.telemetry.index % ARB_TELEM_SLOTS];
+        if (r.index != f.telemetry.index || r.t_ns != f.telemetry.t_ns || r.pos_urad[0] != f.telemetry.pos_urad[0] ||
+            r.pos_urad[1] != f.telemetry.pos_urad[1] || r.vel_urad_s[0] != f.telemetry.vel_urad_s[0] ||
+            r.vel_urad_s[1] != f.telemetry.vel_urad_s[1] || r.segment != f.telemetry.segment ||
+            r.state != f.telemetry.arm_state || r.lease_ok != f.telemetry.lease_ok ||
+            (n > 0 && f.telemetry.index <= last) || f.telemetry.dropped != 0 || f.telemetry.reserved != 0 ||
+            !all_zero(f.telemetry.zero, sizeof f.telemetry.zero)) {
+            if (*bad < 3) {
+                printf("  frame index %llu does not match the arm's ring (ring index %llu)\n",
+                       (unsigned long long)f.telemetry.index, (unsigned long long)r.index);
+            }
+            (*bad)++;
+            continue;
+        }
+        if (n == 0) {
+            first_pos = f.telemetry.pos_urad[0];
+        } else if (f.telemetry.pos_urad[0] != first_pos) {
+            *moving = 1;
+        }
+        last = f.telemetry.index;
+        n++;
+    }
+    return n;
+}
+
+/* NFR-I1, D1: the arm's telemetry ring is 0640 and belongs to the logger's group,
+ * so the gateway's user cannot open it; the gateway gets telemetry only from the
+ * logger, by message passing. */
+static void nfr_i1_gateway_user_cannot_open_the_arm_telemetry(void)
+{
+    struct stat st;
+    int fd, e;
+
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/fstat.html */
+    fd = shm_open(ARB_TELEM_NAME, O_RDONLY, 0);
+    CHECK(fd != -1 && fstat(fd, &st) == 0);
+    if (fd != -1) {
+        CHECK_EQ_INT(st.st_mode & 0777, 0640);
+        CHECK_EQ_INT(st.st_uid, ARB_UID_ARM);
+        CHECK_EQ_INT(st.st_gid, ARB_UID_LOGD);
+        (void)close(fd);
+    }
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/seteuid.html */
+    CHECK(seteuid((uid_t)ARB_UID_GATEWAY) == 0);
+    fd = shm_open(ARB_TELEM_NAME, O_RDONLY, 0);
+    e = errno;
+    CHECK(seteuid(0) == 0);
+    CHECK(fd == -1 && e == EACCES);
+    if (fd != -1) {
+        (void)close(fd);
+    }
+    printf("  arm telemetry: mode %o, owner %u, group %u; the gateway's user: %s\n", (unsigned)(st.st_mode & 0777),
+           (unsigned)st.st_uid, (unsigned)st.st_gid, fd == -1 ? strerror(e) : "opened it");
+}
+
+/* FR-N4, D1: the planner receives the arm's joint state, about every 10 ms, each
+ * frame exactly the arm's own sample at that index, while the arm moves. */
+static void fr_n4_planner_gets_arm_telemetry_through_the_logger(void)
+{
+    arb_net_welcome_t w;
+    const int fd = planner_open(&w);
+    int n, bad, moving;
+
+    CHECK(fd != -1);
+    if (fd == -1) {
+        return;
+    }
+    CHECK(step(fd, NULL));                       /* a 300 ms move */
+    n = telemetry_for(fd, 500, &bad, &moving);
+    printf("  500 ms: %d TELEMETRY frames matching the arm's ring, %d not; arm moving: %s (QEMU, function only)\n",
+           n, bad, moving ? "yes" : "no");
+    CHECK(n >= 25);                              /* about 50 at 10 ms; QEMU proves function */
+    CHECK_EQ_INT(bad, 0);
+    CHECK(moving);
+    (void)close(fd);
+    ms_sleep(50);
+}
+
+/* FR-N4: observers receive the same telemetry. */
+static void fr_n4_observer_gets_arm_telemetry(void)
+{
+    arb_net_frame_t f;
+    const int ob = gw_connect(ARB_NET_OBSERVER_PORT);
+    int n, bad, moving;
+
+    CHECK(ob != -1);
+    if (ob == -1) {
+        return;
+    }
+    CHECK_EQ_INT(recv_type(ob, ARB_NET_WELCOME, &f, WAIT_MS), 1);
+    n = telemetry_for(ob, 500, &bad, &moving);
+    printf("  observer, 500 ms: %d TELEMETRY frames matching the arm's ring, %d not\n", n, bad);
+    CHECK(n >= 25);
+    CHECK_EQ_INT(bad, 0);
+    (void)close(ob);
+    ms_sleep(50);
+}
+
+/* D1, FR-E5's spirit for the gateway: without the logger there is no telemetry,
+ * and commands are decided exactly as before. */
+static void fr_n4_without_the_logger_commands_are_still_decided(void)
+{
+    arb_net_welcome_t w;
+    const int fd = planner_open(&w);
+    int n, bad, moving;
+
+    CHECK(fd != -1);
+    if (fd == -1) {
+        return;
+    }
+    CHECK(step(fd, NULL));
+    n = telemetry_for(fd, 300, &bad, &moving);
+    CHECK_EQ_INT(n + bad, 0);
+    CHECK(step(fd, NULL));
+    (void)close(fd);
+    ms_sleep(50);
+}
+
 /* FR-W4 through the gateway: ESTOP puts the guardian in SAFE_STOP (cause e-stop),
  * the planner and observers are told by STATE, and later commands are denied by
  * the state rule. No frame can reset it. Runs last: it leaves SAFE_STOP. */
@@ -818,9 +964,13 @@ static const arb_test_case_t run_cases[] = {
     ARB_TEST_CASE(fr_n4_observer_is_read_only),
     ARB_TEST_CASE(fr_n4_one_observer_too_many_is_refused_busy),
     ARB_TEST_CASE(fr_n3_a_stopped_gateway_holds_and_trusted_processes_run_on),
+    ARB_TEST_CASE(nfr_i1_gateway_user_cannot_open_the_arm_telemetry),
+    ARB_TEST_CASE(fr_n4_planner_gets_arm_telemetry_through_the_logger),
+    ARB_TEST_CASE(fr_n4_observer_gets_arm_telemetry),
     ARB_TEST_CASE(fr_w4_estop_through_the_gateway),                  /* leaves SAFE_STOP: last */
 };
 static const arb_test_case_t kill_cases[] = {
+    ARB_TEST_CASE(fr_n4_without_the_logger_commands_are_still_decided),
     ARB_TEST_CASE(fr_n3_killing_the_gateway_mid_move_holds_and_trusted_processes_run_on),
 };
 

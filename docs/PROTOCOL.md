@@ -112,7 +112,12 @@ Rules: 0 none (`ALLOW`), 1 malformed, 2 sequence, 3 rate, 4 joint limit,
 If `result` is 2 the gateway then sends ERROR 7 and closes: the planner
 reconnects and resumes from the new WELCOME.
 
-TELEMETRY (FR-A6, FR-N4), one arm sample out of every ten:
+TELEMETRY (FR-A6, FR-N4): the arm's newest sample, about every 10 ms. The arm
+writes one sample per 1 ms control cycle, so consecutive frames' `index`
+differs by about 10; a larger step means the gateway was late. The gateway
+maps no trusted memory: the evidence logger reads the arm's ring and answers
+the gateway by message passing (decision D1, NFR-I1). Without the logger
+there is no TELEMETRY, and commands work as before.
 
 | Offset | Size | Field |
 | --- | --- | --- |
@@ -125,7 +130,7 @@ TELEMETRY (FR-A6, FR-N4), one arm sample out of every ten:
 | 40 | 4 | `segment`: increments with every setpoint the arm accepted |
 | 44 | 1 | `arm_state`: 1 idle, 2 moving, 3 stopping, 4 braked |
 | 45 | 1 | `lease_ok`: 1 while the arm's motion lease is valid |
-| 48 | 4 | `dropped`: TELEMETRY frames this client missed since the last one it got (its socket was full, or the relay fell behind) |
+| 48 | 4 | `dropped`: TELEMETRY frames this client missed since the last one it got, because its send queue was full |
 
 Telemetry is a view for planners and dashboards. The fault bench does not
 judge from it: the bench reads the arm's own ring on the target.

@@ -9,13 +9,21 @@ cd "$(dirname "$0")" || exit 1
 CONTRACT=contract-corpus/contract.bin
 fail=0
 
-up() {
+EV=/tmp/arbiter-gateway-test
+
+up() {             # up [logd]: with "logd", also the evidence logger, which relays telemetry (D1)
     $ARB_ON_WD ./arb-watchdog </dev/null >/dev/null 2>&1 &
     sleep 1
     $ARB_ON_ARM ./arb-arm "$CONTRACT" </dev/null >/dev/null 2>&1 &
     sleep 1
     $ARB_ON_GUARD ./arb-guardian "$CONTRACT" </dev/null >/dev/null 2>&1 &
     sleep 1
+    if [ "${1:-}" = logd ]; then
+        rm -rf "$EV"
+        mkdir -p "$EV"
+        $ARB_ON_LOGD ./arb-logd "$CONTRACT" "$EV/evidence.log" </dev/null >"$EV/logd.out" 2>&1 &
+        sleep 1
+    fi
     $ARB_ON_GW ./arb-gateway </dev/null >/tmp/arb-gateway.out 2>&1 &
     sleep 1
     WD=$(pid_of arb-watchdog)
@@ -25,17 +33,18 @@ up() {
 }
 
 down() {
-    for p in arb-gateway arb-guardian arb-arm arb-watchdog; do
+    for p in arb-gateway arb-logd arb-guardian arb-arm arb-watchdog; do
         slay -f "$p" >/dev/null 2>&1
     done
     sleep 1
 }
 
-echo "## FR-N1, FR-N2, FR-N4, FR-G10, FR-W4: the gateway, from a planner and observers"
+echo "## FR-N1, FR-N2, FR-N4, FR-G10, FR-W4, NFR-I1: the gateway, from a planner and observers, with the logger"
 down
-up
-echo "pids: watchdog $WD arm $ARM guardian $GUARD gateway ${GW:-none}"
+up logd
+echo "pids: watchdog $WD arm $ARM guardian $GUARD logger $(pid_of arb-logd) gateway ${GW:-none}"
 cat /tmp/arb-gateway.out
+ls -l /dev/shmem/arbiter_arm_telemetry /dev/shmem/arbiter_decisions
 if [ -z "$GW" ]; then
     echo "FAIL arb-gateway is not running"
     fail=1
@@ -76,7 +85,7 @@ fi
 ./test_gateway run "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
 down
 
-echo "## FR-N3: the gateway killed mid-move"
+echo "## FR-N3: the gateway killed mid-move (and FR-N4: commands without the logger)"
 up
 ./test_gateway kill "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
 down
