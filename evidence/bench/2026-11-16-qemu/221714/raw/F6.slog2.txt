@@ -1,0 +1,13 @@
+watchdog Nov 17 04:15:10.961          arb_watchdog.25821206                 main*     1  privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+watchdog Nov 17 04:15:10.961          arb_watchdog.25821206                 main      1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+watchdog Nov 17 04:15:11.963          arb_watchdog.25821206                 main      8  registered the arm, pid 25837591
+watchdog Nov 17 04:15:12.968          arb_watchdog.25821206                 main      8  registered the guardian, pid 25853976
+arm Nov 17 04:15:11.963               arb_arm.25837591                 main*     1  privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arm Nov 17 04:15:11.963               arb_arm.25837591                 main      1  ready as arbiter_arm, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arm Nov 17 04:15:12.968               arb_arm.25837591                 main      8  bound the guardian, pid 25853976: only it may command the arm
+arm Nov 17 04:15:15.575               arb_arm.25837591                 main      6  guardian HOLD: stopping along the segment (1 so far)
+guardian Nov 17 04:15:12.968          arb_guardian.25853976                 main*     1  privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+guardian Nov 17 04:15:12.968          arb_guardian.25853976                 main      1  ready on /dev/arbiter, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+guardian Nov 17 04:15:12.968          arb_guardian.25853976                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 17 04:15:13.973          arb_guardian.25853976                 main      3  state NORMAL
+guardian Nov 17 04:15:15.575          arb_guardian.25853976                 main      3  state HOLD (no command within the silence timeout, or no client)
