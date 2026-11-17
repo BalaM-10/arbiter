@@ -28,6 +28,11 @@
 #    - user_root_t may also take the gateway's user ID 814 (setuid:814, which
 #      seteuid() uses): the test tools submit commands as the gateway's user,
 #      the only user the guardian accepts commands from (FR-G10, 2026-11-16).
+#    - arb_guardian_t may use iofunc/chown while it is still root (this set has
+#      no nonroot): at startup it gives its decision ring to the logger's
+#      group, so the gateway's user cannot open it (FR-G8, NFR-I1, 2026-11-16).
+#      Without it fchown() on the ring is refused with EACCES on this image.
+#      QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.security.system/topic/manual/abilities_reference.html
 #    - arb_untrusted_t added by hand (the attacker never ran in develop mode);
 #      user_root_t's gain_priv adds public_channel, which secpolcompile requires
 #      before user_root_t may start a type that has it (the attacker needs a
@@ -81,6 +86,7 @@ type sshd_t__privsep;
 type user_root_t;
 
 ability iofunc/dup allow { root };
+ability iofunc/chown allow { root };
 ability vfs/mount-blk allow { root };
 ability vfs/pregrow allow { root };
 ability vfs/relearn allow { root };
@@ -131,6 +137,7 @@ allow arb_guardian_t self:ability {
 allow arb_guardian_t self:ability {
     setuid:810
     setgid:0,810
+    iofunc/chown
     pathspace
     prot_exec
     priority:1-64
