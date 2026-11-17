@@ -167,6 +167,22 @@ arb_wd_up
 arb_arm_up
 arb_guard_up
 ./test_e2e operator "$WD" || fail=1
+# FR-G5 with FR-W6: during the repeated resets, the arm and the guardian each
+# recognise beats the watchdog delivered under their previous registration (still
+# queued when they registered again) as stale, not forged, and log it.
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slog2info.html
+c=0
+for spec in "arb_arm $ARM" "arb_guardian $GUARD"; do
+    set -- $spec
+    line=$(slog2info -b "$1" | grep "$1.$2 " | grep "of the previous registration" | tail -1)
+    if [ -n "$line" ]; then echo "  ok   $1: $line"; else echo "  FAIL $1: no stale-event line in slog2"; c=1; fi
+done
+if [ "$c" -eq 0 ]; then
+    echo "PASS fr_g5_stale_watchdog_events_after_a_reset_are_recognised"
+else
+    echo "FAIL fr_g5_stale_watchdog_events_after_a_reset_are_recognised"
+    fail=1
+fi
 arb_down
 
 # The operator console. uid 800 cannot enter root's home, where the binaries are,

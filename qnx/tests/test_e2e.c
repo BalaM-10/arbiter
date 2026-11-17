@@ -642,6 +642,47 @@ static void fr_g5_motion_resumes_after_operator_reset(void)
     CHECK(moved);
 }
 
+/* FR-G5 with FR-W6: an operator reset registers the arm and the guardian with the
+ * watchdog again, each under a new token. A beat the watchdog delivered under the
+ * old registration may still be queued, or arrive, as the new one takes over: it
+ * is the watchdog's own, not a forgery, and must not be counted as one (F7 at
+ * 325e3b0 counted one in the arm and one in the guardian). 100 e-stop and reset
+ * cycles, each reset at a different point of the watchdog's 2 ms beat. */
+static void fr_g5_repeated_resets_never_count_the_watchdogs_own_pulses_as_forged(void)
+{
+    arb_status_t st0, st;
+    uint64_t rej0, lost0;
+    int ok = 0;
+
+    CHECK_EQ_INT(get_status(&st0), EOK);
+    rej0 = tm_count(&g_tm->rejected);
+    lost0 = tm_count(&g_tm->wd_lost);
+    for (int k = 0; k < 100; k++) {                     /* bound: 100 cycles */
+        const struct timespec d = { 0, (long)(k % 10) * 250000L };   /* 0 to 2.25 ms: across one beat */
+        if (devctl(g_fd, ARB_DCMD_ESTOP, NULL, 0, NULL) != EOK) {
+            break;
+        }
+        ms_sleep(3);
+        /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/nanosleep.html */
+        (void)nanosleep(&d, NULL);
+        if (devctl_as(OPERATOR_UID, O_RDWR, ARB_DCMD_RESET, NULL) == EOK) {
+            ok++;
+        }
+        ms_sleep(5);
+    }
+    ms_sleep(20);
+    CHECK_EQ_INT(get_status(&st), EOK);
+    printf("info 100 e-stop and reset cycles: %d resets done; arm counted %llu pulses as forged, guardian %u; "
+           "arm lost the watchdog %llu times, guardian %u\n", ok,
+           (unsigned long long)(tm_count(&g_tm->rejected) - rej0), st.foreign_pulses - st0.foreign_pulses,
+           (unsigned long long)(tm_count(&g_tm->wd_lost) - lost0), (unsigned)(st.watchdog_lost - st0.watchdog_lost));
+    CHECK_EQ_INT(ok, 100);
+    CHECK_EQ_INT(tm_count(&g_tm->rejected) - rej0, 0);
+    CHECK_EQ_INT(st.foreign_pulses - st0.foreign_pulses, 0);
+    CHECK_EQ_INT(tm_count(&g_tm->wd_lost) - lost0, 0);
+    CHECK_EQ_INT(st.watchdog_lost, st0.watchdog_lost);
+}
+
 /* FR-G5 with FR-W5: no reset while the watchdog is absent; the arm refuses (it
  * cannot register with a watchdog) and both stay stopped. */
 static void fr_g5_reset_refused_while_watchdog_absent(void)
@@ -852,6 +893,7 @@ static const arb_test_case_t operator_cases[] = {
     ARB_TEST_CASE(fr_w4_estop_from_any_client_safe_stops_within_2_cycles),
     ARB_TEST_CASE(fr_g5_reset_only_from_operator),
     ARB_TEST_CASE(fr_g5_motion_resumes_after_operator_reset),
+    ARB_TEST_CASE(fr_g5_repeated_resets_never_count_the_watchdogs_own_pulses_as_forged),
     ARB_TEST_CASE(fr_g5_reset_refused_while_watchdog_absent),
     ARB_TEST_CASE(fr_w5_motion_resumes_only_after_watchdog_back_and_reset),
 };
@@ -901,7 +943,7 @@ int main(int argc, char **argv)
             return arb_test_run("test_e2e wdstopped", wdstopped_cases, 3);
         }
         if (strcmp(mode, "operator") == 0) {
-            return arb_test_run("test_e2e operator", operator_cases, 5);
+            return arb_test_run("test_e2e operator", operator_cases, (int)(sizeof operator_cases / sizeof operator_cases[0]));
         }
         if (strcmp(mode, "wdforged") == 0) {
             return arb_test_run("test_e2e wdforged", wdforged_cases, 1);
