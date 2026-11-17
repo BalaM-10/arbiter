@@ -18,6 +18,7 @@ TESTS_POLICY_OFF=(
     "watchdog_suite.sh:arb-watchdog on QNX: priority, stuck by missed heartbeats, death by process-manager notice, brake and SAFE_STOP events, forged notices and heartbeats ignored (FR-W1..W3)"
     "arm_suite.sh:arb-arm on QNX alone and end to end with arb-guardian and arb-watchdog: loop period, telemetry, sender binding, lease, disconnect brake, HOLD, watchdog trips (FR-A1..A6, FR-G5, FR-G6, FR-W1..W3, NFR-I3)"
     "guardian_suite.sh:arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)"
+    "gateway_suite.sh:arb-gateway on QNX: planner and observers over TCP (docs/PROTOCOL.md), malformed frames, one planner, HOLD on disconnect, resume at last_seq + 1, e-stop, stopped and killed gateway, its own user (FR-N1..N4, FR-G10, FR-W4, NFR-I5)"
     "f11_suite.sh off:F11 bypass with the policy off: an untrusted user's setpoint to the arm, binding the arm before the guardian starts, attaching /dev/arbiter first (F11, FR-G6)"
 )
 # Policy on (the security-policy image, D5): the policy read back and checked,
@@ -27,6 +28,7 @@ TESTS_POLICY_OFF=(
 # watchdog under the policy (owner decision 2026-11-15).
 TESTS_POLICY_ON=(
     "policy_suite.sh:the loaded security policy and the system under it: types, connect and attach rules read back with secpol, pushed at boot, end to end, NFR-I5, operator console (FR-S1..S5, NFR-I5, FR-W4, FR-G5)"
+    "gateway_suite.sh:arb-gateway as its own type: the same gateway tests under the policy (FR-N1..N4, FR-G10, FR-W4, NFR-I5, FR-S1, FR-S2)"
     "f11_suite.sh on:F11 bypass with the policy on: the same four cases, refused in the kernel before any Arbiter code runs (F11, FR-S2, FR-S3)"
 )
 ALL_ARCHS=(x86_64 aarch64le)

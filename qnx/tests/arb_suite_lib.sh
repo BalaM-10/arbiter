@@ -9,12 +9,14 @@ if [ -e /proc/boot/secpolpush ]; then
     ARB_ON_ARM="on -T arb_arm_t"
     ARB_ON_GUARD="on -T arb_guardian_t"
     ARB_ON_LOGD="on -T arb_logd_t"
+    ARB_ON_GW="on -T arb_gateway_t"
 else
     ARB_POLICY_IMAGE=0
     ARB_ON_WD=
     ARB_ON_ARM=
     ARB_ON_GUARD=
     ARB_ON_LOGD=
+    ARB_ON_GW=
 fi
 
 # The pid of the newest process with this name (a process started through on
@@ -42,3 +44,5 @@ i5_check() {
 I5_WD_LINE="privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()"
 I5_ARM_LINE="privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()"
 I5_GUARD_LINE="privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()"
+I5_GW_LINE="privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()"
+I5_GW_SOCKET_LINE="refused as expected after the drop: socket() (no new socket of any kind)"
