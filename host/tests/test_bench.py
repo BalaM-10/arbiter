@@ -7,6 +7,7 @@ judgment fails: a check that cannot fail proves nothing.
 
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import replace
 from itertools import pairwise
@@ -334,7 +335,8 @@ def fr_b3_bench_exits_nonzero_when_a_scenario_fails(monkeypatch: pytest.MonkeyPa
     rc = runner.run_bench("qemu", ROOT / "contracts" / "default.yaml", ["F9"], tmp_path, deploy=False)
     assert rc == 1
     reports = list(tmp_path.glob("*/*/report.json"))
-    assert len(reports) == 1 and '"passed": false' in reports[0].read_text()
+    assert len(reports) == 1
+    assert json.loads(reports[0].read_text())["scenarios"][0]["passed"] is False
     assert (reports[0].parent / "report.html").exists()
     assert (reports[0].parent / "raw" / "F9.slog2.txt").exists()       # the system log is kept per scenario
 

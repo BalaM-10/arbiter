@@ -12,8 +12,9 @@ from .records import Run
 from .spec import Spec
 
 
-def tip_paths(run: Run, every: int = 10) -> dict[str, list[list[float]]]:
-    """Downsampled elbow and tip paths in mm, for the report's top view."""
+def tip_paths(run: Run, every: int = 25) -> dict[str, list[list[float]]]:
+    """Downsampled elbow and tip paths in mm, for the report's top view (every 25 ms: a drawing;
+    the checks use every sample)."""
     out: dict[str, list[list[float]]] = {"elbow": [], "tip": []}
     for s in run.samples[::every]:
         e, t = kin.elbow_tip(s.pos[0], s.pos[1])
@@ -87,7 +88,8 @@ def _scenario_html(sc: dict[str, Any], spec: Spec) -> str:
 
 
 def write(report: dict[str, Any], spec: Spec, out: Path) -> None:
-    (out / "report.json").write_text(json.dumps(report, indent=1) + "\n", encoding="utf-8")
+    # Compact: the report is a view of raw/, which holds the records themselves.
+    (out / "report.json").write_text(json.dumps(report, separators=(",", ":")) + "\n", encoding="utf-8")
     e = html.escape
     m = report["meta"]
     meta = (f'{e(m["started"])} · target {e(m["target"])} (<code>{e(m["uname"])}</code>) · '
