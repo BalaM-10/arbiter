@@ -1,0 +1,16 @@
+watchdog Nov 17 21:53:34.454          arb_watchdog.23650326                 main*     1  privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+watchdog Nov 17 21:53:34.454          arb_watchdog.23650326                 main      1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+watchdog Nov 17 21:53:35.458          arb_watchdog.23650326                 main      8  registered the arm, pid 23666711
+watchdog Nov 17 21:53:36.475          arb_watchdog.23650326                 main      8  registered the guardian, pid 23699480
+arm Nov 17 21:53:35.457               arb_arm.23666711                 main*     1  privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arm Nov 17 21:53:35.458               arb_arm.23666711                 main      1  ready as arbiter_arm, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arm Nov 17 21:53:36.475               arb_arm.23666711                 main      8  bound the guardian, pid 23699480: only it may command the arm
+arm Nov 17 21:53:38.682               arb_arm.23666711                 main      6  guardian SAFE_STOP: braked and latched (1 so far)
+guardian Nov 17 21:53:36.475          arb_guardian.23699480                 main*     1  privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+guardian Nov 17 21:53:36.475          arb_guardian.23699480                 main      1  ready on /dev/arbiter, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+guardian Nov 17 21:53:36.475          arb_guardian.23699480                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 17 21:53:38.532          arb_guardian.23699480                 main      3  state NORMAL
+guardian Nov 17 21:53:38.682          arb_guardian.23699480                 main      3  state SAFE_STOP, cause e-stop
+guardian Nov 17 21:53:38.682          arb_guardian.23699480                 main      3  emergency stop received (1 so far)
+logd Nov 17 21:53:37.490              arb_logd.23724057                 main*     1  privileges dropped: uid 813 gid 813; kept PRIORITY 1-30; refused as expected: setuid(0), priority 31, fork()
+logd Nov 17 21:53:37.490              arb_logd.23724057                 main      1  ready, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
