@@ -3,8 +3,8 @@
 
 Checks, against the policy-off QEMU run logs in evidence/runs/*-qemu/:
   - the README's `SUMMARY <n>/<m> tests passed on qemu`: m equals the newest
-    log's total (a suite was added or removed: update the README), and n/m equals
-    the newest fully passing log's summary;
+    log's total when that log passes (a suite was added or removed: update the
+    README), and n/m equals the newest fully passing log's summary;
   - the README's `RESULT PASS test_libcontract <n>/<m>` equals the newest log that
     has that line;
 and that the README's "Latest report: <n>/<m>" link points at a bench report that
@@ -59,7 +59,9 @@ def nfr_k3_readme_expected_results_match_the_newest_run() -> list[str]:
     else:
         if not newest:
             errors.append(f"{rel}: no SUMMARY line")
-        elif newest[-1][1] != want.group(2):
+        elif newest[-1][1] != want.group(2) and newest[-1][0] == newest[-1][1]:
+            # A newest log that fails may be a new suite's tests failing first, before its
+            # code: the README then keeps the newest passing run until the code passes.
             errors.append(f"README.md expects {want.group(2)} tests, {rel} ran {newest[-1][1]}")
         if not passing:
             errors.append("no fully passing QEMU run log")
