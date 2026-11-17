@@ -35,6 +35,11 @@
 #      QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.security.system/topic/manual/abilities_reference.html
 #    - arb_logd_t added by hand (2026-11-16, M2 P6): the evidence logger; the
 #      root shell may start it (settypeid).
+#    - arb_gateway_t added by hand (2026-11-17, M2 P6): the gateway; the root
+#      shell may start it (settypeid) and, to check the users of the logger and
+#      the gateway after their drop (NFR-I5), query processes of users 813-814
+#      too (xprocess_query 810-812 became 810-814; without it pidin shows the
+#      gateway as uid 0, the root shell being unable to read its credentials).
 #    - arb_untrusted_t added by hand (the attacker never ran in develop mode);
 #      user_root_t's gain_priv adds public_channel, which secpolcompile requires
 #      before user_root_t may start a type that has it (the attacker needs a
@@ -57,6 +62,7 @@ type arb_arm_t;
 type arb_guardian_t;
 type arb_watchdog_t;
 type arb_logd_t;
+type arb_gateway_t;
 type arb_untrusted_t;
 type console_t;
 type default;
@@ -189,6 +195,37 @@ allow arb_logd_t self:ability {
     map_fixed
     channel_connect:slogger_t,devb_t
 };
+
+# === Rules for type arb_gateway_t (hand-written: the gateway, M2 P6) ============
+# Untrusted. Starts as root only to listen on its TCP ports (io_sock_t), then
+# runs as user 814 at priority 10 (qnx/gateway/main.c). Logs to slogger2;
+# its binary and libraries come from the disk (devb_t). Among Arbiter's
+# processes it may connect only to the guardian (/dev/arbiter), to submit
+# commands and read the status (FR-S2); it opens a submit handle for each
+# planner session, after the drop, so channel_connect:arb_guardian_t is in both
+# sets. network/jailroot (io-sock: use the network) only in the root set: it
+# listens before the drop (without it, listen fails with EPERM on this image).
+# No attach rule: it registers no name and no path.
+allow arb_gateway_t self:ability {
+    nonroot
+    priority:1-10
+    channel_connect:arb_guardian_t
+};
+allow arb_gateway_t self:ability {
+    setuid:814
+    setgid:0,814
+    prot_exec
+    priority:1-10
+    map_fixed
+    network/jailroot
+    channel_connect:slogger_t,devb_t,io_sock_t,arb_guardian_t
+};
+allow arb_gateway_t {
+    slogger_t
+    devb_t
+    io_sock_t
+    arb_guardian_t
+}:channel connect;
 
 # === Rules for type console_t ============
 allow console_t self:ability {
@@ -638,9 +675,9 @@ allow user_root_t self:ability {
     signal:0,9,15,23,25
     pgrp
     public_channel
-    xprocess_query:20-22,24-25,29-30,33-34,37-38,43-44,47-48,810-812
+    xprocess_query:20-22,24-25,29-30,33-34,37-38,43-44,47-48,810-814
     channel_connect:slogger_t,devb_t,pipe_t,arb_guardian_t
-    settypeid:arb_watchdog_t,arb_arm_t,arb_guardian_t,arb_logd_t,arb_untrusted_t
+    settypeid:arb_watchdog_t,arb_arm_t,arb_guardian_t,arb_logd_t,arb_gateway_t,arb_untrusted_t
 };
 allow user_root_t self:ability {
     gain_priv:priority,connection,signal,xprocess_query,channel_connect,public_channel
