@@ -41,11 +41,15 @@ typed() {          # typed <type> <command...>
 # The user 820 cannot enter root's home, where the binaries are: its copy runs from /tmp.
 ATK=/tmp/arb-untrusted.$$
 cp ./arb-untrusted "$ATK" && chmod 755 "$ATK" || { echo "FAIL cannot copy arb-untrusted to /tmp"; exit 1; }
+# The arm's telemetry ring is 0640, group logger (NFR-I1), so the attacker's
+# user cannot open it; the root shell opens it read-only and hands the attacker
+# that descriptor as fd 3, only so that it can print the arm's counters for this
+# script to judge. It gives the attacker no way to write anything.
 attacker() {
     if [ "$MODE" = on ]; then
-        on -T arb_untrusted_t -u "$UNTRUSTED_UID:$UNTRUSTED_UID" "$ATK" "$@"
+        on -T arb_untrusted_t -u "$UNTRUSTED_UID:$UNTRUSTED_UID" "$ATK" "$@" 3</dev/shmem/arbiter_arm_telemetry
     else
-        on -u "$UNTRUSTED_UID:$UNTRUSTED_UID" "$ATK" "$@"
+        on -u "$UNTRUSTED_UID:$UNTRUSTED_UID" "$ATK" "$@" 3</dev/shmem/arbiter_arm_telemetry
     fi
 }
 

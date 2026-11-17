@@ -66,19 +66,18 @@ static void counters(const char *phase)
            (long long)atomic_load(&g_tm->bound_pid));
 }
 
-/* Read-only view of the arm's telemetry (mode 0644: any user may read it).
- * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_open.html
+/* Read-only view of the arm's telemetry, only to print the arm's counters for
+ * f11_suite.sh. The ring is 0640, group logger (NFR-I1): this process's user may
+ * not open it, so the suite's root shell opens it read-only and passes it as
+ * fd 3 (TELEM_FD).
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/mmap.html */
+#define TELEM_FD 3
 static void map_telemetry(void)
 {
-    const int fd = shm_open(ARB_TELEM_NAME, O_RDONLY, 0);
     void *p;
 
-    if (fd == -1) {
-        return;
-    }
-    p = mmap(NULL, sizeof(arb_telem_t), PROT_READ, MAP_SHARED, fd, 0);
-    (void)close(fd);
+    p = mmap(NULL, sizeof(arb_telem_t), PROT_READ, MAP_SHARED, TELEM_FD, 0);
+    (void)close(TELEM_FD);
     if (p != MAP_FAILED && ((const arb_telem_t *)p)->magic == ARB_TELEM_MAGIC) {
         g_tm = (const arb_telem_t *)p;
     }
