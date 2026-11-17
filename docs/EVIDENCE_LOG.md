@@ -19,7 +19,7 @@ One record per line, ASCII, fields separated by one space, ending in `\n`:
 
 | Tag | Meaning | Keys, in this order |
 | --- | --- | --- |
-| `H` | Header, line 0 only | `format 1`, `contract <sha256 of the contract table file>` (FR-C6), `cycles_per_sec <n>`, `start_ns <n>` |
+| `H` | Header, line 0 only | `format 1`, `contract <the contract source's SHA-256 embedded in the table>` (FR-C3, FR-C6: the hash the guardian and the arm print), `cycles_per_sec <n>`, `start_ns <n>` |
 | `R` | One decision (FR-E1) | `idx <ring index>`, `t_ns <n>`, `seq <n>`, `target <q0> <q1>`, `dur <ms>`, `verdict <n>`, `rule <n>`, `before <state>`, `after <state>`, `flags <n>`, `fwd <q0> <q1> <ms>`, `latency_cycles <n>` |
 | `G` | Records the logger lost (FR-E5): it fell behind and the ring overwrote them, or a copy was torn | `lost <count>`, `from_idx <first lost>`, `to_idx <last lost>` |
 | `E` | Clean end (the logger was stopped with SIGTERM) | `records <R lines>`, `lost <total lost>` |

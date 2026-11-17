@@ -277,16 +277,22 @@ static void fr_e5_killing_the_logger_changes_no_decision(void)
 
     memset(&s0, 0, sizeof s0);
     memset(&s1, 0, sizeof s1);
+    ms_sleep(500);                                       /* the rate limiter refills (50/s, burst 10) */
     CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_GET_STATUS, &s0, sizeof s0, NULL), EOK);
     for (int i = 0; i < 10; i++) {                       /* bound: 10 */
-        ok_before += submit(i % 2 ? -150000 : -100000, 1000, ++g_seq, &w) == EOK && w.verdict == ARB_VERDICT_ALLOW;
-        ms_sleep(20);
+        const int rc = submit(i % 2 ? -150000 : -100000, 1000, ++g_seq, &w);
+        ok_before += rc == EOK && w.verdict == ARB_VERDICT_ALLOW;
+        if (rc != EOK || w.verdict != ARB_VERDICT_ALLOW) {
+            printf("info before the kill, command %d: rc %d verdict %u rule %u state %u\n", i, rc,
+                   (unsigned)w.verdict, (unsigned)w.rule, (unsigned)w.state);
+        }
+        ms_sleep(40);                                    /* below the contract's 50 commands/s */
     }
     CHECK_EQ_INT(kill(g_logd, SIGKILL), 0);
     (void)waitpid(g_logd, &status, 0);
     for (int i = 0; i < 10; i++) {                       /* bound: 10 */
         ok_after += submit(i % 2 ? -150000 : -100000, 1000, ++g_seq, &w) == EOK && w.verdict == ARB_VERDICT_ALLOW;
-        ms_sleep(20);
+        ms_sleep(40);
     }
     CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_GET_STATUS, &s1, sizeof s1, NULL), EOK);
     printf("info allowed before the kill %d/10, after %d/10; guardian arm faults %u -> %u, state %u\n", ok_before,
@@ -321,6 +327,15 @@ int main(int argc, char **argv)
     if (g_fd == -1) {
         printf("FAIL cannot open %s: %s\n", ARB_DEV_PATH, strerror(errno));
         return 1;
+    }
+    {
+        /* Continue after the guardian's published sequence number (FR-G10): an
+         * earlier test_logd process used the same guardian. */
+        arb_status_t st;
+        memset(&st, 0, sizeof st);
+        if (devctl(g_fd, ARB_DCMD_GET_STATUS, &st, sizeof st, NULL) == EOK && st.has_seq && st.last_seq > g_seq) {
+            g_seq = st.last_seq;
+        }
     }
     if (strcmp(mode, "run") == 0 && argc == 5 && strlen(argv[4]) == 64) {
         g_contract = argv[4];
