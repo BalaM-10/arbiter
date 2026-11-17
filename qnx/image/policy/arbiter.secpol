@@ -35,6 +35,10 @@
 #      QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.security.system/topic/manual/abilities_reference.html
 #    - arb_logd_t added by hand (2026-11-16, M2 P6): the evidence logger; the
 #      root shell may start it (settypeid).
+#    - 2026-11-17 (D1): arb_arm_t may use iofunc/chown while root, to give its
+#      telemetry ring to the logger's group (as the guardian's decision ring);
+#      arb_logd_t attaches arbiter_logd and may create its channel; the gateway
+#      may connect to it.
 #    - arb_gateway_t added by hand (2026-11-17, M2 P6): the gateway; the root
 #      shell may start it (settypeid) and, to check the users of the logger and
 #      the gateway after their drop (NFR-I5), query processes of users 813-814
@@ -121,6 +125,7 @@ allow arb_arm_t self:ability {
 allow arb_arm_t self:ability {
     setuid:811
     setgid:0,811
+    iofunc/chown
     mem_lock
     prot_exec
     priority:1-70
@@ -181,8 +186,13 @@ allow arb_watchdog_t self:ability {
 
 # === Rules for type arb_logd_t (hand-written: the evidence logger, M2 P6) ============
 # Reads the contract table and writes its log (devb_t), logs to slogger2, loads
-# the qcrypto plugin (prot_exec), maps the guardian's decision ring read-only.
-# No channel of its own and no connection to any Arbiter process.
+# the qcrypto plugin (prot_exec), maps the guardian's decision ring and the
+# arm's telemetry read-only. Since 2026-11-17 (D1) it has a channel of its own,
+# registered as arbiter_logd (public_channel, while root), on which it answers
+# the gateway's telemetry requests. No connection to any Arbiter process.
+allow_attach arb_logd_t {
+    /dev/name/local/arbiter_logd
+};
 allow arb_logd_t self:ability {
     nonroot
     priority:1-30
@@ -193,6 +203,7 @@ allow arb_logd_t self:ability {
     prot_exec
     priority:1-30
     map_fixed
+    public_channel
     channel_connect:slogger_t,devb_t
 };
 
@@ -201,15 +212,16 @@ allow arb_logd_t self:ability {
 # runs as user 814 at priority 10 (qnx/gateway/main.c). Logs to slogger2;
 # its binary and libraries come from the disk (devb_t). Among Arbiter's
 # processes it may connect only to the guardian (/dev/arbiter), to submit
-# commands and read the status (FR-S2); it opens a submit handle for each
-# planner session, after the drop, so channel_connect:arb_guardian_t is in both
-# sets. network/jailroot (io-sock: use the network) only in the root set: it
+# commands and read the status (FR-S2), and to the logger, which relays the
+# arm's telemetry to it (D1). It opens a submit handle for each planner
+# session, and finds the logger, after the drop, so channel_connect for both is
+# in both sets. network/jailroot (io-sock: use the network) only in the root set: it
 # listens before the drop (without it, listen fails with EPERM on this image).
 # No attach rule: it registers no name and no path.
 allow arb_gateway_t self:ability {
     nonroot
     priority:1-10
-    channel_connect:arb_guardian_t
+    channel_connect:arb_guardian_t,arb_logd_t
 };
 allow arb_gateway_t self:ability {
     setuid:814
@@ -218,13 +230,14 @@ allow arb_gateway_t self:ability {
     priority:1-10
     map_fixed
     network/jailroot
-    channel_connect:slogger_t,devb_t,io_sock_t,arb_guardian_t
+    channel_connect:slogger_t,devb_t,io_sock_t,arb_guardian_t,arb_logd_t
 };
 allow arb_gateway_t {
     slogger_t
     devb_t
     io_sock_t
     arb_guardian_t
+    arb_logd_t
 }:channel connect;
 
 # === Rules for type console_t ============
