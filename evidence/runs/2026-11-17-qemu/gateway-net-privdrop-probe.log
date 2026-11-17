@@ -1,0 +1,137 @@
+# TCP sockets for the gateway's user after arb_privdrop() (deny and lock every unlisted ability) — qemu, 2026-11-17T08:53:16-06:00
+# commit: ed70fe2 (scratch probes, sources below, linked with qnx/common/arb_privdrop.c; qcc -Vgcc_ntox86_64 -std=c11 -D_QNX_SOURCE -lsocket)
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## probe 1 source (socket, bind, listen, connect, accept: once as root, once after the drop)
+#include <errno.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include "arb_privdrop.h"
+#define R(x) do { int _r = (x); printf("  %-44s %s\n", #x, _r == -1 ? strerror(errno) : "ok"); } while (0)
+int main(int argc, char **argv)
+{
+    const char *what; int err; char rep[ARB_PRIVDROP_REPORT_LEN];
+    int drop = argc > 1 && strcmp(argv[1], "drop") == 0;
+    if (drop) {
+        if (arb_privdrop(814, 10, 0, 0, 0, &what, &err, rep) != 0) { printf("privdrop failed: %s: %s\n", what, strerror(err)); return 1; }
+        printf("%s\n", rep);
+    } else printf("no drop (root)\n");
+    int l = socket(AF_INET, SOCK_STREAM, 0); printf("  socket(listen) %s\n", l == -1 ? strerror(errno) : "ok");
+    int one = 1;
+    R(setsockopt(l, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one));
+    struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_port = htons(7700); a.sin_addr.s_addr = htonl(INADDR_ANY);
+    R(bind(l, (struct sockaddr *)&a, sizeof a));
+    R(listen(l, 1));
+    int c = socket(AF_INET, SOCK_STREAM, 0);
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    R(connect(c, (struct sockaddr *)&a, sizeof a));
+    int s = accept(l, NULL, NULL); printf("  accept %s\n", s == -1 ? strerror(errno) : "ok");
+    R(setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one));
+    R(setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one));
+    R(fcntl(s, F_SETFL, O_NONBLOCK));
+    char b[8] = "abcdefg";
+    printf("  send %zd recv %zd\n", send(c, b, 8, MSG_NOSIGNAL), recv(s, b, 8, 0));
+    int fd = open("/dev/null", O_RDONLY); printf("  open /dev/null %s\n", fd == -1 ? strerror(errno) : "ok");
+    struct sockaddr_in a2 = a; a2.sin_port = htons(80); int l2 = socket(AF_INET, SOCK_STREAM, 0);
+    R(bind(l2, (struct sockaddr *)&a2, sizeof a2));
+    return 0;
+}
+
+## probe 1 output
+no drop (root)
+  socket(listen) ok
+  setsockopt(l, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one) ok
+  bind(l, (struct sockaddr *)&a, sizeof a)     ok
+  listen(l, 1)                                 ok
+  connect(c, (struct sockaddr *)&a, sizeof a)  ok
+  accept ok
+  setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one) ok
+  setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one) ok
+  fcntl(s, F_SETFL, O_NONBLOCK)                ok
+  send 8 recv -1
+  open /dev/null ok
+  bind(l2, (struct sockaddr *)&a2, sizeof a2)  ok
+privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()
+  socket(listen) Operation not permitted
+  setsockopt(l, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one) Bad file descriptor
+  bind(l, (struct sockaddr *)&a, sizeof a)     Bad file descriptor
+  listen(l, 1)                                 Bad file descriptor
+  connect(c, (struct sockaddr *)&a, sizeof a)  Bad file descriptor
+  accept Bad file descriptor
+  setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one) Bad file descriptor
+  setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof one) Bad file descriptor
+  fcntl(s, F_SETFL, O_NONBLOCK)                Bad file descriptor
+  send -1 recv -1
+  open /dev/null ok
+  bind(l2, (struct sockaddr *)&a2, sizeof a2)  Bad file descriptor
+
+## probe 2 source (listen as root, drop, then accept two connections from the host: printf 'ping\n' | nc <target> 7700, twice)
+#include <errno.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <arpa/inet.h>
+#include <poll.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include "arb_privdrop.h"
+#define R(x) do { int _r = (x); printf("  %-44s %s\n", #x, _r == -1 ? strerror(errno) : "ok"); } while (0)
+/* listen as root, drop, then accept connections from a peer started by the shell */
+int main(void)
+{
+    const char *what; int err; char rep[ARB_PRIVDROP_REPORT_LEN];
+    int one = 1;
+    int l = socket(AF_INET, SOCK_STREAM, 0); printf("  socket(listen) as root %s\n", l == -1 ? strerror(errno) : "ok");
+    R(setsockopt(l, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one));
+    struct sockaddr_in a; memset(&a, 0, sizeof a); a.sin_family = AF_INET; a.sin_port = htons(7700); a.sin_addr.s_addr = htonl(INADDR_ANY);
+    R(bind(l, (struct sockaddr *)&a, sizeof a));
+    R(listen(l, 1));
+    if (arb_privdrop(814, 10, 0, 0, 0, &what, &err, rep) != 0) { printf("privdrop failed: %s: %s\n", what, strerror(err)); return 1; }
+    printf("%s\n", rep);
+    fflush(stdout);
+    for (int k = 0; k < 2; k++) {
+        struct pollfd p = { l, POLLIN, 0 };
+        printf("  poll(listen) -> %d\n", poll(&p, 1, 5000)); fflush(stdout);
+        int s = accept(l, NULL, NULL); printf("  accept %d after drop: %s\n", k, s == -1 ? strerror(errno) : "ok");
+        if (s == -1) continue;
+        R(setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one));
+        R(fcntl(s, F_SETFL, O_NONBLOCK));
+        char b[8]; struct pollfd q = { s, POLLIN, 0 }; (void)poll(&q, 1, 2000);
+        ssize_t n = recv(s, b, sizeof b, 0); printf("  recv %zd\n", n);
+        printf("  send %zd\n", send(s, "pong\n", 5, MSG_NOSIGNAL));
+        close(s);
+    }
+    int x = socket(AF_INET, SOCK_STREAM, 0); printf("  new socket() after drop: %s\n", x == -1 ? strerror(errno) : "ok");
+    return 0;
+}
+
+## probe 2 output
+  socket(listen) as root ok
+  setsockopt(l, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one) ok
+  bind(l, (struct sockaddr *)&a, sizeof a)     ok
+  listen(l, 1)                                 ok
+privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()
+  poll(listen) -> 1
+  accept 0 after drop: ok
+  setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one) ok
+  fcntl(s, F_SETFL, O_NONBLOCK)                ok
+  recv 5
+  send 5
+  poll(listen) -> 1
+  accept 1 after drop: ok
+  setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one) ok
+  fcntl(s, F_SETFL, O_NONBLOCK)                ok
+  recv 5
+  send 5
+  new socket() after drop: Operation not permitted
+
+## conclusion
+After the drop, socket() is refused with EPERM (no new socket of any kind); a listening socket opened as root before the drop still accepts, and accepted sockets recv and send. The gateway therefore opens its listening sockets first, then drops, and keeps no network ability.
