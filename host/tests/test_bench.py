@@ -321,7 +321,11 @@ def fr_b3_bench_exits_nonzero_when_a_scenario_fails(monkeypatch: pytest.MonkeyPa
     def fake_ssh(target: str, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(args, 0, stdout="", stderr="")   # target gave no records
 
+    def fake_scenario(target: str, mod: object, script: object) -> tuple[str, int, None]:
+        return "", 0, None                                                   # no records either way
+
     monkeypatch.setattr(runner, "_ssh", fake_ssh)
+    monkeypatch.setattr(runner, "_run_scenario", fake_scenario)
     rc = runner.run_bench("qemu", ROOT / "contracts" / "default.yaml", ["F9"], tmp_path, deploy=False)
     assert rc == 1
     reports = list(tmp_path.glob("*/*/report.json"))
@@ -389,3 +393,62 @@ def fr_e1_bench_checks_every_verdict_is_in_the_evidence_log() -> None:
     wrong = Run(verdicts=run.verdicts)
     wrong.evlog, _ = _evlog([(1, 1, 0), (2, 1, 0)])
     assert not ck.evidence_log_has_every_verdict(wrong).passed
+
+
+# --------------------------------- AI-side scenarios through the planner and gateway (D6)
+
+def fr_b1_gateway_transport_plays_each_command_with_its_own_sequence_number_and_time() -> None:
+    """The bench's scripted commands, as planner steps: the script's own sequence
+    numbers (F9 replays old ones on purpose), targets, durations and send times."""
+    from arbiter.bench import transport as tr
+
+    for sid in sorted(ALL):
+        script = ALL[sid].build(SPEC)
+        steps = tr.script_steps(script)
+        assert [s.seq for s in steps] == [c.seq for c in script.commands], sid
+        assert [s.target_urad for s in steps] == [c.target for c in script.commands], sid
+        assert [s.duration_ms for s in steps] == [c.duration_ms for c in script.commands], sid
+        starts = [sum(s.gap_ms for s in steps[:i]) for i in range(len(steps))]
+        assert starts == [c.t_ms - script.commands[0].t_ms for c in script.commands], sid
+        assert steps[-1].gap_ms == script.end_ms - script.commands[-1].t_ms, sid
+
+
+def fr_b1_gateway_transport_records_for_longer_than_the_scenario_and_sends_nothing() -> None:
+    """On the target, arb-inject only records (no C line), from before the gateway
+    starts until after the last command could have been sent."""
+    from arbiter.bench import transport as tr
+
+    script = ALL["F1"].build(SPEC)
+    text = tr.record_only_script(script)
+    lines = text.splitlines()
+    assert not any(x.startswith("C ") for x in lines)
+    assert lines[-1].startswith("E ")
+    assert int(lines[-1].split()[1]) >= script.end_ms + tr.LEAD_MS
+    assert any(x.startswith("S ") for x in lines)
+
+
+def fr_b1_gateway_transport_takes_command_times_from_the_guardians_evidence_log() -> None:
+    """Each verdict's time is the guardian's own decision time (t_ns in its evidence
+    log, the same clock as the arm's samples), never the host's clock; a command
+    the guardian did not decide keeps rc != 0 and is not in the log."""
+    from arbiter import planner as pl
+    from arbiter import protocol as pr
+    from arbiter.bench import transport as tr
+
+    evlog, _ = _evlog([(5, 1, 0), (6, 3, 2)])
+    evlog = [x.replace(" t_ns 1 seq 5 ", " t_ns 7000000 seq 5 ")
+              .replace(" t_ns 1 seq 6 ", " t_ns 9000000 seq 6 ") for x in evlog]
+    r = pl.RunResult(None, [pr.Verdict(5, pr.DECIDED, 1, 0, 2, 0, (10, 20), 100, 100),
+                            pr.Verdict(6, pr.DECIDED, 3, 2, 2, 0, (0, 0), 0, 100),
+                            pr.Verdict(7, pr.REFUSED, 0, 0, 2, 0, (0, 0), 0, 100)], [], [], [], None)
+    v = tr.verdicts_from(r, evlog)
+    assert [(x.seq, x.rc, x.verdict, x.rule, x.t_send_ns) for x in v[:2]] == [(5, 0, 1, 0, 7000000),
+                                                                             (6, 0, 3, 2, 9000000)]
+    assert v[0].target == (10, 20) and v[0].duration_ms == 100 and v[0].requested_ms == 100
+    assert v[2].seq == 7 and v[2].rc != 0
+
+
+@pytest.mark.parametrize("sid", sorted(ALL))
+def fr_b1_ai_side_scenarios_run_through_the_planner_and_gateway(sid: str) -> None:
+    """Decision D6: F1, F4, F5, F6 and F9 are about the AI side, so they go planner -> gateway."""
+    assert ALL[sid].TRANSPORT == "gateway"
