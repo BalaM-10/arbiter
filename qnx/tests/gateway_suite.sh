@@ -24,7 +24,7 @@ up() {             # up [logd]: with "logd", also the evidence logger, which rel
         $ARB_ON_LOGD ./arb-logd "$CONTRACT" "$EV/evidence.log" </dev/null >"$EV/logd.out" 2>&1 &
         sleep 1
     fi
-    $ARB_ON_GW ./arb-gateway </dev/null >/tmp/arb-gateway.out 2>&1 &
+    $ARB_ON_GW ./arb-gateway ${ARB_GW_ARGS:-} </dev/null >/tmp/arb-gateway.out 2>&1 &
     sleep 1
     WD=$(pid_of arb-watchdog)
     ARM=$(pid_of arb-arm)
@@ -108,7 +108,10 @@ fi
 # QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/i/ifconfig.html
 # QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/n/netstat.html
 c=0
-ifaddr=$(ifconfig | awk '/^[a-z]/ {ok = ($0 ~ /<UP/) && ($0 ~ /RUNNING/) && ($0 !~ /LOOPBACK/)}
+# With ARB_GW_ARGS="-i <name>" (scripts/targets.env), that interface's address.
+want_if=$(printf '%s' "${ARB_GW_ARGS:-}" | sed -n 's/.*-i \([A-Za-z0-9_]*\).*/\1/p')
+ifaddr=$(ifconfig | awk -v w="$want_if" '/^[a-z]/ {n = $1; sub(":$", "", n)
+        ok = ($0 ~ /<UP/) && ($0 ~ /RUNNING/) && ($0 !~ /LOOPBACK/) && (w == "" || n == w)}
     ok && $1 == "inet" && !done {print $2; done = 1}')
 echo "  the target's wired IPv4 address: ${ifaddr:-none}; the gateway listens on: ${GWADDR:-none}"
 [ -n "$GWADDR" ] && [ "$GWADDR" = "$ifaddr" ] || c=1

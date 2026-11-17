@@ -1,5 +1,5 @@
 # Shared helpers for deploy.sh and run-tests.sh. Source, do not run.
-# Usage: target_init <name>   sets T_NAME T_ARCH T_USER T_DIR T_HOST T_TIMING T_POLICY and SSH/SCP arrays.
+# Usage: target_init <name>   sets T_NAME T_ARCH T_USER T_DIR T_HOST T_TIMING T_POLICY T_GW_IFACE T_ENV and SSH/SCP arrays.
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
@@ -30,6 +30,14 @@ target_init() {
     v="${T_NAME}_SSH_HOSTKEY_OPTS"; local hostkey_opts="${!v}"
     v="${T_NAME}_TIMING"; T_TIMING="${!v:-}"
     case "$T_TIMING" in strict|function) ;; *) die "${T_NAME}_TIMING must be strict or function (scripts/targets.env)" ;; esac
+    v="${T_NAME}_GW_IFACE"; T_GW_IFACE="${!v:-}"
+    v="${T_NAME}_GW_IFACE_REQUIRED"
+    if [ "${!v:-}" = yes ] && [ -z "$T_GW_IFACE" ]; then
+        die "${T_NAME}_GW_IFACE is not set: the gateway must be told its wired interface on $T_NAME (scripts/targets.env, docs/TARGETS.md)"
+    fi
+    case "$T_GW_IFACE" in *[!A-Za-z0-9_]*) die "${T_NAME}_GW_IFACE '$T_GW_IFACE' is not an interface name" ;; esac
+    # What the target-side scripts pass to arb-gateway.
+    T_ENV="ARB_GW_ARGS='${T_GW_IFACE:+-i $T_GW_IFACE}'"
     v="${T_NAME}_POLICY"; T_POLICY="${!v:-}"
     case "$T_POLICY" in off|on) ;; *) die "${T_NAME}_POLICY must be off or on (scripts/targets.env)" ;; esac
 

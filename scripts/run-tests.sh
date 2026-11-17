@@ -113,7 +113,7 @@ for entry in "${TESTS[@]}"; do
     ok=0
     for ((i = 1; i <= REPEAT; i++)); do
         set +e
-        out="$("${SSH[@]}" "cd '$T_DIR' && ./$bin" 2>&1)"
+        out="$("${SSH[@]}" "cd '$T_DIR' && export $T_ENV && ./$bin" 2>&1)"
         rc=$?
         set -e
         # Full output for the first run and for every failing run.

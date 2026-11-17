@@ -131,6 +131,27 @@ mode); exercise the system, copy `/dev/secpolgenerate/policy` off the target
 with `ssh ... cat` (the docs say not scp), then edit by hand as the header of
 `arbiter.secpol` describes, and rebuild with `./scripts/build-image.sh qemu_secpol`.
 
+## The gateway's listening interface
+
+`arb-gateway` listens on one address, never on every address (`docs/PROTOCOL.md`,
+THREAT_MODEL A2). Which interface is set per target in `scripts/targets.env`
+(`<target>_GW_IFACE`); the scripts pass it to the target as `ARB_GW_ARGS="-i <name>"`.
+
+- **QEMU** (`qemu`, `qemu_secpol`): empty, so the gateway's default applies: the
+  first interface that is up, running, not loopback and has an IPv4 address. The
+  image has one, `vtnet0`, on the private bridge `br0`.
+- **Raspberry Pi 5** (`pi5`): **required**. The Pi has both Ethernet and Wi-Fi,
+  and "the first interface that is up" could be Wi-Fi. The scripts refuse to run
+  on `pi5` until it is set. The Pi 5 BSP's Ethernet driver is `devs-cgem.so`
+  ([driver commands](https://www.qnx.com/developers/docs/BSP8.0/com.qnx.doc.bsp_raspberrypi.bcm2712.rpi5_8.0/topic/driver_commands.html),
+  [devs-cgem.so](https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/d/devs-cgem.so.html));
+  neither page states the interface name it creates, so read it on the board
+  first (M3): run `ifconfig` on the Pi with the Ethernet cable in, take the
+  interface that has the wired address, then
+  `export PI5_GW_IFACE=<that name>` (or set `pi5_GW_IFACE` in `scripts/targets.env`).
+  The gateway suite then checks that the gateway listens on that interface's
+  address and on no other.
+
 ## QEMU host pauses
 
 **On QEMU, a host pause of the virtual machine longer than 10 ms makes Arbiter

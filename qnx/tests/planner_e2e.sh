@@ -24,7 +24,7 @@ $ARB_ON_GUARD ./arb-guardian "$CONTRACT" </dev/null >"$DIR/guardian.out" 2>&1 &
 sleep 1
 $ARB_ON_LOGD ./arb-logd "$CONTRACT" "$DIR/evidence.log" </dev/null >"$DIR/logd.out" 2>&1 &
 sleep 1
-$ARB_ON_GW ./arb-gateway </dev/null >"$DIR/gateway.out" 2>&1 &
+$ARB_ON_GW ./arb-gateway ${ARB_GW_ARGS:-} </dev/null >"$DIR/gateway.out" 2>&1 &
 sleep 1
 cat "$DIR/arm.out" "$DIR/guardian.out" "$DIR/logd.out" "$DIR/gateway.out"
 echo "READY"

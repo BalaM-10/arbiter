@@ -13,7 +13,7 @@ target_init "${1:-}"
 case "${2:-}" in
     info) echo "$T_ARCH $T_DIR" ;;
     host) echo "$T_HOST" ;;
-    run)  exec "${SSH[@]}" "cd '$T_DIR' && ${3:?command}" ;;
+    run)  exec "${SSH[@]}" "cd '$T_DIR' && export $T_ENV && ${3:?command}" ;;
     put)  "${SSH[@]}" "mkdir -p '$T_DIR/$(dirname "${4:?remote}")'"
           exec "${SCP[@]}" "${3:?local}" "$T_USER@$T_HOST:$T_DIR/$4" ;;
     *)    die "usage: $0 <target> info|host|run <cmd>|put <local> <remote>" ;;

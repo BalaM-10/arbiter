@@ -50,7 +50,7 @@ if [ "$VIA" = gateway ]; then
     ./arb-inject <"$LOGDIR/script.txt" >"$LOGDIR/inject.out" 2>&1 &
     INJ=$!
     sleep 0.2
-    $ARB_ON_GW ./arb-gateway </dev/null >"$LOGDIR/gateway.log" 2>&1 &
+    $ARB_ON_GW ./arb-gateway ${ARB_GW_ARGS:-} </dev/null >"$LOGDIR/gateway.log" 2>&1 &
     wait "$INJ"
     rc=$?
     cat "$LOGDIR/inject.out"
