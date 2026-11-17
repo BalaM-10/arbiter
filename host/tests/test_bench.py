@@ -409,13 +409,17 @@ def fr_b1_gateway_transport_plays_each_command_with_its_own_sequence_number_and_
 
     for sid in sorted(ALL):
         script = ALL[sid].build(SPEC)
-        steps = tr.script_steps(script)
-        assert [s.seq for s in steps] == [c.seq for c in script.commands], sid
-        assert [s.target_urad for s in steps] == [c.target for c in script.commands], sid
-        assert [s.duration_ms for s in steps] == [c.duration_ms for c in script.commands], sid
-        starts = [sum(s.gap_ms for s in steps[:i]) for i in range(len(steps))]
-        assert starts == [c.t_ms - script.commands[0].t_ms for c in script.commands], sid
-        assert steps[-1].gap_ms == script.end_ms - script.commands[-1].t_ms, sid
+        if getattr(ALL[sid], "TRANSPORT", "inject") != "gateway":
+            continue
+        plan = tr.script_steps(script)
+        starts = [sum(s.gap_ms for s in plan[:i]) for i in range(len(plan))]
+        # F7, F8 and F10 also hold host actions between the commands.
+        cmds = [(t, s) for t, s in zip(starts, plan, strict=True) if s.action is None]
+        assert [s.seq for _, s in cmds] == [c.seq for c in script.commands], sid
+        assert [s.target_urad for _, s in cmds] == [c.target for c in script.commands], sid
+        assert [s.duration_ms for _, s in cmds] == [c.duration_ms for c in script.commands], sid
+        assert [t for t, _ in cmds] == [c.t_ms - script.commands[0].t_ms for c in script.commands], sid
+        assert sum(s.gap_ms for s in plan) == script.end_ms - script.commands[0].t_ms, sid
 
 
 def fr_b1_gateway_transport_records_for_longer_than_the_scenario_and_sends_nothing() -> None:
@@ -616,7 +620,7 @@ def fr_b1_gateway_transport_splits_sessions_at_malformed_frames() -> None:
     assert [[p.action or "C" for p in seg] for seg in segs] == [["C"], ["malformed"], ["malformed"], ["C"]]
 
 
-def _f8_run(codes: dict[str, int], bad_messages: int) -> Run:
+def _f8_run(codes: dict[str, int | None], bad_messages: int) -> Run:
     run = Run()
     run.host_events = [{"name": "malformed", "arg": k, "error": v, "closed": True} for k, v in codes.items()]
     run.statuses = [Status(0, 2, 0, 0, 0, 0, bad_messages, 0, 0)]

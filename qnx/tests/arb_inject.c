@@ -22,6 +22,9 @@
  *   A <t_ms> estop -                                   press the emergency stop (devctl, FR-W4; F14)
  *   A <t_ms> kill <pid>                                SIGKILL a process (F13: the guardian, whose
  *                                                      pid bench_scenario.sh fills in for @GUARD@)
+ *   A <t_ms> garbage <n>                               n malformed devctls on /dev/arbiter (F8):
+ *                                                      unknown commands and a status buffer one byte
+ *                                                      short, by turns; rc = how many were NOT refused
  *   E <t_ms>                                           end of the run
  *   # ...                                              comment
  *
@@ -68,6 +71,7 @@
 #define MAX_GAPS      256u
 #define PREROLL       50u         /* samples kept from before the first step */
 #define DRAIN_MS      20          /* telemetry read period; the ring holds 8 s */
+#define GARBAGE_MAX   1000        /* malformed devctls per garbage action */
 
 typedef struct {
     char     kind;                /* 'C', 'S', 'A' or 'E' */
@@ -75,8 +79,8 @@ typedef struct {
     uint32_t seq;
     int32_t  q[ARB_JOINTS];
     uint32_t duration_ms;
-    char     action;              /* 'A' steps: 'e' estop, 'k' kill */
-    long     pid;                 /* 'A' kill: the process */
+    char     action;              /* 'A' steps: 'e' estop, 'k' kill, 'g' garbage */
+    long     pid;                 /* 'A' kill: the process; 'A' garbage: how many */
 } step_t;
 
 typedef struct {
@@ -262,6 +266,9 @@ static int parse_script(void)
                 s.action = 'e';
             } else if (strcmp(name, "kill") == 0 && sscanf(arg, "%ld", &s.pid) == 1 && s.pid > 1) {
                 s.action = 'k';
+            } else if (strcmp(name, "garbage") == 0 && sscanf(arg, "%ld", &s.pid) == 1 && s.pid > 0 &&
+                       s.pid <= GARBAGE_MAX) {
+                s.action = 'g';
             } else {
                 fprintf(stderr, "arb-inject: bad action: %s", line);
                 return -1;
@@ -380,6 +387,23 @@ int main(void)
                 /* FR-W4: any client may stop.
                  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
                 a->rc = devctl(fd, ARB_DCMD_ESTOP, NULL, 0, NULL);
+            } else if (s->action == 'g') {
+                /* NFR-I6, F8: each must be refused, and counted by the guardian as a bad
+                 * message: an unknown command of ours (ENOTTY), or a status request
+                 * whose reply buffer is one byte short (EBADMSG).
+                 * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
+                a->rc = 0;
+                for (long k = 0; k < s->pid; k++) {        /* bound: GARBAGE_MAX */
+                    arb_status_t st;
+                    int r;
+                    if (k % 2 == 0) {
+                        r = devctl(fd, __DION(_DCMD_MISC, 0x60 + (int)(k % 16)), NULL, 0, NULL);
+                        a->rc += r != ENOTTY;
+                    } else {
+                        r = devctl(fd, ARB_DCMD_GET_STATUS, &st, sizeof st - 1u, NULL);
+                        a->rc += r != EBADMSG;
+                    }
+                }
             } else {
                 /* Killing a trusted process takes root again for the one call, then
                  * back to the gateway's user.
@@ -417,6 +441,8 @@ int main(void)
         const arec_t *a = &g_a[i];
         if (a->action == 'e') {
             printf("A %lld estop - %d\n", (long long)a->t_ns, a->rc);
+        } else if (a->action == 'g') {
+            printf("A %lld garbage %ld %d\n", (long long)a->t_ns, a->pid, a->rc);
         } else {
             printf("A %lld kill %ld %d\n", (long long)a->t_ns, a->pid, a->rc);
         }

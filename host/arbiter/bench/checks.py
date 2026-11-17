@@ -181,8 +181,11 @@ def no_unexpected_faults(run: Run, extra_ok: frozenset[str] = frozenset()) -> Ch
         seen["guardian status"] = -1
     bad = {k: v for k, v in seen.items() if v != 0 and k not in extra_ok}
     causes = fault_causes(run)
+    moved_ok = {k: v for k, v in seen.items() if v != 0 and k in extra_ok}
     if not bad:
-        detail = "all zero: " + ", ".join(seen)
+        detail = "all zero: " + ", ".join(k for k in seen if k not in moved_ok)
+        if moved_ok:
+            detail += "; expected in this scenario: " + ", ".join(f"{k} {v}" for k, v in moved_ok.items())
     else:
         detail = "unexpected: " + ", ".join(f"{k} {v}" for k, v in bad.items())
         if causes:
@@ -499,3 +502,56 @@ def tampering_detected(run: Run) -> Check:
     return Check("tampering_detected", ok,
                  f"changed one byte of line {n} ('dur {victim[i]}' -> 'dur {changed[i]}'): "
                  + (f"verify fails first at: {first}" if v.errors else "verify still passes"))
+
+
+# ------------------------------------------------- M2 P7: F7, F8, F10
+
+def host_action_done(run: Run, name: str) -> Check:
+    """A host action ran and did what it was for (rc 0; for a kill, the process is gone)."""
+    ev = [e for e in run.host_events if e.get("name") == name]
+    ok = bool(ev) and all(e.get("rc") == 0 and e.get("gone", True) for e in ev)
+    return Check(f"{name}_done", ok, "; ".join(f"{e}" for e in ev) or f"no '{name}' action ran")
+
+
+def malformed_refused(run: Run, expected: dict[str, int | None]) -> Check:
+    """F8: each kind of malformed input got the ERROR the protocol names (None: the
+    stream ended inside a frame, so there is nothing to answer), the gateway closed
+    the connection, and nothing was decided."""
+    got = {str(e["arg"]): e for e in run.host_events if e.get("name") == "malformed"}
+    wrong = []
+    for kind, code in expected.items():
+        e = got.get(kind)
+        if e is None:
+            wrong.append(f"{kind}: not sent")
+        elif e.get("error") != code or not e.get("closed") or e.get("verdicts", 0) != 0:
+            wrong.append(f"{kind}: ERROR {e.get('error')}, closed {e.get('closed')}, "
+                         f"verdicts {e.get('verdicts')} (expected ERROR {code}, closed, no verdict)")
+    return Check("malformed_frames_refused", not wrong, "; ".join(wrong) or
+                 ", ".join(f"{k} -> ERROR {got[k]['error']} and closed" for k in expected))
+
+
+def garbage_counted(run: Run) -> Check:
+    """F8: every garbage devctl arb-inject sent was refused, and the guardian counted
+    each one as a bad message, no more, no fewer."""
+    sent = sum(int(a.arg) for a in run.actions if a.name == "garbage")
+    refused_all = all(a.rc == 0 for a in run.actions if a.name == "garbage")
+    bad = run.statuses[-1].bad_messages if run.statuses else -1
+    ok = sent > 0 and refused_all and bad == sent
+    return Check("garbage_devctls_refused_and_counted", ok,
+                 f"{sent} garbage devctls sent, {'all' if refused_all else 'not all'} refused; "
+                 f"the guardian counted {bad} bad messages")
+
+
+def only_commands_decided(run: Run, script: Script) -> Check:
+    """F8: the guardian decided exactly the planner's commands (its evidence log), nothing else."""
+    n = len(decisions(run))
+    return Check("only_the_planners_commands_decided", n == len(script.commands),
+                 f"{n} decisions in the evidence log for {len(script.commands)} commands")
+
+
+def final_state(run: Run, state: str) -> Check:
+    if not run.statuses:
+        return Check(f"guardian_ends_in_{state}", False, "no guardian status recorded")
+    st = run.statuses[-1].state
+    return Check(f"guardian_ends_in_{state}", st == STATE[state],
+                 f"guardian {STATE_NAME.get(st, st)} at the end")

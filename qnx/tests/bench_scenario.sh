@@ -28,7 +28,11 @@ sleep 1
 $ARB_ON_ARM ./arb-arm "$CONTRACT" </dev/null >"$LOGDIR/arm.log" 2>&1 &
 ARM=$!
 sleep 1
-$ARB_ON_GUARD ./arb-guardian "$CONTRACT" </dev/null >"$LOGDIR/guardian.log" 2>&1 &
+# The operator (user 800) may reset SAFE_STOP (F7): the guardian is told its user
+# ID, and gets a copy of the console outside root's home, which 800 cannot enter.
+OPERATOR_UID=800
+cp ./arb-ctl /tmp/arb-ctl-bench && chmod 755 /tmp/arb-ctl-bench
+$ARB_ON_GUARD ./arb-guardian "$CONTRACT" "$OPERATOR_UID" </dev/null >"$LOGDIR/guardian.log" 2>&1 &
 GUARD=$!
 sleep 1
 # The evidence logger (docs/EVIDENCE_LOG.md): the bench verifies its chain and

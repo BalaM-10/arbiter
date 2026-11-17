@@ -6,6 +6,7 @@ import datetime as dt
 import gzip
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,8 @@ TARGET_SSH = REPO_ROOT / "scripts" / "target-ssh.sh"
 DEPLOY = REPO_ROOT / "scripts" / "deploy.sh"
 REMOTE_CONTRACT = "bench/contract.bin"
 SCENARIO_TIMEOUT_S = 180
+OPERATOR_UID = 800                       # qnx/common/arb_ids.h ARB_UID_OPERATOR
+OPERATOR_CTL = "/tmp/arb-ctl-bench"      # copied there by bench_scenario.sh: uid 800 cannot enter root's home
 GATEWAY_READY_S = 30     # the target starts four processes before the gateway
 
 
@@ -47,8 +50,9 @@ def _run_scenario(target: str, mod: Any, script: Any) -> tuple[str, int, pl.RunR
         side = subprocess.Popen([str(TARGET_SSH), target, "run", cmd],
                                 stdin=rec, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     result: pl.RunResult | None = None
+    events: list[dict[str, Any]] = []
     if pl.wait_ready(host, GATEWAY_READY_S):
-        result = pl.run(host, pr.PLANNER_PORT, tr.script_steps(script))
+        result = _play(target, host, tr.script_steps(script), events)
     try:
         out, err = side.communicate(timeout=SCENARIO_TIMEOUT_S)
     except subprocess.TimeoutExpired:
@@ -58,7 +62,53 @@ def _run_scenario(target: str, mod: Any, script: Any) -> tuple[str, int, pl.RunR
         err += "the gateway did not answer in time: no command was sent\n"
     elif result.error is not None:
         err += f"the gateway sent ERROR {result.error}\n"
+    if result is not None:
+        result.events = events
     return out + "".join(f"STDERR {x}\n" for x in err.splitlines()), side.returncode, result
+
+
+def _host_action(target: str, step: pl.Step, events: list[dict[str, Any]]) -> bool:
+    """Do one host action (D6 scenarios); False ends the planner's run."""
+    if step.action == "reset":
+        # FR-G5: the operator, at the target's console: arb-ctl as the operator's user.
+        r = _ssh(target, "run", f"on -u {OPERATOR_UID} {OPERATOR_CTL} reset")
+        events.append({"name": "reset", "arg": step.arg, "rc": r.returncode, "out": r.stdout.strip()})
+        return True
+    if step.action == "kill_gateway":
+        cmd = "slay -s KILL arb-gateway; sleep 0.2; pidin -p arb-gateway -F %a | tail -n +2"
+        r = _ssh(target, "run", cmd)
+        gone = r.stdout.strip() == ""
+        events.append({"name": "kill_gateway", "arg": step.arg, "rc": 0 if gone else 1, "gone": gone})
+        return False                                           # the planner is killed with it
+    raise ValueError(f"unknown host action {step.action}")
+
+
+def _play(target: str, host: str, plan: list[pl.Step], events: list[dict[str, Any]]) -> pl.RunResult:
+    """Play the plan through the gateway: planner sessions, with malformed frames between
+    them (they need the planner slot), host actions at their time."""
+    total = pl.RunResult(None, [], [], [], [], None)
+    for seg in tr.sessions(plan):
+        if seg[0].action == "malformed":
+            events.append(tr.malformed(host, seg[0].arg))
+            time.sleep(seg[0].gap_ms / 1000.0)
+            continue
+        before = len(events)
+        try:
+            r = pl.run(host, pr.PLANNER_PORT, seg, act=lambda step: _host_action(target, step, events))
+        except OSError as err:
+            events.append({"name": "planner_session", "arg": "-", "rc": 1, "error": str(err)})
+            break
+        stopped = any(e.get("name") == "kill_gateway" for e in events[before:])
+        total.welcome = total.welcome or r.welcome
+        total.verdicts += r.verdicts
+        total.commands += r.commands
+        total.telemetry += r.telemetry
+        total.states += r.states
+        if r.error is not None:
+            total.error = r.error
+        if r.error is not None or stopped:
+            break
+    return total
 
 
 # The binaries whose identity goes into the evidence packet (FR-E3).
@@ -144,6 +194,7 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
         run.target = target
         transport = getattr(mod, "TRANSPORT", "inject")
         if played is not None:
+            run.host_events = list(played.events)
             # D6: the verdicts the planner received, at the guardian's own decision
             # times (its evidence log), so the windows sit on the arm's samples.
             run.verdicts = tr.verdicts_from(played, run.evlog)
@@ -155,6 +206,8 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
                             f"state {v.state} fwd {v.fwd_urad[0]} {v.fwd_urad[1]} {v.fwd_duration_ms}\n")
                 f.write(f"TELEMETRY frames {len(played.telemetry)}; STATE frames {len(played.states)}; "
                         f"error {played.error}\n")
+                for ev in run.host_events:
+                    f.write(f"HOST {ev}\n")
         # This scenario's system log (SLOG lines from bench_scenario.sh), kept on its own.
         slog_text = "".join(f"{line}\n" for line in run.slog)
         (out / "raw" / f"{sid}.slog2.txt").write_text(slog_text, encoding="utf-8")

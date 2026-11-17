@@ -21,7 +21,8 @@ import select
 import socket
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Any
 
 from . import protocol as p
 
@@ -51,6 +52,8 @@ class Step:
     tag: str                    # "walk", "dwell", or anything a caller wants
     waypoint: str | None        # set on the command that ends a walk to a named waypoint
     seq: int | None = None      # a fixed sequence number (the bench replays old ones); None: the next one
+    action: str | None = None   # not a command: an event at this time, handed to run()'s act callback
+    arg: str = "-"
 
 
 def scripted_plan(start: tuple[int, int] = (0, 0)) -> list[Step]:
@@ -77,6 +80,7 @@ class RunResult:
     telemetry: list[tuple[int, p.Telemetry]]   # (verdicts received when it arrived, frame)
     states: list[p.State]
     error: int | None                          # ERROR code from the gateway, if any
+    events: list[dict[str, Any]] = field(default_factory=list)   # what the caller's act callback recorded
 
 
 class _Conn:
@@ -136,9 +140,11 @@ class _Conn:
 
 
 def run(host: str, port: int, plan: list[Step], *, wait: bool = True,
-        log: Callable[[str], None] | None = None) -> RunResult:
+        log: Callable[[str], None] | None = None, act: Callable[[Step], bool] | None = None) -> RunResult:
     """Say HELLO, then send each step as a COMMAND, resuming after the guardian's
-    last sequence number, and wait for its VERDICT. Stops at an ERROR frame."""
+    last sequence number, and wait for its VERDICT. Stops at an ERROR frame. A step
+    with an action is handed to act at its time instead (the bench's events, such as
+    an operator reset on the target); act returning False ends the run."""
     r = RunResult(None, [], [], [], [], None)
     c = _Conn(host, port, r)
     try:
@@ -156,6 +162,13 @@ def run(host: str, port: int, plan: list[Step], *, wait: bool = True,
         t_start = time.monotonic()
         t_plan = 0.0
         for step in plan:
+            if step.action is not None:
+                if act is not None and not act(step):
+                    break
+                t_plan += step.gap_ms / 1000.0
+                if wait:
+                    c.pump(t_start + t_plan - time.monotonic())
+                continue
             if step.seq is not None:
                 seq = step.seq & 0xFFFFFFFF
             cmd = p.Command(seq, step.duration_ms, time.time_ns(), step.target_urad)
@@ -204,8 +217,9 @@ def check(r: RunResult, plan: list[Step]) -> list[str]:
     problems: list[str] = []
     if r.error is not None:
         problems.append(f"the gateway sent ERROR {r.error}")
-    if len(r.verdicts) != len(plan):
-        problems.append(f"{len(r.verdicts)} of {len(plan)} commands answered")
+    n_cmds = sum(1 for s in plan if s.action is None)
+    if len(r.verdicts) != n_cmds:
+        problems.append(f"{len(r.verdicts)} of {n_cmds} commands answered")
     for v in r.verdicts:
         if v.result != p.DECIDED:
             problems.append(f"seq {v.seq}: not decided (result {v.result})")

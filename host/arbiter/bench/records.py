@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -63,6 +64,7 @@ class Run:
     samples: list[Sample] = field(default_factory=list)
     statuses: list[Status] = field(default_factory=list)
     actions: list[Action] = field(default_factory=list)
+    host_events: list[dict[str, Any]] = field(default_factory=list)   # what this host did (F7, F8, F10)
     gaps: list[tuple[int, int]] = field(default_factory=list)
     counters: dict[str, dict[str, int]] = field(default_factory=dict)      # the arm's, by phase
     wd: dict[str, dict[str, int]] = field(default_factory=dict)            # the watchdog's, by phase
