@@ -17,10 +17,19 @@ send the same frames. The gateway sees frames, never which planner sent them.
   - **port 7700: the planner.** One connection at a time.
   - **port 7701: observers** (dashboard relay, recorders). Up to 2 at a time.
     They only receive.
+- **One listening address, never all of them.** By default the gateway listens
+  on the target's own wired interface: the first interface that is up and
+  running, is not loopback, and has an IPv4 address (on QEMU, the private
+  bridge to the development host). `arb-gateway -a <IPv4 address>` or
+  `-i <interface>` chooses another; the wildcard address `0.0.0.0` is refused
+  and the gateway does not start. Its ready line names the address:
+  `arb-gateway: ready, listening on <address> ports 7700 7701 ...`.
 - No checksum: the stream is assumed reliable (TCP has its own). A planner on
   another machine reaches the target over the network. Version 1 has no
-  authentication or encryption. The guardian's contract and the kernel's
-  security policy are what keep the arm safe whoever connects (TM-C1, TM-C2).
+  authentication or encryption: whoever reaches the port is treated as the
+  planner, and is bound by the contract and the guardian like any planner
+  (THREAT_MODEL A2, TM-C1, TM-C2). Taking the single planner slot so that the
+  real planner is refused is an accepted availability limit (THREAT_MODEL O5).
 - No keep-alive. If the planner goes quiet, the guardian moves to `HOLD` after
   the contract's silence timeout. If its connection closes, the gateway closes
   its submit handle and the guardian moves to `HOLD` at once (FR-G10).

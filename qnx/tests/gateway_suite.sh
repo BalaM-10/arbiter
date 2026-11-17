@@ -30,6 +30,8 @@ up() {             # up [logd]: with "logd", also the evidence logger, which rel
     ARM=$(pid_of arb-arm)
     GUARD=$(pid_of arb-guardian)
     GW=$(pid_of arb-gateway)
+    # The one address it listens on, from its ready line ("ready, listening on <addr> ...").
+    GWADDR=$(sed -n 's/.*ready, listening on \([0-9.]*\) .*/\1/p' /tmp/arb-gateway.out | head -1)
 }
 
 down() {
@@ -65,6 +67,27 @@ if [ -n "$GW" ]; then
 else
     i5p=1
 fi
+# FR-N1: by default the gateway listens on the target's own wired interface (the
+# first interface that is up and running, not loopback, with an IPv4 address),
+# on that one address and never on every address (THREAT_MODEL A2).
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/i/ifconfig.html
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/n/netstat.html
+c=0
+ifaddr=$(ifconfig | awk '/^[a-z]/ {ok = ($0 ~ /<UP/) && ($0 ~ /RUNNING/) && ($0 !~ /LOOPBACK/)}
+    ok && $1 == "inet" && !done {print $2; done = 1}')
+echo "  the target's wired IPv4 address: ${ifaddr:-none}; the gateway listens on: ${GWADDR:-none}"
+[ -n "$GWADDR" ] && [ "$GWADDR" = "$ifaddr" ] || c=1
+socks=$(netstat -an | grep -E '[.](7700|7701) .*LISTEN')
+printf '%s\n' "$socks"
+if printf '%s\n' "$socks" | grep -q '[*][.]770'; then c=1; fi
+[ "$(printf '%s\n' "$socks" | grep -c "^tcp4 .* $GWADDR[.]770[01] ")" -eq 2 ] || c=1
+if [ "$c" -eq 0 ]; then
+    echo "PASS fr_n1_gateway_listens_on_the_wired_interface_only"
+else
+    echo "FAIL fr_n1_gateway_listens_on_the_wired_interface_only"
+    fail=1
+fi
+
 if [ "$i5p" -eq 0 ] && [ "$i5d" -eq 0 ]; then
     echo "PASS nfr_i5_gateway_runs_as_its_own_user_with_no_network_ability"
 else
@@ -82,13 +105,25 @@ if [ "$ARB_POLICY_IMAGE" -eq 1 ]; then
     fi
 fi
 
-./test_gateway run "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
+./test_gateway run "${GWADDR:-0.0.0.0}" "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
 down
 
 echo "## FR-N3: the gateway killed mid-move (and FR-N4: commands without the logger)"
 up
-./test_gateway kill "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
+./test_gateway kill "${GWADDR:-0.0.0.0}" "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
 down
+
+echo "## FR-N1: the gateway refuses to listen on every address"
+$ARB_ON_GW ./arb-gateway -a 0.0.0.0 </dev/null >/tmp/arb-gateway-any.out 2>&1
+rc=$?
+cat /tmp/arb-gateway-any.out
+if [ "$rc" -ne 0 ] && [ -z "$(pid_of arb-gateway)" ]; then
+    echo "PASS fr_n1_gateway_refuses_the_wildcard_address (exit $rc)"
+else
+    echo "FAIL fr_n1_gateway_refuses_the_wildcard_address (exit $rc)"
+    fail=1
+    slay -f arb-gateway >/dev/null 2>&1
+fi
 
 if [ "$fail" -eq 0 ]; then
     echo "RESULT PASS gateway_suite"

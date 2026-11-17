@@ -1,6 +1,6 @@
 # Threat model
 
-Status: 2026-11-16 (milestone M2, P1 to P5 and the midpoint-review fixes done; gateway, planner and logger next). Every claim in the documentation that
+Status: 2026-11-17 (milestone M2: P1 to P5, the midpoint-review fixes, the logger, the gateway and the scripted planner done). Every claim in the documentation that
 an untrusted party *cannot* do something refers to a claim ID below (TM-C1 to
 TM-C8). `scripts/check-claims.py` fails if such a sentence has no reference.
 
@@ -32,7 +32,7 @@ its left is assumed hostile.
 | ID | Capability |
 | --- | --- |
 | A1 | **Planner output.** Any targets, durations, sequence numbers and timestamps; any rate, from silence to a flood; plausible-but-wrong and deliberately adversarial plans (for example from a manipulated prompt) |
-| A2 | **Gateway input.** Anything that can reach the gateway's TCP port can send what A1 can (M2) |
+| A2 | **Gateway input.** Anything that can reach the gateway's TCP port can send what A1 can, and nothing more. The gateway listens on one address, the target's own wired interface by default, never on every address. Protocol version 1 has no authentication: whoever reaches the port is treated as the planner, and every command it sends is still decided by the guardian against the contract, exactly as the real planner's are (TM-C1). Taking the single planner connection is an availability attack (O5) |
 | A3 | **A compromised gateway or any other untrusted QNX process**, running arbitrary code with that process's user ID and abilities: any `devctl()` content, length and rate on `/dev/arbiter`; attempts to connect to any channel or path; pulses on any connection it obtains; CPU use at its own priority; crashing, hanging or exiting at any moment |
 | A4 | **Killing or stopping any untrusted process** at any moment (the fault bench does this on purpose) |
 
@@ -55,7 +55,7 @@ its left is assumed hostile.
 | O2 | **Physical access**: serial console, swapping the SD card, touching the hardware |
 | O3 | **Hardware faults**: CPU, memory, clock, timer, motor, sensor or power failure. A physical stop needs an independent hardware cut-off, which this prototype does not have (`docs/DESIGN_M1_ADDENDUM.md` section 1) |
 | O4 | Malicious or faulty trusted code (T1 to T6), including the supply chain |
-| O5 | Loss of availability: an attacker can always keep the arm in `HOLD` or force `SAFE_STOP` |
+| O5 | Loss of availability: an attacker can always keep the arm in `HOLD` or force `SAFE_STOP`. This includes occupying the gateway's single planner connection (A2), so that the real planner is refused with ERROR busy: accepted, because a refused planner moves nothing and the arm holds |
 | O6 | Side channels, and any attack on the host machine other than through the planner's output |
 | O7 | Whether the planner accomplishes its task |
 
@@ -84,7 +84,7 @@ its left is assumed hostile.
 - Pulse floods from an untrusted process that has a connection to the arm are
   bounded only once a channel pulse pool is confirmed, or once the M2 policy
   removes the connection (addendum section 6).
-- The gateway does not exist yet; A2 applies from M2.
+- **The planner link is not authenticated** (protocol version 1, `docs/PROTOCOL.md`). Mitigated, not closed: the gateway listens on one address only (the target's wired interface by default, the wildcard refused), so it is reachable only from that network; anyone there is a planner (A2), bound by the contract (TM-C1), and can at worst hold the planner slot (O5).
 - **Closed in M2 P5, policy off: first-come binding.** The guardian now runs as
   user 810 and the arm binds only that user, so the startup order no longer
   matters (F11 case 2, TM-C2). With the policy on, the attacker cannot even

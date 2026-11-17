@@ -7,7 +7,11 @@
  * (devctl GET_STATUS on /dev/arbiter) and the arm's telemetry ring, never
  * against what the gateway says about itself.
  *
- *   test_gateway run|kill <gateway-pid> <watchdog-pid> <arm-pid> <guardian-pid>
+ *   test_gateway run|kill <gateway-address> <gateway-pid> <watchdog-pid> <arm-pid> <guardian-pid>
+ *
+ * The gateway listens on one address only (by default the target's own wired
+ * interface, never every address), so the planner and observers connect to it
+ * there; the tests also check that it does not answer on the loopback address.
  *
  * run: with the evidence logger (arb-logd) running, which relays the arm's
  * telemetry to the gateway (decision D1). kill: without it.
@@ -49,6 +53,7 @@
 #define STEP_MS        300
 
 static pid_t g_gw, g_wd, g_arm, g_guard;
+static struct in_addr g_gw_addr;      /* the one address the gateway listens on */
 static int g_status_fd = -1;
 static const arb_telem_t *g_telem;
 static uint32_t g_seq;                /* the last sequence number this planner sent */
@@ -120,7 +125,7 @@ static int frame_ok(const arb_net_frame_t *f)
             f->h.type == ARB_NET_STATE || f->h.type == ARB_NET_ERROR);
 }
 
-static int gw_connect(int port)
+static int connect_to(struct in_addr addr, int port)
 {
     struct sockaddr_in a;
     const int one = 1;
@@ -133,12 +138,19 @@ static int gw_connect(int port)
     memset(&a, 0, sizeof a);
     a.sin_family = AF_INET;
     a.sin_port = htons((uint16_t)port);
-    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    a.sin_addr = addr;
     if (connect(fd, (struct sockaddr *)&a, sizeof a) == -1) {
+        const int e = errno;
         (void)close(fd);
+        errno = e;
         return -1;
     }
     return fd;
+}
+
+static int gw_connect(int port)
+{
+    return connect_to(g_gw_addr, port);
 }
 
 static int send_bytes(int fd, const void *p, size_t n)
@@ -331,6 +343,34 @@ static void fr_n2_frames_match_the_documented_examples(void)
     CHECK_EQ_INT(f.verdict.fwd_urad[1], 1047198);
     CHECK_EQ_INT(f.verdict.fwd_duration_ms, 2094);
     CHECK_EQ_INT(f.verdict.requested_ms, 1500);
+}
+
+/* The gateway listens on its one address only: nothing listens on the loopback
+ * address, on either port, so it serves no address it was not given. */
+static void fr_n1_gateway_is_not_reachable_on_other_addresses(void)
+{
+    const int ports[2] = { ARB_NET_PLANNER_PORT, ARB_NET_OBSERVER_PORT };
+    struct in_addr lo;
+    int fd;
+
+    lo.s_addr = htonl(INADDR_LOOPBACK);
+    CHECK(g_gw_addr.s_addr != lo.s_addr);
+    for (int i = 0; i < 2; i++) {                                /* bound: 2 ports */
+        int e;
+        fd = connect_to(lo, ports[i]);
+        e = errno;
+        printf("  127.0.0.1:%d: %s\n", ports[i], fd == -1 ? strerror(e) : "connected");
+        CHECK(fd == -1 && e == ECONNREFUSED);
+        if (fd != -1) {
+            (void)close(fd);
+        }
+    }
+    fd = gw_connect(ARB_NET_OBSERVER_PORT);                      /* while it does answer on its own */
+    CHECK(fd != -1);
+    if (fd != -1) {
+        (void)close(fd);
+    }
+    ms_sleep(50);
 }
 
 /* HELLO gets WELCOME (the guardian's own state and sequence), then STATE. */
@@ -953,6 +993,7 @@ static void fr_n3_killing_the_gateway_mid_move_holds_and_trusted_processes_run_o
 
 static const arb_test_case_t run_cases[] = {
     ARB_TEST_CASE(fr_n2_frames_match_the_documented_examples),
+    ARB_TEST_CASE(fr_n1_gateway_is_not_reachable_on_other_addresses),
     ARB_TEST_CASE(fr_n1_planner_gets_welcome_then_state),
     ARB_TEST_CASE(fr_n1_second_planner_is_refused_busy),
     ARB_TEST_CASE(fr_n1_each_command_is_forwarded_and_answered_in_order),
@@ -980,14 +1021,18 @@ int main(int argc, char **argv)
     struct sigaction sa;
     int fd;
 
-    if (argc != 6 || (strcmp(mode, "run") != 0 && strcmp(mode, "kill") != 0)) {
-        fprintf(stderr, "usage: test_gateway run|kill <gateway-pid> <wd-pid> <arm-pid> <guard-pid>\n");
+    /* inet_pton() is listed with the io-sock Networking APIs (FreeBSD 14.4 inet(3)).
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.io_sock/topic/socket_api.html */
+    if (argc != 7 || (strcmp(mode, "run") != 0 && strcmp(mode, "kill") != 0) ||
+        inet_pton(AF_INET, argv[2], &g_gw_addr) != 1) {
+        fprintf(stderr, "usage: test_gateway run|kill <gateway-address> <gateway-pid> <wd-pid> <arm-pid> "
+                        "<guard-pid>\n");
         return 2;
     }
-    g_gw = (pid_t)strtol(argv[2], NULL, 10);
-    g_wd = (pid_t)strtol(argv[3], NULL, 10);
-    g_arm = (pid_t)strtol(argv[4], NULL, 10);
-    g_guard = (pid_t)strtol(argv[5], NULL, 10);
+    g_gw = (pid_t)strtol(argv[3], NULL, 10);
+    g_wd = (pid_t)strtol(argv[4], NULL, 10);
+    g_arm = (pid_t)strtol(argv[5], NULL, 10);
+    g_guard = (pid_t)strtol(argv[6], NULL, 10);
     /* A closed peer must not kill the test with SIGPIPE.
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/sigaction.html */
     memset(&sa, 0, sizeof sa);
