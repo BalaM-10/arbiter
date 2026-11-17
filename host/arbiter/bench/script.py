@@ -28,6 +28,7 @@ class Command:
 class Script:
     commands: list[Command] = field(default_factory=list)
     statuses: list[int] = field(default_factory=list)
+    actions: list[tuple[int, str, str]] = field(default_factory=list)   # (t_ms, name, arg) for arb-inject
     end_ms: int = 0
     t_ms: int = 0
     seq: int = 0
@@ -68,6 +69,16 @@ class Script:
     def status(self) -> None:
         self.statuses.append(self.t_ms)
 
+    def action(self, name: str, arg: str = "-", gap_ms: int = 0) -> None:
+        """An arb-inject action now (estop; kill @GUARD@ and the like), then advance the clock.
+        Only for scenarios that run through arb-inject: its clock is the scenario's."""
+        self.actions.append((self.t_ms, name, arg))
+        self.t_ms += gap_ms
+
+    def wait(self, ms: int) -> None:
+        """Send nothing for ms."""
+        self.t_ms += ms
+
     def end(self, after_ms: int = 300) -> None:
         self.end_ms = self.t_ms + after_ms
 
@@ -77,6 +88,8 @@ class Script:
             steps.append((c.t_ms, i, f"C {c.t_ms} {c.seq} {c.target[0]} {c.target[1]} {c.duration_ms}"))
         for t in self.statuses:
             steps.append((t, len(self.commands), f"S {t}"))
+        for t, name, arg in self.actions:
+            steps.append((t, len(self.commands), f"A {t} {name} {arg}"))
         steps.sort()
         lines = [s for _, _, s in steps]
         lines.append(f"E {self.end_ms}")

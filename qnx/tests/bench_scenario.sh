@@ -38,6 +38,10 @@ $ARB_ON_LOGD ./arb-logd "$CONTRACT" "$LOGDIR/evidence.log" </dev/null >"$LOGDIR/
 LOGD=$!
 sleep 1
 
+# Actions name processes by placeholder: fill in this run's pids (F13).
+sed -e "s/@GUARD@/$(pid_of arb-guardian)/g" -e "s/@ARM@/$(pid_of arb-arm)/g" -e "s/@WD@/$(pid_of arb-watchdog)/g" \
+    "$LOGDIR/script.txt" >"$LOGDIR/script.run" && mv "$LOGDIR/script.run" "$LOGDIR/script.txt"
+
 if [ "$VIA" = gateway ]; then
     ./arb-inject <"$LOGDIR/script.txt" >"$LOGDIR/inject.out" 2>&1 &
     INJ=$!

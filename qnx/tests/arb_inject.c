@@ -19,6 +19,9 @@
  * Script, one step per line, times in ms from the start, non-decreasing:
  *   C <t_ms> <seq> <q0_urad> <q1_urad> <duration_ms>   submit a command
  *   S <t_ms>                                           record the guardian status
+ *   A <t_ms> estop -                                   press the emergency stop (devctl, FR-W4; F14)
+ *   A <t_ms> kill <pid>                                SIGKILL a process (F13: the guardian, whose
+ *                                                      pid bench_scenario.sh fills in for @GUARD@)
  *   E <t_ms>                                           end of the run
  *   # ...                                              comment
  *
@@ -35,6 +38,7 @@
  *     <target0> <target1> <duration_ms> <requested_ms>
  *   S <t_ns> <state> <stop_cause> <decisions> <arm_faults> <ticks> <bad_messages> <watchdog_trips>
  *     <foreign_pulses> <watchdog_lost> <watchdog_lost_cause>
+ *   A <t_ns> <name> <arg> <rc>             an action, when it was done, and its result (0 or errno)
  *   T <index> <t_ns> <t_cycles> <pos0> <pos1> <vel0> <vel1> <segment> <state> <lease_ok>
  *   GAP <first_index> <count>              samples the reader lost (the bench fails on any)
  *   DONE samples <n> gaps <n> verdicts <n>
@@ -42,6 +46,7 @@
  * Exit: 0 run complete, 2 bad script, 3 /dev/arbiter, 4 telemetry, 5 record overflow.
  */
 #include <errno.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -65,12 +70,21 @@
 #define DRAIN_MS      20          /* telemetry read period; the ring holds 8 s */
 
 typedef struct {
-    char     kind;                /* 'C', 'S' or 'E' */
+    char     kind;                /* 'C', 'S', 'A' or 'E' */
     int64_t  t_ms;
     uint32_t seq;
     int32_t  q[ARB_JOINTS];
     uint32_t duration_ms;
+    char     action;              /* 'A' steps: 'e' estop, 'k' kill */
+    long     pid;                 /* 'A' kill: the process */
 } step_t;
+
+typedef struct {
+    int64_t t_ns;
+    char    action;
+    long    pid;
+    int     rc;
+} arec_t;
 
 typedef struct {
     int64_t  t_send_ns, t_reply_ns;
@@ -91,9 +105,10 @@ typedef struct {
 static step_t             g_steps[MAX_STEPS];
 static vrec_t             g_v[MAX_STEPS];
 static srec_t             g_s[MAX_STEPS];
+static arec_t             g_a[MAX_STEPS];
 static arb_telem_sample_t g_samples[MAX_SAMPLES];
 static gap_t              g_gaps[MAX_GAPS];
-static unsigned           g_nsteps, g_nv, g_ns, g_nsamples, g_ngaps;
+static unsigned           g_nsteps, g_nv, g_ns, g_na, g_nsamples, g_ngaps;
 static int                g_overflow;
 static uint64_t           g_next;
 static const arb_telem_t *g_tm;
@@ -237,6 +252,20 @@ static int parse_script(void)
             s.q[0] = (int32_t)q0;
             s.q[1] = (int32_t)q1;
             s.duration_ms = (uint32_t)dur;
+        } else if (s.kind == 'A') {
+            char name[16], arg[24];
+            if (sscanf(line + 1, "%lld %15s %23s", &t, name, arg) != 3) {
+                fprintf(stderr, "arb-inject: bad script line: %s", line);
+                return -1;
+            }
+            if (strcmp(name, "estop") == 0) {
+                s.action = 'e';
+            } else if (strcmp(name, "kill") == 0 && sscanf(arg, "%ld", &s.pid) == 1 && s.pid > 1) {
+                s.action = 'k';
+            } else {
+                fprintf(stderr, "arb-inject: bad action: %s", line);
+                return -1;
+            }
         } else if ((s.kind == 'S' || s.kind == 'E') && sscanf(line + 1, "%lld", &t) == 1) {
             ended = s.kind == 'E';
         } else {
@@ -341,6 +370,23 @@ int main(void)
             v->rc = devctl(fd, ARB_DCMD_SUBMIT, &u, sizeof u, NULL);
             v->t_reply_ns = now_ns();
             v->w = u.verdict;
+        } else if (s->kind == 'A') {
+            arec_t *a = &g_a[g_na++];
+
+            a->action = s->action;
+            a->pid = s->pid;
+            a->t_ns = now_ns();
+            if (s->action == 'e') {
+                /* FR-W4: any client may stop.
+                 * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
+                a->rc = devctl(fd, ARB_DCMD_ESTOP, NULL, 0, NULL);
+            } else {
+                /* Killing a trusted process takes root again for the one call, then
+                 * back to the gateway's user.
+                 * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/k/kill.html */
+                a->rc = seteuid(0) == 0 && kill((pid_t)s->pid, SIGKILL) == 0 ? 0 : errno;
+                (void)seteuid((uid_t)ARB_UID_GATEWAY);
+            }
         } else if (s->kind == 'S') {
             srec_t *r = &g_s[g_ns++];
 
@@ -366,6 +412,14 @@ int main(void)
                (unsigned)st->stop_cause, st->decisions, st->arm_faults, st->ticks, st->bad_messages,
                st->watchdog_trips, st->foreign_pulses, (unsigned)st->watchdog_lost,
                (unsigned)st->watchdog_lost_cause);
+    }
+    for (unsigned i = 0; i < g_na; i++) {
+        const arec_t *a = &g_a[i];
+        if (a->action == 'e') {
+            printf("A %lld estop - %d\n", (long long)a->t_ns, a->rc);
+        } else {
+            printf("A %lld kill %ld %d\n", (long long)a->t_ns, a->pid, a->rc);
+        }
     }
     for (unsigned i = 0; i < g_nsamples; i++) {
         const arb_telem_sample_t *c = &g_samples[i];

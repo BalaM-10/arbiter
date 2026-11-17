@@ -15,7 +15,7 @@ from .. import evidence
 from . import kinematics as kin
 from .records import Run, Verdict
 from .script import Command, Script
-from .spec import ARM_STATE, PERIOD_NS, RULE, RULE_NAME, STATE, STATE_NAME, VERDICT, VERDICT_NAME, Spec
+from .spec import ARM_STATE, PERIOD_NS, RULE, RULE_NAME, STATE, STATE_NAME, STOP, VERDICT, VERDICT_NAME, Spec
 
 # Integer rounding of two positions (each llround'ed by the arm) between samples.
 POS_ROUNDING_URAD = 2
@@ -381,3 +381,121 @@ def on_segment(run: Run, p0: tuple[int, int], p1: tuple[int, int], name: str) ->
     ok = worst <= REACHED_TOL_URAD
     return Check(name, ok,
                  f"largest distance from the segment {worst:.1f} µrad over {len(run.samples)} samples")
+
+
+# ------------------------------------------- M2 P7: F2, F13, F14, F15
+
+def decisions(run: Run) -> list[dict[str, int]]:
+    """The guardian's own decision records (its evidence log's R lines), in order."""
+    out: list[dict[str, int]] = []
+    for line in run.evlog:
+        f = line.split()
+        if not f or f[0] != "R":
+            continue
+        keys = ("seq", "t_ns", "verdict", "rule", "before", "after")
+        d = {k: int(f[f.index(k) + 1]) for k in keys if k in f}
+        d["line"] = int(f[1])
+        out.append(d)
+    return out
+
+
+def hold_recorded_before(run: Run, seq: int) -> Check:
+    """F2: when the planner came back with seq, the guardian's own record says it was in HOLD."""
+    d = next((x for x in decisions(run) if x.get("seq") == seq), None)
+    ok = d is not None and d.get("before") == STATE["HOLD"]
+    detail = (f"no decision for seq {seq} in the evidence log" if d is None else
+              f"decision for seq {seq}: state before {STATE_NAME.get(d.get('before', -1), d.get('before'))}, "
+              f"after {STATE_NAME.get(d.get('after', -1), d.get('after'))} (the guardian's evidence log)")
+    return Check("hold_recorded_by_the_guardian", ok, detail)
+
+
+def stopped_short(run: Run, target: tuple[int, int], from_ms: int, to_ms: int, name: str) -> Check:
+    """F2: between from_ms and to_ms the arm stands still, and not at target."""
+    lo, hi = run.t0_ns + from_ms * 1_000_000, run.t0_ns + to_ms * 1_000_000
+    win = [s for s in run.samples if lo <= s.t_ns <= hi]
+    if not win:
+        return Check(name, False, f"no sample between {from_ms} and {to_ms} ms")
+    p0 = win[0].pos
+    drift = max(max(abs(s.pos[j] - p0[j]) for j in range(2)) for s in win)
+    gap = max(abs(p0[j] - target[j]) for j in range(2))
+    ok = drift <= REACHED_TOL_URAD and gap > REACHED_TOL_URAD
+    return Check(name, ok, f"{len(win)} samples between {from_ms} and {to_ms} ms: moved at most "
+                 f"{drift} µrad, standing {gap} µrad short of the target {target}")
+
+
+def _action(run: Run, name: str) -> int | None:
+    return next((a.t_ns for a in run.actions if a.name == name and a.rc == 0), None)
+
+
+def braked_within(run: Run, action: str, cycles: int, name: str) -> Check:
+    """F13, F14: after the action the arm starts braking (its own state, from telemetry:
+    STOPPING, decelerating along its segment, or BRAKED) within `cycles` control
+    cycles, comes to rest BRAKED, and never moves again. The cycle count is judged on
+    hardware targets, measured and reported on QEMU (owner decision 2026-11-13); the
+    time to rest is reported."""
+    t = _action(run, action)
+    if t is None:
+        return Check(name, False, f"no successful '{action}' action recorded")
+    after = [s for s in run.samples if s.t_ns >= t]
+    braking = (ARM_STATE["STOPPING"], ARM_STATE["BRAKED"])
+    k0 = next((i for i, s in enumerate(after) if s.state in braking), None)
+    k = next((i for i, s in enumerate(after) if s.state == ARM_STATE["BRAKED"]), None)
+    if k0 is None or k is None:
+        return Check(name, False, f"the arm never braked after the {action} ({len(after)} samples)")
+    b = after[k]
+    n0 = -(-(after[k0].t_ns - t) // PERIOD_NS)
+    n = -(-(b.t_ns - t) // PERIOD_NS)
+    drift = max((max(abs(s.pos[j] - b.pos[j]) for j in range(2)) for s in after[k:]), default=0)
+    unbraked = sum(1 for s in after[k:] if s.state != ARM_STATE["BRAKED"])
+    left = sum(1 for s in after[k0:k] if s.state not in braking)
+    strict = timing_judged(run.target)
+    ok = drift <= REACHED_TOL_URAD and unbraked == 0 and left == 0 and (n0 <= cycles or not strict)
+    timing = (f"braking began {n0} control cycles after the {action} (limit {cycles}"
+              + (", judged)" if strict else ", reported, not judged: QEMU proves function, never timing)"))
+    return Check(name, ok, f"{timing}; at rest and braked after {n} cycles; afterwards moved at most "
+                 f"{drift} µrad, {unbraked} samples not braked",
+                 {"cycles": n0, "rest_cycles": n, "judged": strict})
+
+
+WD_CAUSE_SHORT = {1: "died", 2: "stuck", 3: "disconnected"}
+
+
+def watchdog_recorded(run: Run, role: str, causes: tuple[str, ...]) -> Check:
+    """F13: the watchdog tripped for this role, with one of these causes."""
+    wd = run.wd.get("end", {})
+    trips = _delta(run, run.wd, "trips")
+    got_role = WD_ROLE.get(wd.get("last_role", 0), "none")
+    got_cause = WD_CAUSE_SHORT.get(wd.get("last_cause", 0), "none")
+    ok = trips >= 1 and got_role == role and got_cause in causes
+    return Check("watchdog_recorded_the_cause", ok,
+                 f"watchdog trips {trips}; last: the {got_role}, {got_cause} (pid {wd.get('last_pid', -1)})")
+
+
+def safe_stop_by(run: Run, cause: str) -> Check:
+    """F14: the guardian's last status is SAFE_STOP with this cause."""
+    if not run.statuses:
+        return Check("safe_stop_with_its_cause", False, "no guardian status recorded")
+    st = run.statuses[-1]
+    ok = st.state == STATE["SAFE_STOP"] and st.stop_cause == STOP[cause]
+    names = {v: k for k, v in STOP.items()}
+    return Check("safe_stop_with_its_cause", ok, f"guardian {STATE_NAME.get(st.state, st.state)}, cause "
+                 f"{names.get(st.stop_cause, st.stop_cause)} (expected SAFE_STOP, {cause})")
+
+
+def tampering_detected(run: Run) -> Check:
+    """F15: change one byte of this scenario's own evidence log (in a decision record's
+    duration) and `arbiter evidence verify` must fail, naming that line first."""
+    recs = [x for x in run.evlog if x.startswith("R ")]
+    if not recs or not run.evanchor:
+        return Check("tampering_detected", False, "no evidence log to change")
+    victim = recs[1] if len(recs) > 1 else recs[0]
+    n = int(victim.split()[1])
+    i = victim.index(" dur ") + len(" dur ")
+    changed = victim[:i] + ("2" if victim[i] != "2" else "3") + victim[i + 1:]
+    text = "".join(f"{changed if x is victim else x}\n" for x in run.evlog)
+    v = evidence.verify(text, anchor=run.evanchor)
+    first = v.errors[0] if v.errors else ""
+    ok = not v.ok and first.startswith(f"line {n}")
+    return Check("tampering_detected", ok,
+                 f"changed one byte of line {n} ('dur {victim[i]}' -> 'dur {changed[i]}'): "
+                 + (f"verify fails first at: {first}" if v.errors else "verify still passes"))

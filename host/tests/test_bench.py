@@ -521,6 +521,17 @@ def f13_brake_check_fails_when_the_arm_moves_on() -> None:
     assert not ck.braked_within(_braking_run("qemu", None), "kill", 5, "x").passed
 
 
+def f13_brake_check_times_the_start_of_braking_not_the_rest() -> None:
+    """Braking starts when the arm leaves MOVING for STOPPING (it decelerates along its
+    segment); BRAKED comes only at rest. The limit applies to the start."""
+    run = _braking_run("pi5", 20)
+    for s in list(run.samples):
+        if 101 <= s.index < 120:                                       # decelerating from cycle 1
+            run.samples[s.index] = Sample(s.index, s.t_ns, s.index, s.pos, s.vel, 1, 3, 0)
+    c = ck.braked_within(run, "kill", 2, "x")
+    assert c.passed and "began 1 " in c.detail and "after 20 cycles" in c.detail, c.detail
+
+
 def f13_brake_check_is_strict_on_the_pi5_and_reported_on_qemu() -> None:
     assert ck.braked_within(_braking_run("pi5", 3), "kill", 5, "x").passed
     assert not ck.braked_within(_braking_run("pi5", 7), "kill", 5, "x").passed

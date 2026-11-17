@@ -46,6 +46,7 @@ PERIOD_NS = _ARM["ARB_ARM_PERIOD_NS"]
 VERDICT = _enum(CONTRACT_H, "ARB_VERDICT_")
 RULE = _enum(CONTRACT_H, "ARB_RULE_")
 STATE = _enum(CONTRACT_H, "ARB_STATE_")
+STOP = _enum(CONTRACT_H, "ARB_STOP_")
 ARM_STATE = _enum(ARM_MOTION_H, "ARM_STATE_")
 VERDICT_NAME = {v: k for k, v in VERDICT.items()}
 RULE_NAME = {v: k for k, v in RULE.items()}

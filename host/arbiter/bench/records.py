@@ -48,11 +48,21 @@ class Status:
     watchdog_lost_cause: int = 0  # ARB_WD_LOST_* of that first loss (1 connection died, 2 no beat)
 
 
+@dataclass(frozen=True)
+class Action:
+    """Something arb-inject did besides a command: pressed the e-stop, killed a process."""
+    t_ns: int
+    name: str
+    arg: str
+    rc: int
+
+
 @dataclass
 class Run:
     verdicts: list[Verdict] = field(default_factory=list)
     samples: list[Sample] = field(default_factory=list)
     statuses: list[Status] = field(default_factory=list)
+    actions: list[Action] = field(default_factory=list)
     gaps: list[tuple[int, int]] = field(default_factory=list)
     counters: dict[str, dict[str, int]] = field(default_factory=dict)      # the arm's, by phase
     wd: dict[str, dict[str, int]] = field(default_factory=dict)            # the watchdog's, by phase
@@ -84,6 +94,8 @@ def parse(text: str, exit_code: int) -> Run:
         elif tag == "S" and len(f) in (11, 12):
             n = [int(x) for x in f[1:]]
             run.statuses.append(Status(*n))
+        elif tag == "A" and len(f) == 5:
+            run.actions.append(Action(int(f[1]), f[2], f[3], int(f[4])))
         elif tag == "WD" and len(f) >= 14 and len(f) % 2 == 0:
             run.wd[f[1]] = {f[i]: int(f[i + 1]) for i in range(2, len(f), 2)}
         elif tag == "GAP" and len(f) == 3:
