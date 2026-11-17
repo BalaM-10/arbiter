@@ -238,6 +238,25 @@ def fr_b2_parser_reads_arb_inject_output() -> None:
     assert ck.contract_matches(run, SPEC).passed
 
 
+def fr_b2_parser_reads_trip_causes_and_the_system_log() -> None:
+    text = ("COUNTERS end rejected 0 lease_expiries 1 disconnects 0 wd_brakes 1 wd_lost 1 bound_pid 5 "
+            "wd_lost_cause 2\n"
+            "WD end trips 2 rejected 9 hb_guardian 100 hb_arm 200 deliver_errors 0 beat_errors 0 "
+            "last_role 2 last_cause 2 last_pid 77\n"
+            "S 30 3 3 1 0 9 0 0 0 1 2\n"
+            "SLOG watchdog Nov 17 02:37:32.753 arb_watchdog.7 main 7 trip: the guardian disconnected\n"
+            "SLOG arm unavailable: slog2info: no permission\n")
+    run = parse(text, 0)
+    assert run.counters["end"]["wd_lost_cause"] == 2 and run.counters["end"]["bound_pid"] == 5
+    assert run.wd["end"]["last_role"] == 2 and run.wd["end"]["last_pid"] == 77
+    assert run.statuses[0].watchdog_lost == 1 and run.statuses[0].watchdog_lost_cause == 2
+    assert run.slog == ["watchdog Nov 17 02:37:32.753 arb_watchdog.7 main 7 trip: the guardian disconnected",
+                        "arm unavailable: slog2info: no permission"]
+    old = parse("WD end trips 0 rejected 0 hb_guardian 1 hb_arm 1 deliver_errors 0 beat_errors 0\n"
+                "S 30 2 0 1 0 9 0 0 3 1\n", 0)               # the format before 2026-11-16 still parses
+    assert old.wd["end"]["trips"] == 0 and old.statuses[0].watchdog_lost_cause == 0
+
+
 def fr_b2_contract_check_needs_the_full_hash_from_guardian_and_arm() -> None:
     h = SPEC.sha256
     both = f"LOG guardian x contract sha256 {h}\nLOG arm y contract sha256 {h}\n"
@@ -274,6 +293,19 @@ def fr_b2_unexpected_fault_counters_fail_the_baseline() -> None:
     assert not ck.no_unexpected_faults(run).passed
 
 
+def fr_b2_unexpected_faults_name_who_tripped_and_why() -> None:
+    run = _fault_run()
+    run.wd["end"].update(trips=1, last_role=1, last_cause=2, last_pid=42)
+    run.counters["end"].update(wd_lost=1, wd_lost_cause=2)
+    run.statuses[0] = Status(0, 3, 3, 5, 0, 100, 0, 0, 0, 1, 2)
+    c = ck.no_unexpected_faults(run)
+    assert not c.passed
+    assert "the watchdog tripped the guardian (pid 42): stuck (no heartbeat for 10 ms)" in c.detail
+    assert "the arm lost the watchdog: no beat from the watchdog for 10 ticks" in c.detail
+    assert "the guardian lost the watchdog: no beat from the watchdog for 10 ticks" in c.detail
+    assert c.data["causes"] and ck.no_unexpected_faults(_fault_run()).data["causes"] == ""
+
+
 def fr_b2_a_stopped_trusted_process_fails_the_running_check() -> None:
     assert ck.trusted_running(_fault_run()).passed
     run = _fault_run()
@@ -295,3 +327,4 @@ def fr_b3_bench_exits_nonzero_when_a_scenario_fails(monkeypatch: pytest.MonkeyPa
     reports = list(tmp_path.glob("*/*/report.json"))
     assert len(reports) == 1 and '"passed": false' in reports[0].read_text()
     assert (reports[0].parent / "report.html").exists()
+    assert (reports[0].parent / "raw" / "F9.slog2.txt").exists()       # the system log is kept per scenario

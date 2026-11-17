@@ -7,7 +7,7 @@
 #
 #   ./bench_scenario.sh <contract.bin> < script
 #
-# Output: arb-inject's records, then ALIVE and LOG lines. Exit: arb-inject's status.
+# Output: arb-inject's records, then ALIVE, SLOG and LOG lines. Exit: arb-inject's status.
 cd "$(dirname "$0")" || exit 1
 . ./arb_suite_lib.sh             # on the policy image each process starts as its type
 CONTRACT="${1:?usage: bench_scenario.sh <contract.bin>}"
@@ -31,6 +31,26 @@ rc=$?
 
 alive() { kill -0 "$1" 2>/dev/null && echo 1 || echo 0; }
 echo "ALIVE watchdog $(alive "$WD") arm $(alive "$ARM") guardian $(alive "$GUARD")"
+
+# This scenario's system log, read before the processes stop (slogger2 may drop
+# a dead process's buffer later), one "SLOG <process> <line>" per line. The
+# bench saves them per scenario, so a failed run names its cause.
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slog2info.html
+# The pid is looked up by program name (on the policy image $! may be the pid
+# of `on`), falling back to $! if the process is gone.
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/p/pidin.html
+slog() {    # <process> <buffer set> <program> <pid from $!>
+    pid=$(pidin -p "$3" -F "%a" 2>/dev/null | tail -1 | tr -d ' ')
+    case "$pid" in ''|*[!0-9]*) pid=$4 ;; esac
+    if out=$(slog2info -b "$2" 2>&1); then
+        printf '%s\n' "$out" | grep "$2\.$pid " | sed "s/^/SLOG $1 /"
+    else
+        echo "SLOG $1 unavailable: $(printf '%s' "$out" | head -1)"
+    fi
+}
+slog watchdog arb_watchdog arb-watchdog "$WD"
+slog arm arb_arm arb-arm "$ARM"
+slog guardian arb_guardian arb-guardian "$GUARD"
 
 kill "$GUARD" "$ARM" 2>/dev/null
 wait "$GUARD" 2>/dev/null

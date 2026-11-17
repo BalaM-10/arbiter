@@ -76,6 +76,9 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
                 f.write("".join(f"STDERR {line}\n" for line in r.stderr.splitlines()))
         run = parse(r.stdout, r.returncode)
         run.target = target
+        # This scenario's system log (SLOG lines from bench_scenario.sh), kept on its own.
+        slog_text = "".join(f"{line}\n" for line in run.slog)
+        (out / "raw" / f"{sid}.slog2.txt").write_text(slog_text, encoding="utf-8")
         checks: list[Check] = mod.judge(run, script, spec)
         passed = all(c.passed for c in checks)
         for c in checks:
@@ -86,7 +89,8 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
             "checks": [{"name": c.name, "passed": c.passed, "detail": c.detail, "data": c.data}
                        for c in checks],
             "samples": len(run.samples), "commands": len(script.commands),
-            "raw": f"raw/{sid}.out.gz", "script": f"raw/{sid}.script", "paths": report.tip_paths(run)})
+            "raw": f"raw/{sid}.out.gz", "script": f"raw/{sid}.script", "slog2": f"raw/{sid}.slog2.txt",
+            "paths": report.tip_paths(run)})
 
     n_pass = sum(1 for s in scenarios if s["passed"])
     rep = {"meta": meta, "passed": n_pass, "total": len(scenarios), "scenarios": scenarios}

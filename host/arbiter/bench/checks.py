@@ -85,6 +85,30 @@ def trusted_running(run: Run) -> Check:
                  f"{hb['arm']} arm heartbeats (1 per ms expected)", {"heartbeats": hb, "span_ms": span_ms})
 
 
+# The C enums in qnx/common/arb_watchdog_proto.h: ARB_WD_ROLE_*, ARB_WD_CAUSE_*, ARB_WD_LOST_*.
+WD_ROLE = {1: "guardian", 2: "arm"}
+WD_CAUSE = {1: "died", 2: "stuck (no heartbeat for 10 ms)", 3: "disconnected"}
+WD_LOST = {1: "its connection to the watchdog died", 2: "no beat from the watchdog for 10 ticks"}
+
+
+def fault_causes(run: Run) -> str:
+    """Who stopped the system and why, from the counters arb-inject prints at the end:
+    the watchdog's last trip, and each client's first loss of the watchdog."""
+    parts: list[str] = []
+    wd = run.wd.get("end", {})
+    if _delta(run, run.wd, "trips") > 0 and "last_role" in wd:
+        role, cause = wd["last_role"], wd.get("last_cause", 0)
+        parts.append(f"the watchdog tripped the {WD_ROLE.get(role, role)} "
+                     f"(pid {wd.get('last_pid', -1)}): {WD_CAUSE.get(cause, cause)}")
+    arm = run.counters.get("end", {})
+    if _delta(run, run.counters, "wd_lost") > 0 and arm.get("wd_lost_cause", 0):
+        parts.append(f"the arm lost the watchdog: {WD_LOST.get(arm['wd_lost_cause'], arm['wd_lost_cause'])}")
+    if run.statuses and run.statuses[-1].watchdog_lost and run.statuses[-1].watchdog_lost_cause:
+        c = run.statuses[-1].watchdog_lost_cause
+        parts.append(f"the guardian lost the watchdog: {WD_LOST.get(c, c)}")
+    return "; ".join(parts)
+
+
 def no_unexpected_faults(run: Run, extra_ok: frozenset[str] = frozenset()) -> Check:
     """Nothing went wrong that the scenario did not ask for (M1-J11): no watchdog trip or
     beat error, no arm rejection, lease expiry, disconnect, watchdog brake or lost
@@ -110,9 +134,14 @@ def no_unexpected_faults(run: Run, extra_ok: frozenset[str] = frozenset()) -> Ch
     else:
         seen["guardian status"] = -1
     bad = {k: v for k, v in seen.items() if v != 0 and k not in extra_ok}
-    return Check("no_unexpected_faults", not bad,
-                 "all zero: " + ", ".join(seen) if not bad else
-                 "unexpected: " + ", ".join(f"{k} {v}" for k, v in bad.items()), {"counters": seen})
+    causes = fault_causes(run)
+    if not bad:
+        detail = "all zero: " + ", ".join(seen)
+    else:
+        detail = "unexpected: " + ", ".join(f"{k} {v}" for k, v in bad.items())
+        if causes:
+            detail += f" ({causes})"
+    return Check("no_unexpected_faults", not bad, detail, {"counters": seen, "causes": causes})
 
 
 def telemetry_complete(run: Run) -> Check:
