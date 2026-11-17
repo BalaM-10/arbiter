@@ -77,6 +77,31 @@ if [ -n "$GW" ]; then
 else
     i5p=1
 fi
+# NFR-I2: each trusted process's stack is mapped in full from the start, so no
+# stack page is allocated later, inside a control loop. QNX 8.0 states: "In this
+# release, lazy stack allocation is disabled" (pthread_attr_setstacklazy, procnto
+# -n), and "in this release all memory is superlocked ... All memory regions are
+# fully backed when they're created" (System Architecture, Memory management).
+# pidin's stack column is "the amount of stack currently mapped, followed by a
+# slash (/) and then the total stack size", read here for each one.
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/pthread_attr_setstacklazy.html
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.sys_arch/topic/proc_memmgr.html
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/p/pidin.html
+c=0
+for p in arb-watchdog arb-arm arb-guardian arb-logd; do
+    st=$(pidin -p "$p" mem | awk 'NR == 2 {print $NF}')
+    case "$st" in
+        */*) [ "${st%/*}" = "${st#*/}" ] && echo "  ok   $p: stack $st (mapped/total)" || { echo "  FAIL $p: stack $st"; c=1; } ;;
+        *) echo "  FAIL $p: no stack field ($st)"; c=1 ;;
+    esac
+done
+if [ "$c" -eq 0 ]; then
+    echo "PASS nfr_i2_trusted_stacks_are_mapped_in_full_from_the_start"
+else
+    echo "FAIL nfr_i2_trusted_stacks_are_mapped_in_full_from_the_start"
+    fail=1
+fi
+
 # FR-N1: by default the gateway listens on the target's own wired interface (the
 # first interface that is up and running, not loopback, with an IPv4 address),
 # on that one address and never on every address (THREAT_MODEL A2).

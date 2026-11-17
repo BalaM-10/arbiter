@@ -147,7 +147,7 @@ measurement, and timing is claimed only from Pi 5 runs saved in `evidence/`.
 | ID | Description |
 | --- | --- |
 | NFR-I1 | Each component is its own process; no trusted process shares memory with the gateway |
-| NFR-I2 | Trusted processes lock their memory and pre-fault their stacks at startup |
+| NFR-I2 | Trusted processes run with all their memory locked and resident, stacks included, from startup: no page is allocated later, inside a control loop. On QNX 8.0 the OS does this (all memory superlocked and fully backed when mapped; lazy stack allocation disabled), so no pre-faulting code is written; it is checked on the target for each trusted process (reworded 2026-11-17, owner decision) |
 | NFR-I3 | Trusted processes use fixed-priority FIFO scheduling with documented priorities |
 | NFR-I4 | Killing any untrusted process leaves the arm safe within the timeouts above |
 | NFR-I5 | Trusted processes drop every privilege they do not need after startup |
