@@ -20,6 +20,8 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <stdatomic.h>
+#include <sys/mman.h>
 #include <sys/neutrino.h>
 #include <sys/stat.h>
 #include <sys/syspage.h>
@@ -27,6 +29,8 @@
 
 #include "arb_as_gateway.h"
 #include "arb_contract.h"
+#include "arb_decisions.h"
+#include "arb_ids.h"
 #include "arb_devctl.h"
 #include "arb_pulses.h"
 #include "arb_test.h"
@@ -105,6 +109,171 @@ static void fr_g1_command_round_trip_over_devctl(void)
     CHECK_EQ_INT(w.seq, c.seq);
     CHECK_EQ_INT(w.target_urad[0], -100000);
     CHECK_EQ_INT(w.state, ARB_STATE_NORMAL);
+}
+
+/* ------------------------------------------------- decision ring (FR-G8) */
+
+static const arb_dec_ring_t *g_ring;
+
+/* The guardian's decision ring, mapped read-only (the tests run as root). */
+static const arb_dec_ring_t *ring(void)
+{
+    if (g_ring == NULL) {
+        /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_open.html
+         * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/mmap.html */
+        const int fd = shm_open(ARB_DEC_NAME, O_RDONLY, 0);
+        if (fd != -1) {
+            const void *p = mmap(NULL, sizeof(arb_dec_ring_t), PROT_READ, MAP_SHARED, fd, 0);
+            (void)close(fd);
+            g_ring = p == MAP_FAILED ? NULL : p;
+        }
+    }
+    return g_ring;
+}
+
+static uint64_t ring_head(void)
+{
+    return atomic_load_explicit(&((arb_dec_ring_t *)g_ring)->head, memory_order_acquire);
+}
+
+/* Every command the guardian decides is recorded, in order, with the command,
+ * the verdict it replied and the time it took; a refused submit (not decided) is
+ * not. The latency bound here is a sanity check (QEMU proves function only). */
+static void fr_g8_every_decision_is_recorded_with_its_latency(void)
+{
+    arb_cmd_t c[3];
+    arb_verdict_wire_t w[3];
+    arb_submit_t u;
+    uint64_t h0;
+
+    if (ring() == NULL) {
+        CHECK(!"decision ring " ARB_DEC_NAME " not found");
+        return;
+    }
+    CHECK_EQ_INT(g_ring->magic, ARB_DEC_MAGIC);
+    CHECK_EQ_INT(g_ring->version, ARB_DEC_VERSION);
+    h0 = ring_head();
+    c[0] = cmd(-150000, 0, 1000);                   /* allowed */
+    c[1] = cmd(-700000, 0, 100);                    /* too fast: clamped */
+    c[2] = c[0];                                    /* replayed: denied */
+    for (int i = 0; i < 3; i++) {                   /* bound: 3 */
+        CHECK_EQ_INT(submit(g_fd, &c[i], &w[i]), EOK);
+    }
+    CHECK(w[0].verdict == ARB_VERDICT_ALLOW && w[1].verdict == ARB_VERDICT_CLAMP &&
+          w[2].verdict == ARB_VERDICT_DENY && w[2].rule == ARB_RULE_SEQUENCE);
+    memset(&u, 0, sizeof u);
+    u.cmd = cmd(-100000, 0, 1000);
+    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_SUBMIT, &u, sizeof u, NULL), EPERM);   /* root: refused, not decided */
+    CHECK_EQ_INT(ring_head() - h0, 3);
+    for (int i = 0; i < 3; i++) {                   /* bound: 3 */
+        const arb_dec_record_t *r = &g_ring->r[(h0 + (uint64_t)i) % ARB_DEC_SLOTS];
+        CHECK_EQ_INT(r->index, h0 + (uint64_t)i);
+        CHECK_EQ_INT(r->cmd.seq, c[i].seq);
+        CHECK_EQ_INT(r->cmd.target_urad[0], c[i].target_urad[0]);
+        CHECK_EQ_INT(r->cmd.duration_ms, c[i].duration_ms);
+        CHECK_EQ_INT(r->verdict.verdict, w[i].verdict);
+        CHECK_EQ_INT(r->verdict.rule, w[i].rule);
+        CHECK_EQ_INT(r->verdict.state_after, w[i].state);
+        CHECK_EQ_INT(r->verdict.duration_ms, w[i].duration_ms);
+        CHECK(r->latency_cycles > 0 && r->latency_cycles < g_ring->cycles_per_sec);
+        if (i > 0) {
+            const arb_dec_record_t *q = &g_ring->r[(h0 + (uint64_t)i - 1u) % ARB_DEC_SLOTS];
+            CHECK(r->t_ns >= q->t_ns && r->t_cycles >= q->t_cycles);
+        }
+    }
+}
+
+/* NFR-Q4: the latency is measured with the cycle counter, in the units the ring
+ * header gives (the kernel's cycles per second from the system page). */
+static void nfr_q4_decision_latency_measured_with_the_cycle_counter(void)
+{
+    uint64_t lo = UINT64_MAX, hi = 0, h;
+    int n = 0;
+
+    if (ring() == NULL) {
+        CHECK(!"decision ring " ARB_DEC_NAME " not found");
+        return;
+    }
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/syspage_entry.html */
+    CHECK_EQ_INT(g_ring->cycles_per_sec, SYSPAGE_ENTRY(qtime)->cycles_per_sec);
+    h = ring_head();
+    for (uint64_t i = h > 8u ? h - 8u : 0u; i < h; i++) {   /* bound: 8 records */
+        const uint64_t c = g_ring->r[i % ARB_DEC_SLOTS].latency_cycles;
+        CHECK(c > 0);
+        lo = c < lo ? c : lo;
+        hi = c > hi ? c : hi;
+        n++;
+    }
+    CHECK(n > 0);
+    if (n > 0) {
+        printf("info decision latency over the last %d records: %.1f to %.1f us (QEMU, function only)\n", n,
+               (double)lo * 1e6 / (double)g_ring->cycles_per_sec, (double)hi * 1e6 / (double)g_ring->cycles_per_sec);
+    }
+}
+
+/* FR-G8 "without blocking": with no reader at all, the guardian decides more
+ * commands than the ring holds, every one is answered, and the ring holds the
+ * newest ARB_DEC_SLOTS of them, in order. Replays are used: decided, cheap, and
+ * they do not count toward SAFE_STOP. */
+static void fr_g8_recording_never_waits_for_a_reader(void)
+{
+    const uint32_t n = ARB_DEC_SLOTS + 100u;
+    arb_cmd_t c = cmd(-100000, 0, 1000);
+    arb_verdict_wire_t w;
+    uint64_t h0, h1;
+    uint32_t ok = 0, holes = 0;
+
+    if (ring() == NULL) {
+        CHECK(!"decision ring " ARB_DEC_NAME " not found");
+        return;
+    }
+    (void)submit(g_fd, &c, &w);                     /* c.seq is now consumed */
+    h0 = ring_head();
+    for (uint32_t i = 0; i < n; i++) {              /* bound: n */
+        ok += submit(g_fd, &c, &w) == EOK && w.rule == ARB_RULE_SEQUENCE;
+    }
+    h1 = ring_head();
+    for (uint64_t i = h1 - ARB_DEC_SLOTS; i < h1; i++) {   /* bound: ARB_DEC_SLOTS */
+        holes += g_ring->r[i % ARB_DEC_SLOTS].index != i;
+    }
+    printf("info %u replays answered, ring head +%llu, %u holes in the newest %u slots\n", ok,
+           (unsigned long long)(h1 - h0), holes, ARB_DEC_SLOTS);
+    CHECK_EQ_INT(ok, n);
+    CHECK_EQ_INT(h1 - h0, n);
+    CHECK_EQ_INT(holes, 0);
+}
+
+/* NFR-I1: the gateway's user cannot open the decision ring at all; the logger's
+ * user can read it and not write it. seteuid() as in arb_as_gateway.h. */
+static void nfr_i1_gateway_user_cannot_open_the_decision_ring(void)
+{
+    int gw_ro, gw_errno, logd_ro, logd_rw, logd_errno;
+
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/seteuid.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/setegid.html */
+    CHECK(setegid(ARB_UID_GATEWAY) == 0 && seteuid(ARB_UID_GATEWAY) == 0);
+    gw_ro = shm_open(ARB_DEC_NAME, O_RDONLY, 0);
+    gw_errno = errno;
+    CHECK(seteuid(0) == 0 && setegid(0) == 0);
+    CHECK(setegid(ARB_UID_LOGD) == 0 && seteuid(ARB_UID_LOGD) == 0);
+    logd_ro = shm_open(ARB_DEC_NAME, O_RDONLY, 0);
+    logd_rw = shm_open(ARB_DEC_NAME, O_RDWR, 0);
+    logd_errno = errno;
+    CHECK(seteuid(0) == 0 && setegid(0) == 0);
+    printf("info gateway O_RDONLY %d (errno %d); logger O_RDONLY %d, O_RDWR %d (errno %d)\n", gw_ro, gw_errno,
+           logd_ro, logd_rw, logd_errno);
+    CHECK(gw_ro == -1 && gw_errno == EACCES);
+    CHECK(logd_ro >= 0);
+    CHECK(logd_rw == -1 && logd_errno == EACCES);
+    if (gw_ro >= 0) {
+        (void)close(gw_ro);
+    }
+    if (logd_ro >= 0) {
+        (void)close(logd_ro);
+    }
+    if (logd_rw >= 0) {
+        (void)close(logd_rw);
+    }
 }
 
 static void fr_g3_clamp_and_denials_over_devctl(void)
@@ -519,6 +688,9 @@ static void fr_g3_stale_start_reported_as_deny(void)
 static const arb_test_case_t normal_cases[] = {
     ARB_TEST_CASE(fr_g1_dev_arbiter_exists_in_path_namespace),
     ARB_TEST_CASE(fr_g1_command_round_trip_over_devctl),
+    ARB_TEST_CASE(fr_g8_every_decision_is_recorded_with_its_latency),
+    ARB_TEST_CASE(nfr_q4_decision_latency_measured_with_the_cycle_counter),
+    ARB_TEST_CASE(nfr_i1_gateway_user_cannot_open_the_decision_ring),
     ARB_TEST_CASE(fr_g3_clamp_and_denials_over_devctl),
     ARB_TEST_CASE(fr_g4_replay_denied_over_devctl),
     ARB_TEST_CASE(fr_g2_zero_duration_denied_over_devctl),
@@ -535,6 +707,7 @@ static const arb_test_case_t normal_cases[] = {
     ARB_TEST_CASE(fr_g10_restarted_client_resumes_after_the_published_sequence),
     ARB_TEST_CASE(fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once),
     ARB_TEST_CASE(fr_g5_reset_through_the_gateway_is_refused),
+    ARB_TEST_CASE(fr_g8_recording_never_waits_for_a_reader),
     ARB_TEST_CASE(fr_g5_last_client_close_enters_hold),
 };
 static const arb_test_case_t hang_cases[] = { ARB_TEST_CASE(fr_g9_arm_never_replies_times_out_and_safe_stops) };

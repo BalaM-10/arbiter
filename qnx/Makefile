@@ -86,7 +86,7 @@ $(OUT)/arb-guardian: $(GUARDIAN_SRC) $(GUARDIAN_HDR) $(LIBCONTRACT_SRC) $(LIBCON
 $(OUT)/arb_arm_stub: tests/arb_arm_stub.c common/arb_arm_proto.h common/arb_ids.h | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
-$(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h tests/arb_as_gateway.h common/arb_ids.h common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
+$(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h tests/arb_as_gateway.h common/arb_ids.h common/arb_devctl.h common/arb_decisions.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
 $(OUT)/guardian_suite.sh: tests/guardian_suite.sh | $(OUT)
