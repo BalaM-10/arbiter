@@ -1,0 +1,184 @@
+# planner e2e qemu_secpol — 2026-11-17T13:20:39-06:00
+# commit: 49c7cf5
+# target qemu_secpol at 172.31.1.192: QNX arbiter-secpol 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+## the scripted planner, from this host to 172.31.1.192:7700: 81 commands
+WELCOME state HOLD has_seq 0 last_seq 0 session 1: first seq 1
+C seq 1 target -37400 74800 dur 150 walk -> ALLOW NONE result 0
+C seq 2 target -74800 149600 dur 150 walk -> ALLOW NONE result 0
+C seq 3 target -112200 224400 dur 150 walk -> ALLOW NONE result 0
+C seq 4 target -149600 299199 dur 150 walk -> ALLOW NONE result 0
+C seq 5 target -187000 373999 dur 150 walk -> ALLOW NONE result 0
+C seq 6 target -224400 448799 dur 150 walk -> ALLOW NONE result 0
+C seq 7 target -261800 523599 dur 150 walk -> ALLOW NONE result 0
+C seq 8 target -299199 598399 dur 150 walk -> ALLOW NONE result 0
+C seq 9 target -336599 673199 dur 150 walk -> ALLOW NONE result 0
+C seq 10 target -373999 747999 dur 150 walk -> ALLOW NONE result 0
+C seq 11 target -411399 822798 dur 150 walk -> ALLOW NONE result 0
+C seq 12 target -448799 897598 dur 150 walk -> ALLOW NONE result 0
+C seq 13 target -486199 972398 dur 150 walk -> ALLOW NONE result 0
+C seq 14 target -523599 1047198 dur 150 walk approach -> ALLOW NONE result 0
+C seq 15 target -523599 1047198 dur 150 dwell -> ALLOW NONE result 0
+C seq 16 target -523599 1047198 dur 150 dwell -> ALLOW NONE result 0
+C seq 17 target -560999 1121998 dur 150 walk -> ALLOW NONE result 0
+C seq 18 target -598399 1196797 dur 150 walk -> ALLOW NONE result 0
+C seq 19 target -635799 1271597 dur 150 walk -> ALLOW NONE result 0
+C seq 20 target -673198 1346397 dur 150 walk -> ALLOW NONE result 0
+C seq 21 target -710598 1421197 dur 150 walk -> ALLOW NONE result 0
+C seq 22 target -747998 1495996 dur 150 walk -> ALLOW NONE result 0
+C seq 23 target -785398 1570796 dur 150 walk pick -> ALLOW NONE result 0
+C seq 24 target -785398 1570796 dur 150 dwell -> ALLOW NONE result 0
+C seq 25 target -785398 1570796 dur 150 dwell -> ALLOW NONE result 0
+C seq 26 target -785398 1570796 dur 150 dwell -> ALLOW NONE result 0
+C seq 27 target -747998 1495996 dur 150 walk -> ALLOW NONE result 0
+C seq 28 target -710598 1421197 dur 150 walk -> ALLOW NONE result 0
+C seq 29 target -673198 1346397 dur 150 walk -> ALLOW NONE result 0
+C seq 30 target -635799 1271597 dur 150 walk -> ALLOW NONE result 0
+C seq 31 target -598399 1196797 dur 150 walk -> ALLOW NONE result 0
+C seq 32 target -560999 1121998 dur 150 walk -> ALLOW NONE result 0
+C seq 33 target -523599 1047198 dur 150 walk lift -> ALLOW NONE result 0
+C seq 34 target -523599 1047198 dur 150 dwell -> ALLOW NONE result 0
+C seq 35 target -523599 1047198 dur 150 dwell -> ALLOW NONE result 0
+C seq 36 target -595465 1031798 dur 150 walk -> ALLOW NONE result 0
+C seq 37 target -667332 1016398 dur 150 walk -> ALLOW NONE result 0
+C seq 38 target -739198 1000998 dur 150 walk -> ALLOW NONE result 0
+C seq 39 target -811065 985598 dur 150 walk -> ALLOW NONE result 0
+C seq 40 target -882931 970198 dur 150 walk -> ALLOW NONE result 0
+C seq 41 target -954798 954798 dur 150 walk -> ALLOW NONE result 0
+C seq 42 target -1026664 939398 dur 150 walk -> ALLOW NONE result 0
+C seq 43 target -1098531 923998 dur 150 walk -> ALLOW NONE result 0
+C seq 44 target -1170397 908598 dur 150 walk -> ALLOW NONE result 0
+C seq 45 target -1242264 893198 dur 150 walk -> ALLOW NONE result 0
+C seq 46 target -1314130 877798 dur 150 walk -> ALLOW NONE result 0
+C seq 47 target -1385997 862398 dur 150 walk -> ALLOW NONE result 0
+C seq 48 target -1457863 846998 dur 150 walk -> ALLOW NONE result 0
+C seq 49 target -1529730 831598 dur 150 walk -> ALLOW NONE result 0
+C seq 50 target -1601596 816198 dur 150 walk -> ALLOW NONE result 0
+C seq 51 target -1673463 800798 dur 150 walk -> ALLOW NONE result 0
+C seq 52 target -1745329 785398 dur 150 walk place -> ALLOW NONE result 0
+C seq 53 target -1745329 785398 dur 150 dwell -> ALLOW NONE result 0
+C seq 54 target -1745329 785398 dur 150 dwell -> ALLOW NONE result 0
+C seq 55 target -1745329 785398 dur 150 dwell -> ALLOW NONE result 0
+C seq 56 target -1672607 752673 dur 150 walk -> ALLOW NONE result 0
+C seq 57 target -1599885 719948 dur 150 walk -> ALLOW NONE result 0
+C seq 58 target -1527163 687223 dur 150 walk -> ALLOW NONE result 0
+C seq 59 target -1454441 654498 dur 150 walk -> ALLOW NONE result 0
+C seq 60 target -1381719 621773 dur 150 walk -> ALLOW NONE result 0
+C seq 61 target -1308997 589048 dur 150 walk -> ALLOW NONE result 0
+C seq 62 target -1236275 556324 dur 150 walk -> ALLOW NONE result 0
+C seq 63 target -1163553 523599 dur 150 walk -> ALLOW NONE result 0
+C seq 64 target -1090831 490874 dur 150 walk -> ALLOW NONE result 0
+C seq 65 target -1018109 458149 dur 150 walk -> ALLOW NONE result 0
+C seq 66 target -945387 425424 dur 150 walk -> ALLOW NONE result 0
+C seq 67 target -872664 392699 dur 150 walk -> ALLOW NONE result 0
+C seq 68 target -799942 359974 dur 150 walk -> ALLOW NONE result 0
+C seq 69 target -727220 327249 dur 150 walk -> ALLOW NONE result 0
+C seq 70 target -654498 294524 dur 150 walk -> ALLOW NONE result 0
+C seq 71 target -581776 261799 dur 150 walk -> ALLOW NONE result 0
+C seq 72 target -509054 229074 dur 150 walk -> ALLOW NONE result 0
+C seq 73 target -436332 196350 dur 150 walk -> ALLOW NONE result 0
+C seq 74 target -363610 163625 dur 150 walk -> ALLOW NONE result 0
+C seq 75 target -290888 130900 dur 150 walk -> ALLOW NONE result 0
+C seq 76 target -218166 98175 dur 150 walk -> ALLOW NONE result 0
+C seq 77 target -145444 65450 dur 150 walk -> ALLOW NONE result 0
+C seq 78 target -72722 32725 dur 150 walk -> ALLOW NONE result 0
+C seq 79 target 0 0 dur 150 walk home -> ALLOW NONE result 0
+C seq 80 target 0 0 dur 150 dwell -> ALLOW NONE result 0
+C seq 81 target 0 0 dur 150 dwell -> ALLOW NONE result 0
+## the target
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-gateway: privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()
+arb-gateway: refused as expected after the drop: socket() (no new socket of any kind)
+arb-gateway: ready, listening on 172.31.1.192 ports 7700 7701 (interface vtnet0), priority 10
+READY
+STATUS state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 81 submits_refused 0 last_seq 81 has_seq 1
+ALIVE watchdog 1 arm 1 guardian 1 logd 1 gateway 1
+ANCHOR b79c272200c4e9b63d8546dcb63dfb68a43bd571d6f4bc16c1cb864e3fdc34cb
+## the evidence log: 83 lines (kept below, prefixed EVLOG)
+evidence log verifies: True, 81 decisions, 0 declared lost; every verdict logged: True
+PASS fr_p1_scripted_planner_runs_pick_and_place_through_the_gateway (qemu_secpol)
+EVLOG H 0 format 1 contract 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3 cycles_per_sec 2815188372 start_ns 807398418472 prev 0000000000000000000000000000000000000000000000000000000000000000 hash fd28f928e3c8b5e754e978f3e143199d13c11dab25ce8392906f81f4b9463999
+EVLOG R 1 idx 0 t_ns 808519068685 seq 1 target -37400 74800 dur 150 verdict 1 rule 0 before 1 after 2 flags 0 fwd -37400 74800 150 latency_cycles 157300 prev fd28f928e3c8b5e754e978f3e143199d13c11dab25ce8392906f81f4b9463999 hash 8a09b9d40e76e2886bb9537737961e567b226b15d168053d8dee04ed33c3890d
+EVLOG R 2 idx 1 t_ns 808669383568 seq 2 target -74800 149600 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -74800 149600 150 latency_cycles 164853 prev 8a09b9d40e76e2886bb9537737961e567b226b15d168053d8dee04ed33c3890d hash 66f3123cf9fdf95322f5313d0e8035afd7db4937c083eccc528f10eb68f6eed6
+EVLOG R 3 idx 2 t_ns 808819985692 seq 3 target -112200 224400 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -112200 224400 150 latency_cycles 167261 prev 66f3123cf9fdf95322f5313d0e8035afd7db4937c083eccc528f10eb68f6eed6 hash 30d967e849e3148c2f59d7a19d142c53d80c5d82f5ac9753de87b6ee265649c0
+EVLOG R 4 idx 3 t_ns 808970553723 seq 4 target -149600 299199 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -149600 299199 150 latency_cycles 265235 prev 30d967e849e3148c2f59d7a19d142c53d80c5d82f5ac9753de87b6ee265649c0 hash 7a950ee5d6d07960e5af242859981e4d73cf5c09f8f7418ad2911d9be876e09b
+EVLOG R 5 idx 4 t_ns 809121234218 seq 5 target -187000 373999 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -187000 373999 150 latency_cycles 45916 prev 7a950ee5d6d07960e5af242859981e4d73cf5c09f8f7418ad2911d9be876e09b hash 95ef421f7a3ebf825076fd546f0e8cd15b2f46e1c94c65348dd8b34c2415e192
+EVLOG R 6 idx 5 t_ns 809271670427 seq 6 target -224400 448799 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -224400 448799 150 latency_cycles 159840 prev 95ef421f7a3ebf825076fd546f0e8cd15b2f46e1c94c65348dd8b34c2415e192 hash 1cc4b5c0cc292699c728f29b4cfa79ce187227fc92f9aa32569978a9ad1497f3
+EVLOG R 7 idx 6 t_ns 809422527686 seq 7 target -261800 523599 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -261800 523599 150 latency_cycles 207022 prev 1cc4b5c0cc292699c728f29b4cfa79ce187227fc92f9aa32569978a9ad1497f3 hash 49ef578bfe8a67ab9159672a614c108ab060b82efb17f879b125a6d8f9277423
+EVLOG R 8 idx 7 t_ns 809573106435 seq 8 target -299199 598399 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -299199 598399 150 latency_cycles 188015 prev 49ef578bfe8a67ab9159672a614c108ab060b82efb17f879b125a6d8f9277423 hash 75c2dc5fcd12883fb3c085d7d187abbd1ae19edba1542c8f22f8782b063b0524
+EVLOG R 9 idx 8 t_ns 809723568792 seq 9 target -336599 673199 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -336599 673199 150 latency_cycles 43031 prev 75c2dc5fcd12883fb3c085d7d187abbd1ae19edba1542c8f22f8782b063b0524 hash 816bdfbcc8220cc98664db1d695e27ad96f3f1f63aa4091d52d606748e0c21a4
+EVLOG R 10 idx 9 t_ns 809874253497 seq 10 target -373999 747999 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -373999 747999 150 latency_cycles 111529 prev 816bdfbcc8220cc98664db1d695e27ad96f3f1f63aa4091d52d606748e0c21a4 hash b73eee9a7c8ef7cc6381fb0a79c790d006062d8a184ebdbba2dff2027cb603ae
+EVLOG R 11 idx 10 t_ns 810024776097 seq 11 target -411399 822798 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -411399 822798 150 latency_cycles 158597 prev b73eee9a7c8ef7cc6381fb0a79c790d006062d8a184ebdbba2dff2027cb603ae hash 90dae7f94919ebf11cf706a36f13dee7634a42c954851219466b81271205f744
+EVLOG R 12 idx 11 t_ns 810175272002 seq 12 target -448799 897598 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -448799 897598 150 latency_cycles 164153 prev 90dae7f94919ebf11cf706a36f13dee7634a42c954851219466b81271205f744 hash 9e8a3a333949f5500bbc65f21b33d61c90c2d07ae47dca458a969a23280f1b58
+EVLOG R 13 idx 12 t_ns 810326117581 seq 13 target -486199 972398 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -486199 972398 150 latency_cycles 49074 prev 9e8a3a333949f5500bbc65f21b33d61c90c2d07ae47dca458a969a23280f1b58 hash 1e6e23af037dfea8f85c9266a7ab277612a3ed65232184c0338844906ddf79fb
+EVLOG R 14 idx 13 t_ns 810476442574 seq 14 target -523599 1047198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -523599 1047198 150 latency_cycles 42571 prev 1e6e23af037dfea8f85c9266a7ab277612a3ed65232184c0338844906ddf79fb hash ed1ef6675a41e555e74914dd3d8494d2285fc00d4e963372e8de822330badbaa
+EVLOG R 15 idx 14 t_ns 810627156511 seq 15 target -523599 1047198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -523599 1047198 150 latency_cycles 165155 prev ed1ef6675a41e555e74914dd3d8494d2285fc00d4e963372e8de822330badbaa hash fa0b97d49fd3a3d388c594ee828ee80a9a6ea1f6b48fe678998f5515dd157706
+EVLOG R 16 idx 15 t_ns 810777643729 seq 16 target -523599 1047198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -523599 1047198 150 latency_cycles 162919 prev fa0b97d49fd3a3d388c594ee828ee80a9a6ea1f6b48fe678998f5515dd157706 hash 6f971bbf127390f84961c6cc650c5c7dee2f78767e4b1e27d621f9887ab2a56c
+EVLOG R 17 idx 16 t_ns 810928163114 seq 17 target -560999 1121998 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -560999 1121998 150 latency_cycles 159544 prev 6f971bbf127390f84961c6cc650c5c7dee2f78767e4b1e27d621f9887ab2a56c hash a8d472abf7c62f6accc11c9f7968cec0e51781569aefa9295945690ae6ba625e
+EVLOG R 18 idx 17 t_ns 811078683003 seq 18 target -598399 1196797 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -598399 1196797 150 latency_cycles 165977 prev a8d472abf7c62f6accc11c9f7968cec0e51781569aefa9295945690ae6ba625e hash d8094b1861899ec5e337f4e009e847925744a5f510e4932f87f04782cb7b0233
+EVLOG R 19 idx 18 t_ns 811229438761 seq 19 target -635799 1271597 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -635799 1271597 150 latency_cycles 158906 prev d8094b1861899ec5e337f4e009e847925744a5f510e4932f87f04782cb7b0233 hash 8c8242f970a1365767002fd2b5588097798bef097e74a698de4c9921a3116feb
+EVLOG R 20 idx 19 t_ns 811380138564 seq 20 target -673198 1346397 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -673198 1346397 150 latency_cycles 185292 prev 8c8242f970a1365767002fd2b5588097798bef097e74a698de4c9921a3116feb hash 3f8c0937528652445ace2153e78473eeb9dfeb68af6ba7f00d738a68281b3b98
+EVLOG R 21 idx 20 t_ns 811530644884 seq 21 target -710598 1421197 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -710598 1421197 150 latency_cycles 41291 prev 3f8c0937528652445ace2153e78473eeb9dfeb68af6ba7f00d738a68281b3b98 hash 0e48917c0c328344049943f7ee33ff3e567c58827211b50692dcb6e8c2248a03
+EVLOG R 22 idx 21 t_ns 811681347614 seq 22 target -747998 1495996 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -747998 1495996 150 latency_cycles 41978 prev 0e48917c0c328344049943f7ee33ff3e567c58827211b50692dcb6e8c2248a03 hash f0a8a9a5e74ed710fc9cd07ea01c75064521dbc20437f7c519f07b707207f2ef
+EVLOG R 23 idx 22 t_ns 811831975621 seq 23 target -785398 1570796 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -785398 1570796 150 latency_cycles 191599 prev f0a8a9a5e74ed710fc9cd07ea01c75064521dbc20437f7c519f07b707207f2ef hash ef4592e77f142661de6c58a3df198a832d79741d532213e3fa57906c2897610e
+EVLOG R 24 idx 23 t_ns 811982627996 seq 24 target -785398 1570796 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -785398 1570796 150 latency_cycles 47291 prev ef4592e77f142661de6c58a3df198a832d79741d532213e3fa57906c2897610e hash bdf9bfae34d26f6f25e8492d9fa4425556040402ef596896a9e5e791ee190b0e
+EVLOG R 25 idx 24 t_ns 812133230162 seq 25 target -785398 1570796 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -785398 1570796 150 latency_cycles 41144 prev bdf9bfae34d26f6f25e8492d9fa4425556040402ef596896a9e5e791ee190b0e hash 5aeda338447adb4f882e9a08d9be6dd6a08673e053fa3d525990644574fb1c88
+EVLOG R 26 idx 25 t_ns 812283895477 seq 26 target -785398 1570796 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -785398 1570796 150 latency_cycles 399465 prev 5aeda338447adb4f882e9a08d9be6dd6a08673e053fa3d525990644574fb1c88 hash dc08c5b0def2d67c7a6af9cce48231e9a1a5a9a39e1b0c492004103638eb3c5e
+EVLOG R 27 idx 26 t_ns 812434362235 seq 27 target -747998 1495996 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -747998 1495996 150 latency_cycles 149802 prev dc08c5b0def2d67c7a6af9cce48231e9a1a5a9a39e1b0c492004103638eb3c5e hash 3df3baf1a21e2f119bc634efe5bb0efaac158c44fb7bcfb4ab27efe9ae8e2589
+EVLOG R 28 idx 27 t_ns 812584877611 seq 28 target -710598 1421197 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -710598 1421197 150 latency_cycles 310918 prev 3df3baf1a21e2f119bc634efe5bb0efaac158c44fb7bcfb4ab27efe9ae8e2589 hash 5cfd3bc433c397f9324a1feecb7d636b344a913219b2899f4c70321286d89653
+EVLOG R 29 idx 28 t_ns 812735516807 seq 29 target -673198 1346397 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -673198 1346397 150 latency_cycles 159556 prev 5cfd3bc433c397f9324a1feecb7d636b344a913219b2899f4c70321286d89653 hash e1c07e42fecc7629f901d9075d094ade5b980d9cb7e9cb673c0d8259d7cb4f09
+EVLOG R 30 idx 29 t_ns 812886123478 seq 30 target -635799 1271597 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -635799 1271597 150 latency_cycles 67005 prev e1c07e42fecc7629f901d9075d094ade5b980d9cb7e9cb673c0d8259d7cb4f09 hash 114b3c254b5a8f47e725f02c5f698c402f74db862f41e1185e5995a2bc074756
+EVLOG R 31 idx 30 t_ns 813036699443 seq 31 target -598399 1196797 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -598399 1196797 150 latency_cycles 112842 prev 114b3c254b5a8f47e725f02c5f698c402f74db862f41e1185e5995a2bc074756 hash f28f6150a2548b710d2293b162a66a4fb2149dbd48d4a5087920246215f4e97f
+EVLOG R 32 idx 31 t_ns 813187407152 seq 32 target -560999 1121998 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -560999 1121998 150 latency_cycles 163337 prev f28f6150a2548b710d2293b162a66a4fb2149dbd48d4a5087920246215f4e97f hash f5bbce881086aeb9aedd5eadca43062567d45eaa9bb97629347b2c657799ca35
+EVLOG R 33 idx 32 t_ns 813337982848 seq 33 target -523599 1047198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -523599 1047198 150 latency_cycles 176663 prev f5bbce881086aeb9aedd5eadca43062567d45eaa9bb97629347b2c657799ca35 hash b1db95579d45d875986b1e15a51aa082711ba4e279f2f43009d1c1cc7a6035f5
+EVLOG R 34 idx 33 t_ns 813488488353 seq 34 target -523599 1047198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -523599 1047198 150 latency_cycles 167103 prev b1db95579d45d875986b1e15a51aa082711ba4e279f2f43009d1c1cc7a6035f5 hash 4e990f090cf856b841770c764584f200ad31a9c47f51ed659e0e3087716525d9
+EVLOG R 35 idx 34 t_ns 813639043907 seq 35 target -523599 1047198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -523599 1047198 150 latency_cycles 40303 prev 4e990f090cf856b841770c764584f200ad31a9c47f51ed659e0e3087716525d9 hash 19f1616012d7023b6e0ded7922cd79846fb2df3dc4028215d1101c409fb4efe0
+EVLOG R 36 idx 35 t_ns 813789715764 seq 36 target -595465 1031798 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -595465 1031798 150 latency_cycles 165641 prev 19f1616012d7023b6e0ded7922cd79846fb2df3dc4028215d1101c409fb4efe0 hash 537183244db6892f25bc83ae285ae9935d15433d9b226a9290d35312dc058ae1
+EVLOG R 37 idx 36 t_ns 813940309566 seq 37 target -667332 1016398 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -667332 1016398 150 latency_cycles 169432 prev 537183244db6892f25bc83ae285ae9935d15433d9b226a9290d35312dc058ae1 hash 9c2de072ec1ce7f308302f538b7fa8e653259fbb1e474090eabcafe2082f84df
+EVLOG R 38 idx 37 t_ns 814090977746 seq 38 target -739198 1000998 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -739198 1000998 150 latency_cycles 152817 prev 9c2de072ec1ce7f308302f538b7fa8e653259fbb1e474090eabcafe2082f84df hash da11c74b4c6383288555d699786d2ac3974be8333d0b7c0ae76d47a0c3892564
+EVLOG R 39 idx 38 t_ns 814241584604 seq 39 target -811065 985598 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -811065 985598 150 latency_cycles 45467 prev da11c74b4c6383288555d699786d2ac3974be8333d0b7c0ae76d47a0c3892564 hash a26e7fe2cf468cae3252a07dfb416055fd705829ceec4323558b72d079c88bf6
+EVLOG R 40 idx 39 t_ns 814392120538 seq 40 target -882931 970198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -882931 970198 150 latency_cycles 163616 prev a26e7fe2cf468cae3252a07dfb416055fd705829ceec4323558b72d079c88bf6 hash e4d14d29dc10800971a95d2fae0d965fe2481168a7588fb936cc37625de408ab
+EVLOG R 41 idx 40 t_ns 814542985944 seq 41 target -954798 954798 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -954798 954798 150 latency_cycles 166015 prev e4d14d29dc10800971a95d2fae0d965fe2481168a7588fb936cc37625de408ab hash 0b9a5fbe688af9e1239bf725b07b733c2b297e59ad206eeafc1d812699ea9622
+EVLOG R 42 idx 41 t_ns 814693514912 seq 42 target -1026664 939398 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1026664 939398 150 latency_cycles 163791 prev 0b9a5fbe688af9e1239bf725b07b733c2b297e59ad206eeafc1d812699ea9622 hash 4db1f03cec00cf5b18c7458096492f97618ad26a575591ecf328b7cb1b2d34c1
+EVLOG R 43 idx 42 t_ns 814844239437 seq 43 target -1098531 923998 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1098531 923998 150 latency_cycles 111973 prev 4db1f03cec00cf5b18c7458096492f97618ad26a575591ecf328b7cb1b2d34c1 hash e2568eda6c58c8c77a4fa4ca05e08ce7ccb415725db7e522f12f57e00d35fe18
+EVLOG R 44 idx 43 t_ns 814994761072 seq 44 target -1170397 908598 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1170397 908598 150 latency_cycles 44334 prev e2568eda6c58c8c77a4fa4ca05e08ce7ccb415725db7e522f12f57e00d35fe18 hash 86e1564397b2045b3f1136b97306ae394c221f8d18d64b59d84899f069d032a5
+EVLOG R 45 idx 44 t_ns 815145403715 seq 45 target -1242264 893198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1242264 893198 150 latency_cycles 172858 prev 86e1564397b2045b3f1136b97306ae394c221f8d18d64b59d84899f069d032a5 hash 5e1d7b0a4e825cf9afe731afb813fbeff6c172b719f15fb61798d7acc8a54a85
+EVLOG R 46 idx 45 t_ns 815296028201 seq 46 target -1314130 877798 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1314130 877798 150 latency_cycles 45051 prev 5e1d7b0a4e825cf9afe731afb813fbeff6c172b719f15fb61798d7acc8a54a85 hash c17431fb14480cf6be9d9a988290fe267c8ff728104f387b023ae284f7f68a1e
+EVLOG R 47 idx 46 t_ns 815446551566 seq 47 target -1385997 862398 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1385997 862398 150 latency_cycles 163553 prev c17431fb14480cf6be9d9a988290fe267c8ff728104f387b023ae284f7f68a1e hash ae762d38b828044a6eab2d4e5717a861a111dd33c8a5f57c8653563f901db076
+EVLOG R 48 idx 47 t_ns 815597525860 seq 48 target -1457863 846998 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1457863 846998 150 latency_cycles 257818 prev ae762d38b828044a6eab2d4e5717a861a111dd33c8a5f57c8653563f901db076 hash 55641afd66614c972c84fe756fe4110a2541851b5beb735c5f6f3cd1b7e83235
+EVLOG R 49 idx 48 t_ns 815747775326 seq 49 target -1529730 831598 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1529730 831598 150 latency_cycles 46958 prev 55641afd66614c972c84fe756fe4110a2541851b5beb735c5f6f3cd1b7e83235 hash d39d3fbf7a3a2c9ed6ffaee1cdd18012d3139603db61e30a0c54cbbe8c78c67a
+EVLOG R 50 idx 49 t_ns 815898411993 seq 50 target -1601596 816198 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1601596 816198 150 latency_cycles 175685 prev d39d3fbf7a3a2c9ed6ffaee1cdd18012d3139603db61e30a0c54cbbe8c78c67a hash a6f8ef9d039f98afe1d0b6aa6560f6419a0e7e0cb8a290f4c784daef7bfc267b
+EVLOG R 51 idx 50 t_ns 816049088366 seq 51 target -1673463 800798 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1673463 800798 150 latency_cycles 163299 prev a6f8ef9d039f98afe1d0b6aa6560f6419a0e7e0cb8a290f4c784daef7bfc267b hash db5b7971a2a1e8dc050646d1df81fe220711a05c40f385a4f390579e5cf81474
+EVLOG R 52 idx 51 t_ns 816200215745 seq 52 target -1745329 785398 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1745329 785398 150 latency_cycles 62534 prev db5b7971a2a1e8dc050646d1df81fe220711a05c40f385a4f390579e5cf81474 hash f990b1cf6d17261c8de917739cd57c56972ff6afb3419a2cb3f71c996a0eeb7d
+EVLOG R 53 idx 52 t_ns 816350725343 seq 53 target -1745329 785398 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1745329 785398 150 latency_cycles 47369 prev f990b1cf6d17261c8de917739cd57c56972ff6afb3419a2cb3f71c996a0eeb7d hash ca509ffa20569199c8a5c712224920e6353286f7190d9fb39fb5d35bb721d601
+EVLOG R 54 idx 53 t_ns 816501225628 seq 54 target -1745329 785398 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1745329 785398 150 latency_cycles 159472 prev ca509ffa20569199c8a5c712224920e6353286f7190d9fb39fb5d35bb721d601 hash 5278a0e4fbbd8abc6b31abd1100bb8db340a9642a72571cc946a11e59dc64091
+EVLOG R 55 idx 54 t_ns 816652223840 seq 55 target -1745329 785398 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1745329 785398 150 latency_cycles 96529 prev 5278a0e4fbbd8abc6b31abd1100bb8db340a9642a72571cc946a11e59dc64091 hash b2622253bf4e24bdbaf7f5c667c35d96deaf4eb553658ff260f88fbfaf9103dd
+EVLOG R 56 idx 55 t_ns 816802722885 seq 56 target -1672607 752673 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1672607 752673 150 latency_cycles 362522 prev b2622253bf4e24bdbaf7f5c667c35d96deaf4eb553658ff260f88fbfaf9103dd hash 0abd4c4ce4bbe1a9216e0fc7b9e58df0c9ef1b6c4aecfa5f8fd6d2f92ca8cd11
+EVLOG R 57 idx 56 t_ns 816952980619 seq 57 target -1599885 719948 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1599885 719948 150 latency_cycles 372324 prev 0abd4c4ce4bbe1a9216e0fc7b9e58df0c9ef1b6c4aecfa5f8fd6d2f92ca8cd11 hash def33c7117f77b8a728ad8acb6f7c1962dda95643336c63dcd40226bf2dacc8e
+EVLOG R 58 idx 57 t_ns 817103259177 seq 58 target -1527163 687223 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1527163 687223 150 latency_cycles 255259 prev def33c7117f77b8a728ad8acb6f7c1962dda95643336c63dcd40226bf2dacc8e hash a2c8506062e6f91b1e456a60e668d736365921c33f024f2965b491b6df014dba
+EVLOG R 59 idx 58 t_ns 817253031529 seq 59 target -1454441 654498 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1454441 654498 150 latency_cycles 364550 prev a2c8506062e6f91b1e456a60e668d736365921c33f024f2965b491b6df014dba hash beb05b43746500656b660572d54813388c9cda25da8745e3ec01a286b0737628
+EVLOG R 60 idx 59 t_ns 817402769405 seq 60 target -1381719 621773 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1381719 621773 150 latency_cycles 49345 prev beb05b43746500656b660572d54813388c9cda25da8745e3ec01a286b0737628 hash 4f348ba89e17c11c9f3a0a089de2b0c7a3ac08413a03f701124ca4c656f12254
+EVLOG R 61 idx 60 t_ns 817553035353 seq 61 target -1308997 589048 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1308997 589048 150 latency_cycles 211188 prev 4f348ba89e17c11c9f3a0a089de2b0c7a3ac08413a03f701124ca4c656f12254 hash 2c3ddc26ef9689238b01686323a53ea6291982b52d4cb8b83a511a33e6536a58
+EVLOG R 62 idx 61 t_ns 817702835969 seq 62 target -1236275 556324 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1236275 556324 150 latency_cycles 189039 prev 2c3ddc26ef9689238b01686323a53ea6291982b52d4cb8b83a511a33e6536a58 hash b39355be0492b57067eaf0b200b905e47925993a5c10b887855716154e874f4c
+EVLOG R 63 idx 62 t_ns 817852810463 seq 63 target -1163553 523599 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1163553 523599 150 latency_cycles 181903 prev b39355be0492b57067eaf0b200b905e47925993a5c10b887855716154e874f4c hash 490348bc432b56cfc1c3ccd2e25be93599e12e74813b37bde9261ba24f88618f
+EVLOG R 64 idx 63 t_ns 818002909440 seq 64 target -1090831 490874 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1090831 490874 150 latency_cycles 333048 prev 490348bc432b56cfc1c3ccd2e25be93599e12e74813b37bde9261ba24f88618f hash 6d757bad24a809d002b900076e15deab1de03e469e28e324382322a49ec736d9
+EVLOG R 65 idx 64 t_ns 818152904334 seq 65 target -1018109 458149 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -1018109 458149 150 latency_cycles 299141 prev 6d757bad24a809d002b900076e15deab1de03e469e28e324382322a49ec736d9 hash f6c36fb7a0cf3aaab5df7834aa23e8a006d728c2145d0110e5a288019a8281a5
+EVLOG R 66 idx 65 t_ns 818303102668 seq 66 target -945387 425424 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -945387 425424 150 latency_cycles 544202 prev f6c36fb7a0cf3aaab5df7834aa23e8a006d728c2145d0110e5a288019a8281a5 hash 32f898f31f66990179e5e704389c831bfe1c8ce129a7979df85eaf29a47a090a
+EVLOG R 67 idx 66 t_ns 818453104425 seq 67 target -872664 392699 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -872664 392699 150 latency_cycles 50174 prev 32f898f31f66990179e5e704389c831bfe1c8ce129a7979df85eaf29a47a090a hash d7e9eab89acdbb08a5514b91a5f9a7bad9895208ac75e71606103a7288947c40
+EVLOG R 68 idx 67 t_ns 818603143106 seq 68 target -799942 359974 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -799942 359974 150 latency_cycles 177975 prev d7e9eab89acdbb08a5514b91a5f9a7bad9895208ac75e71606103a7288947c40 hash b6c75bb0ddb11be7533787f8cf85808b61f23416fff09bb0f83d6b107059c96b
+EVLOG R 69 idx 68 t_ns 818753159557 seq 69 target -727220 327249 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -727220 327249 150 latency_cycles 172072 prev b6c75bb0ddb11be7533787f8cf85808b61f23416fff09bb0f83d6b107059c96b hash 9e5a769800b883c9ecd77539347b4c4677bd62be13b50c1dfe3c9ae56f002cf1
+EVLOG R 70 idx 69 t_ns 818903263882 seq 70 target -654498 294524 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -654498 294524 150 latency_cycles 160028 prev 9e5a769800b883c9ecd77539347b4c4677bd62be13b50c1dfe3c9ae56f002cf1 hash 97deecea2c181b5ca9c596251f77f6c644a3a854caf4fedeb88304a2bd4ccfd2
+EVLOG R 71 idx 70 t_ns 819053257323 seq 71 target -581776 261799 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -581776 261799 150 latency_cycles 202538 prev 97deecea2c181b5ca9c596251f77f6c644a3a854caf4fedeb88304a2bd4ccfd2 hash 0463f131a429a520b5186a53092c85717bfd77dc39d3a58e340b5ce90ee88a5c
+EVLOG R 72 idx 71 t_ns 819203335624 seq 72 target -509054 229074 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -509054 229074 150 latency_cycles 155563 prev 0463f131a429a520b5186a53092c85717bfd77dc39d3a58e340b5ce90ee88a5c hash 9b6252fd1752fc4ad6c7cf5e9e85db09d42c3705a048ab4dcd29b4945f126236
+EVLOG R 73 idx 72 t_ns 819353338380 seq 73 target -436332 196350 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -436332 196350 150 latency_cycles 46195 prev 9b6252fd1752fc4ad6c7cf5e9e85db09d42c3705a048ab4dcd29b4945f126236 hash 023cd9a5aadc26ba7ad01e465ad66d93efee1013da7ea99483c4ee26acc92792
+EVLOG R 74 idx 73 t_ns 819503340586 seq 74 target -363610 163625 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -363610 163625 150 latency_cycles 42704 prev 023cd9a5aadc26ba7ad01e465ad66d93efee1013da7ea99483c4ee26acc92792 hash f879682f9b17842e42d27e129f0fc77b625826c6ef2f72e9112a699e1f949684
+EVLOG R 75 idx 74 t_ns 819653298183 seq 75 target -290888 130900 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -290888 130900 150 latency_cycles 230457 prev f879682f9b17842e42d27e129f0fc77b625826c6ef2f72e9112a699e1f949684 hash 88533515a95950b2435782bb75f5b8ff424933a4905c2f385219096ee469eae7
+EVLOG R 76 idx 75 t_ns 819803368858 seq 76 target -218166 98175 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -218166 98175 150 latency_cycles 162616 prev 88533515a95950b2435782bb75f5b8ff424933a4905c2f385219096ee469eae7 hash 24c7e07010e496c3f7cf6a6a52f3a5028cc50930552c2df10d2aa7807b13bd76
+EVLOG R 77 idx 76 t_ns 819953320130 seq 77 target -145444 65450 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -145444 65450 150 latency_cycles 41723 prev 24c7e07010e496c3f7cf6a6a52f3a5028cc50930552c2df10d2aa7807b13bd76 hash b436bd3136f029c97b602055e1ebfcb673d069b567333687a9d07e42d32fe8ca
+EVLOG R 78 idx 77 t_ns 820103313387 seq 78 target -72722 32725 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd -72722 32725 150 latency_cycles 397136 prev b436bd3136f029c97b602055e1ebfcb673d069b567333687a9d07e42d32fe8ca hash 17c3c7a7d915ca4ad7ff89c646588623f40bf4d27182f246d2aa84dcc9c0e01e
+EVLOG R 79 idx 78 t_ns 820253307682 seq 79 target 0 0 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd 0 0 150 latency_cycles 43457 prev 17c3c7a7d915ca4ad7ff89c646588623f40bf4d27182f246d2aa84dcc9c0e01e hash 0e05c415fb11e17ab9e7a3d7be47f5afba4129c8287d2fa223c5a5568f7e1bc2
+EVLOG R 80 idx 79 t_ns 820403436092 seq 80 target 0 0 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd 0 0 150 latency_cycles 37032 prev 0e05c415fb11e17ab9e7a3d7be47f5afba4129c8287d2fa223c5a5568f7e1bc2 hash bbeef3291c3c9c9917b7f590318a120e3867d0e66148dad7db8ad07eacbd1502
+EVLOG R 81 idx 80 t_ns 820553345565 seq 81 target 0 0 dur 150 verdict 1 rule 0 before 2 after 2 flags 0 fwd 0 0 150 latency_cycles 37026 prev bbeef3291c3c9c9917b7f590318a120e3867d0e66148dad7db8ad07eacbd1502 hash 817e794739c407860eb4cfd1f023b40cc674500a67f54a39694df4e5513a0941
+EVLOG E 82 records 81 lost 0 prev 817e794739c407860eb4cfd1f023b40cc674500a67f54a39694df4e5513a0941 hash b79c272200c4e9b63d8546dcb63dfb68a43bd571d6f4bc16c1cb864e3fdc34cb
