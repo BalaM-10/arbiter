@@ -3,6 +3,9 @@
 # output under evidence/runs/<date>-<target>/. Exits non-zero if any test fails.
 #   ./scripts/run-tests.sh qemu
 #   REPEAT=50 ./scripts/run-tests.sh qemu    # run each test 50 times
+#   ONLY=gateway_suite.sh REPEAT=20 ./scripts/run-tests.sh qemu
+#        # one test, 20 times; every run's start state and RESULT lines are logged,
+#        # in evidence/runs/<date>-<target>/repeat-<test>-<time>.log
 set -euo pipefail
 . "$(dirname "$0")/lib/target.sh"
 
@@ -40,16 +43,27 @@ esac
 
 target_init "${1:-}"
 if [ "$T_POLICY" = on ]; then TESTS=("${TESTS_POLICY_ON[@]}"); else TESTS=("${TESTS_POLICY_OFF[@]}"); fi
+ONLY="${ONLY:-}"
+if [ -n "$ONLY" ]; then
+    kept=()
+    for entry in "${TESTS[@]}"; do
+        b="${entry%%:*}"
+        [ "${b%% *}" = "$ONLY" ] && kept+=("$entry")
+    done
+    [ "${#kept[@]}" -gt 0 ] || die "ONLY=$ONLY matches no test for $T_NAME"
+    TESTS=("${kept[@]}")
+fi
 
 STAMP_DATE="$(date +%F)"
 STAMP_TIME="$(date +%H%M%S)"
 OUTDIR="$REPO_ROOT/evidence/runs/${STAMP_DATE}-${T_NAME}"
-LOG="$OUTDIR/run-${STAMP_TIME}.log"
+# A filtered run is not a full run: its own name, so the README check ignores it.
+if [ -n "$ONLY" ]; then LOG="$OUTDIR/repeat-${ONLY%.*}-${STAMP_TIME}.log"; else LOG="$OUTDIR/run-${STAMP_TIME}.log"; fi
 mkdir -p "$OUTDIR"
 
 {
     dirty="$(git -C "$REPO_ROOT" status --porcelain -- qnx scripts)"
-    echo "# run-tests $T_NAME — $(date -Is), REPEAT=$REPEAT, security policy $T_POLICY"
+    echo "# run-tests $T_NAME — $(date -Is), REPEAT=$REPEAT${ONLY:+, ONLY=$ONLY}, security policy $T_POLICY"
     echo "# commit: $(git -C "$REPO_ROOT" rev-parse --short HEAD)${dirty:+ (UNCOMMITTED changes in qnx/ or scripts/)}"
     echo "# host: $(lsb_release -ds 2>/dev/null || uname -sr); qcc $(qcc -V 2>&1 | awk '/default/{print $1}')"
     echo
@@ -107,6 +121,10 @@ for entry in "${TESTS[@]}"; do
             [ "$i" -eq 1 ] || echo "--- run $i of $REPEAT failed:" | tee -a "$LOG"
             printf '%s\n' "$out" | tee -a "$LOG"
             echo "exit=$rc" | tee -a "$LOG"
+        elif [ -n "$ONLY" ]; then
+            # Every repeated run: its start state and results, so a rare event is seen.
+            echo "--- run $i of $REPEAT: exit=$rc" | tee -a "$LOG"
+            printf '%s\n' "$out" | grep -E '^(guardian at start|RESULT|FAIL)' | tee -a "$LOG"
         fi
         [ "$rc" -eq 0 ] && ok=$((ok + 1))
     done
