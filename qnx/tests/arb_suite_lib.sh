@@ -8,11 +8,13 @@ if [ -e /proc/boot/secpolpush ]; then
     ARB_ON_WD="on -T arb_watchdog_t"
     ARB_ON_ARM="on -T arb_arm_t"
     ARB_ON_GUARD="on -T arb_guardian_t"
+    ARB_ON_LOGD="on -T arb_logd_t"
 else
     ARB_POLICY_IMAGE=0
     ARB_ON_WD=
     ARB_ON_ARM=
     ARB_ON_GUARD=
+    ARB_ON_LOGD=
 fi
 
 # The pid of the newest process with this name (a process started through on

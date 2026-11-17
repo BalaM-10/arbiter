@@ -33,6 +33,8 @@
 #      group, so the gateway's user cannot open it (FR-G8, NFR-I1, 2026-11-16).
 #      Without it fchown() on the ring is refused with EACCES on this image.
 #      QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.security.system/topic/manual/abilities_reference.html
+#    - arb_logd_t added by hand (2026-11-16, M2 P6): the evidence logger; the
+#      root shell may start it (settypeid).
 #    - arb_untrusted_t added by hand (the attacker never ran in develop mode);
 #      user_root_t's gain_priv adds public_channel, which secpolcompile requires
 #      before user_root_t may start a type that has it (the attacker needs a
@@ -54,6 +56,7 @@ allow default_rules self:ability {};
 type arb_arm_t;
 type arb_guardian_t;
 type arb_watchdog_t;
+type arb_logd_t;
 type arb_untrusted_t;
 type console_t;
 type default;
@@ -168,6 +171,23 @@ allow arb_watchdog_t self:ability {
     map_fixed
     public_channel
     channel_connect:slogger_t
+};
+
+# === Rules for type arb_logd_t (hand-written: the evidence logger, M2 P6) ============
+# Reads the contract table and writes its log (devb_t), logs to slogger2, loads
+# the qcrypto plugin (prot_exec), maps the guardian's decision ring read-only.
+# No channel of its own and no connection to any Arbiter process.
+allow arb_logd_t self:ability {
+    nonroot
+    priority:1-30
+};
+allow arb_logd_t self:ability {
+    setuid:813
+    setgid:0,813
+    prot_exec
+    priority:1-30
+    map_fixed
+    channel_connect:slogger_t,devb_t
 };
 
 # === Rules for type console_t ============
@@ -620,7 +640,7 @@ allow user_root_t self:ability {
     public_channel
     xprocess_query:20-22,24-25,29-30,33-34,37-38,43-44,47-48,810-812
     channel_connect:slogger_t,devb_t,pipe_t,arb_guardian_t
-    settypeid:arb_watchdog_t,arb_arm_t,arb_guardian_t,arb_untrusted_t
+    settypeid:arb_watchdog_t,arb_arm_t,arb_guardian_t,arb_logd_t,arb_untrusted_t
 };
 allow user_root_t self:ability {
     gain_priv:priority,connection,signal,xprocess_query,channel_connect,public_channel
