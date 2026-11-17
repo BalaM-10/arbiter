@@ -207,10 +207,15 @@ def fr_b1_scenario_scripts_are_valid_for_arb_inject(sid: str) -> None:
     assert times == sorted(times)
     for c in script.commands:
         assert c.duration_ms >= 1
-    # The planner keeps talking inside the silence timeout, and under the contract's rate.
+    # The planner keeps talking inside the silence timeout, and under the contract's rate,
+    # unless the scenario's point is to fall silent (F2) or to flood (F3).
     starts = [c.t_ms for c in script.commands]
-    assert max(b - a for a, b in pairwise(starts)) < SPEC.silence_timeout_ms
-    assert max(sum(1 for t in starts if t0 <= t < t0 + 1000) for t0 in starts) <= 50
+    if not getattr(ALL[sid], "FALLS_SILENT", False) and len(starts) > 1:
+        assert max(b - a for a, b in pairwise(starts)) < SPEC.silence_timeout_ms
+    if not getattr(ALL[sid], "FLOODS", False):
+        assert max(sum(1 for t in starts if t0 <= t < t0 + 1000) for t0 in starts) <= 50
+    for line in lines:
+        assert line.split()[0] in ("C", "S", "A", "E"), line
 
 
 @pytest.mark.parametrize("sid", sorted(ALL))
@@ -448,7 +453,105 @@ def fr_b1_gateway_transport_takes_command_times_from_the_guardians_evidence_log(
     assert v[2].seq == 7 and v[2].rc != 0
 
 
-@pytest.mark.parametrize("sid", sorted(ALL))
+# Decision D6: the scenarios about the AI side go planner -> gateway; those that need
+# on-target timing or a trusted process killed or stopped keep arb-inject.
+TRANSPORTS = {"F1": "gateway", "F2": "gateway", "F4": "gateway", "F5": "gateway", "F6": "gateway",
+              "F9": "gateway", "F13": "inject", "F14": "inject", "F15": "gateway"}
+
+
+@pytest.mark.parametrize("sid", sorted(TRANSPORTS))
 def fr_b1_ai_side_scenarios_run_through_the_planner_and_gateway(sid: str) -> None:
-    """Decision D6: F1, F4, F5, F6 and F9 are about the AI side, so they go planner -> gateway."""
-    assert ALL[sid].TRANSPORT == "gateway"
+    assert sid in ALL, f"{sid} not in the bench"
+    assert getattr(ALL[sid], "TRANSPORT", "inject") == TRANSPORTS[sid]
+
+
+# ---------------------------------------------- M2 P7 scenarios: F2, F13, F14, F15
+
+def fr_b2_parser_reads_action_records() -> None:
+    run = parse("A 5000000 estop - 0\nA 7000000 kill 4242 0\nDONE samples 0 gaps 0 verdicts 0\n", 0)
+    assert [(a.t_ns, a.name, a.arg, a.rc) for a in run.actions] == [(5000000, "estop", "-", 0),
+                                                                    (7000000, "kill", "4242", 0)]
+
+
+def _hold_run(before: int) -> Run:
+    run = Run()
+    run.evlog, run.evanchor = _evlog([(1, 1, 0), (2, 1, 0)])
+    run.evlog = [x.replace(" seq 2 target 0 0 dur 100 verdict 1 rule 0 before 2 ",
+                           f" seq 2 target 0 0 dur 100 verdict 1 rule 0 before {before} ") for x in run.evlog]
+    return run
+
+
+def f2_hold_check_reads_the_guardians_own_record() -> None:
+    """The guardian's evidence log says it was in HOLD when the planner came back."""
+    assert ck.hold_recorded_before(_hold_run(1), 2).passed
+    assert not ck.hold_recorded_before(_hold_run(2), 2).passed
+    assert not ck.hold_recorded_before(_hold_run(1), 9).passed            # no such decision
+
+
+def f2_stopped_short_fails_when_the_arm_keeps_moving() -> None:
+    target = (-400_000, 0)
+    still = _run([(-100_000, 0)] * 400)
+    assert ck.stopped_short(still, target, 100, 300, "x").passed
+    moving = _run(_line((0, 0), target, 399))
+    assert not ck.stopped_short(moving, target, 100, 300, "x").passed
+    arrived = _run([target] * 400)
+    assert not ck.stopped_short(arrived, target, 100, 300, "x").passed  # stopped, but not short
+
+
+def _braking_run(target: str, brake_after_cycles: int | None) -> Run:
+    """The arm moving, an action at 100 ms, then braked after n cycles (or never)."""
+    from arbiter.bench.records import Action
+
+    run = Run(exit_code=0, done=True, target=target)
+    run.actions = [Action(100 * MS, "kill", "1", 0)]
+    pos = 0
+    for i in range(400):
+        braked = brake_after_cycles is not None and i >= 100 + brake_after_cycles
+        if not braked:
+            pos -= 500
+        st = ARM_STATE_BRAKED if braked else 2
+        run.samples.append(Sample(i, i * MS, i, (pos, 0), (0 if braked else -500_000, 0), 1, st, 0))
+    return run
+
+
+ARM_STATE_BRAKED = 4
+
+
+def f13_brake_check_fails_when_the_arm_moves_on() -> None:
+    assert not ck.braked_within(_braking_run("qemu", None), "kill", 5, "x").passed
+
+
+def f13_brake_check_is_strict_on_the_pi5_and_reported_on_qemu() -> None:
+    assert ck.braked_within(_braking_run("pi5", 3), "kill", 5, "x").passed
+    assert not ck.braked_within(_braking_run("pi5", 7), "kill", 5, "x").passed
+    late_qemu = ck.braked_within(_braking_run("qemu", 7), "kill", 5, "x")
+    assert late_qemu.passed and "7" in late_qemu.detail                # measured and reported
+
+
+def f13_watchdog_cause_check_requires_a_guardian_trip() -> None:
+    run = Run()
+    run.wd = {"begin": {"trips": 0}, "end": {"trips": 1, "last_role": 1, "last_cause": 1, "last_pid": 7}}
+    assert ck.watchdog_recorded(run, "guardian", ("died", "disconnected")).passed
+    run.wd["end"]["last_role"] = 2
+    assert not ck.watchdog_recorded(run, "guardian", ("died", "disconnected")).passed
+    run.wd["end"] = {"trips": 0}
+    assert not ck.watchdog_recorded(run, "guardian", ("died", "disconnected")).passed
+
+
+def f14_estop_check_requires_safe_stop_with_its_cause() -> None:
+    def st(state: int, cause: int) -> Status:
+        return Status(0, state, cause, 0, 0, 0, 0, 0, 0)
+
+    assert ck.safe_stop_by(Run(statuses=[st(3, 4)]), "ESTOP").passed
+    assert not ck.safe_stop_by(Run(statuses=[st(3, 1)]), "ESTOP").passed
+    assert not ck.safe_stop_by(Run(statuses=[st(2, 0)]), "ESTOP").passed
+    assert not ck.safe_stop_by(Run(), "ESTOP").passed
+
+
+def f15_tamper_check_names_the_changed_record() -> None:
+    run = Run()
+    run.evlog, run.evanchor = _evlog([(1, 1, 0), (2, 1, 0), (3, 1, 0)])
+    c = ck.tampering_detected(run)
+    assert c.passed, c.detail
+    assert "line 2" in c.detail                       # the second decision is line 2 of the log
+    assert not ck.tampering_detected(Run()).passed                      # no log, nothing shown
