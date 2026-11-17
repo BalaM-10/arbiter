@@ -57,7 +57,7 @@ typedef struct {
     uint32_t bad_messages;             /* devctl messages rejected before decision */
     uint32_t arm_pulse_errors;         /* lease/hold/brake pulses the kernel refused */
     uint32_t watchdog_trips;           /* genuine trip events from the watchdog */
-    uint32_t foreign_pulses;           /* tick or trip pulses not from our own connection, ignored */
+    uint32_t foreign_pulses;           /* tick, trip or beat pulses not from our own connection (or without our token), ignored */
     uint16_t watchdog_lost;            /* times the guardian lost the watchdog (FR-W5, FR-W6) */
     uint16_t watchdog_lost_cause;      /* ARB_WD_LOST_* of the first loss, 0 if none */
     uint16_t estops;                   /* emergency stops received (FR-W4) */

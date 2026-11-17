@@ -11,14 +11,16 @@
 #include "arb_pulses.h"
 #include "arb_watchdog_proto.h"
 #include "arb_ids.h"
+#include "arb_own_pulse.h"
 #include "arb_server_check.h"
 #include "arb_wd_client.h"
 
 #define WD_REGISTER_TIMEOUT_NS 2000000ull   /* same bound as the guardian's arm sends */
 
-/* Not a cryptographic secret: it only has to be unknown to other processes, so
- * that a pulse forged with the trip code is recognized and ignored. The
- * registered event itself can only be delivered by the watchdog. */
+/* Not a cryptographic secret, and not what authenticates a pulse: the
+ * connection does that (arb_own_pulse.h; midpoint review M2). The token is a
+ * second check. The registered event itself can only be delivered by the
+ * watchdog. */
 static uint64_t make_token(void)
 {
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/clockcycles.html */
@@ -42,6 +44,7 @@ int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int
     memset(w, 0, sizeof *w);
     w->role = role;
     w->self_coid = self_coid;
+    w->own_scoid = -1;
     w->prio = prio;
     w->code = code;
     w->beat_code = beat_code;
@@ -122,14 +125,23 @@ void arb_wd_client_heartbeat(arb_wd_client_t *w)
     }
 }
 
-int arb_wd_client_is_trip(const arb_wd_client_t *w, const struct _pulse *p, int code)
+/* The watchdog delivers our registered events with MsgDeliverEvent(); they
+ * arrive through self_coid, so their scoid is our own connection's. Not stated
+ * in the 8.0 pages; confirmed on target by
+ * fr_w6_genuine_beats_from_the_watchdog_connection_are_accepted (test_wd_scoid). */
+static int genuine(arb_wd_client_t *w, const struct _pulse *p, int code)
 {
-    return p->code == code && (uint64_t)p->value.sival_long == w->token;
+    return p->code == code && (uint64_t)p->value.sival_long == w->token && arb_own_pulse(&w->own_scoid, p->scoid);
+}
+
+int arb_wd_client_is_trip(arb_wd_client_t *w, const struct _pulse *p, int code)
+{
+    return genuine(w, p, code);
 }
 
 int arb_wd_client_beat(arb_wd_client_t *w, const struct _pulse *p, int beat_code)
 {
-    if (p->code != beat_code || (uint64_t)p->value.sival_long != w->token) {
+    if (!genuine(w, p, beat_code)) {
         return 0;
     }
     w->ticks_since_beat = 0;

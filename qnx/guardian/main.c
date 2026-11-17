@@ -445,12 +445,12 @@ static void watchdog_lost(uint16_t cause)
     follow_state(before);                 /* brake pulse to the arm */
 }
 
-/* FR-W6: the watchdog's beat, a registered event carrying our token. */
+/* FR-W6: the watchdog's beat, a registered event carrying our token, on our own connection. */
 static int on_wd_beat(message_context_t *ctp, int code, unsigned flags, void *handle)
 {
     (void)code; (void)flags; (void)handle;
     if (!arb_wd_client_beat(&g_wd, &ctp->msg->pulse, ARB_PULSE_GUARDIAN_WD_BEAT)) {
-        g_status.foreign_pulses++;        /* the beat code without our token: forged */
+        g_status.foreign_pulses++;        /* not our token, or not on our own connection: forged */
     }
     return 0;
 }
@@ -475,7 +475,7 @@ static int on_wd_trip(message_context_t *ctp, int code, unsigned flags, void *ha
 
     (void)code; (void)flags; (void)handle;
     if (!arb_wd_client_is_trip(&g_wd, &ctp->msg->pulse, ARB_PULSE_GUARDIAN_WD_TRIP)) {
-        g_status.foreign_pulses++;        /* the code without our token: forged */
+        g_status.foreign_pulses++;        /* not our token, or not on our own connection: forged */
         return 0;
     }
     g_status.watchdog_trips++;

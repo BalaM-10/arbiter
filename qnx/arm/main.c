@@ -306,13 +306,13 @@ static void handle_pulse(const struct _pulse *p, int64_t now)
             g_wd_tripped = 1;            /* and no later setpoint may undo it (M1-J1) */
             count(&g_telem->wd_brakes);
         } else {
-            count(&g_telem->rejected);   /* the code without our token: forged */
+            count(&g_telem->rejected);   /* not our token, or not on our own connection: forged */
         }
         return;
     }
     if (p->code == ARB_PULSE_ARM_WD_BEAT) {
         if (!arb_wd_client_beat(&g_wd, p, ARB_PULSE_ARM_WD_BEAT)) {
-            count(&g_telem->rejected);   /* the beat code without our token: forged */
+            count(&g_telem->rejected);   /* not our token, or not on our own connection: forged */
         }
         return;
     }

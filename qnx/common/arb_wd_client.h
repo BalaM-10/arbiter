@@ -15,6 +15,7 @@ typedef struct {
     uint32_t hb_errors;     /* heartbeats the kernel refused */
     uint32_t ticks_since_beat;  /* own 1 ms ticks handled since the watchdog's last beat (FR-W6) */
     int      self_coid;     /* kept for arb_wd_client_reregister() */
+    int      own_scoid;     /* server side of self_coid, learned on the first own pulse (-1: not yet; arb_own_pulse.h) */
     pid_t    server_pid;    /* who serves ARB_WD_NAME, and as which user (-1: unknown); F11 case 4 */
     int      server_uid;
     int      prio, code, beat_code;
@@ -36,11 +37,15 @@ int  arb_wd_client_reregister(arb_wd_client_t *w);
 /* One heartbeat pulse (non-blocking). */
 void arb_wd_client_heartbeat(arb_wd_client_t *w);
 
-/* Is this pulse our genuine trip event (right code and token)? */
-int  arb_wd_client_is_trip(const arb_wd_client_t *w, const struct _pulse *p, int code);
+/* Is this pulse our genuine trip event? Right code, right token, and delivered
+ * on our own connection self_coid, where the kernel puts the watchdog's
+ * registered events (midpoint review M2): a pulse sent on any other connection
+ * is refused whatever value it carries. */
+int  arb_wd_client_is_trip(arb_wd_client_t *w, const struct _pulse *p, int code);
 
-/* FR-W6. A genuine beat (code and token) restarts the count and returns 1; a
- * pulse with the beat code but not our token returns 0 (forged; the caller counts it). */
+/* FR-W6. A genuine beat (code, token and own connection, as for a trip) restarts
+ * the count and returns 1; any other pulse with the beat code returns 0 (forged;
+ * the caller counts it). */
 int  arb_wd_client_beat(arb_wd_client_t *w, const struct _pulse *p, int beat_code);
 
 /* FR-W6. Call on each of the caller's own 1 ms ticks: 1 once the watchdog has
