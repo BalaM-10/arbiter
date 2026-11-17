@@ -95,10 +95,10 @@ Test references are `file::test`. On-target results point at a saved run log in
 
 | Requirement | Implemented in | Test | Passes on QEMU | Passes on Pi 5 | Notes |
 | --- | --- | --- | --- | --- | --- |
-| FR-P1 | — | — | — | — | Planned: M2 |
+| FR-P1 | `host/arbiter/planner.py` (tests first, 2026-11-17) | `host/arbiter/planner_e2e.py::fr_p1_scripted_planner_runs_pick_and_place_through_the_gateway`<br>`host/tests/test_planner.py::fr_p1_scripted_plan_is_the_fixed_pick_and_place_path`<br>`host/tests/test_planner.py::fr_p1_planner_resumes_after_the_guardians_last_sequence_number`<br>`host/tests/test_planner.py::fr_p1_planner_starts_at_one_when_the_guardian_has_no_sequence_yet`<br>`host/tests/test_planner.py::fr_p1_planner_sequence_wraps_at_2_32`<br>`host/tests/test_planner.py::fr_p1_planner_stops_at_an_error_frame_and_says_so`<br>`host/tests/test_planner.py::fr_p1_check_reports_denials_and_unreached_waypoints` | not yet | — | M2 P6 step 3c: the F1 pick-and-place path from the host through the gateway on QNX (`arbiter planner e2e --target <t>`) |
 | FR-P2 | — | — | — | — | Planned: M3 (LLM planner) |
-| FR-P3 | — | — | — | — | Planned: M2 |
-| FR-P4 | — | — | — | — | Planned: M2 |
+| FR-P3 | `host/arbiter/planner.py` (tests first, 2026-11-17) | `host/tests/test_planner.py::fr_p3_planner_never_reads_the_contract`<br>`host/tests/test_planner.py::fr_p3_planner_sends_a_wrong_target_unchanged` | not yet | — | The planner imports nothing that reads the contract and clamps nothing |
+| FR-P4 | `host/arbiter/planner.py` (tests first, 2026-11-17) | `host/tests/test_planner.py::fr_p4_scripted_planner_runs_with_no_key_in_the_environment`<br>`host/tests/test_planner.py::fr_p4_planner_reads_no_credential_from_anywhere` | not yet | — | The scripted planner needs no key; the LLM planner (FR-P2, M3) will read its key from the environment only |
 
 ## Fault bench (FR-B)
 

@@ -46,7 +46,7 @@ BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract
         $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/test_wd_scoid $(OUT)/arm_suite.sh \
         $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh \
         $(OUT)/arb-inject $(OUT)/arb-stall-probe $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh \
-        $(OUT)/arb-gateway $(OUT)/test_gateway $(OUT)/gateway_suite.sh
+        $(OUT)/arb-gateway $(OUT)/test_gateway $(OUT)/gateway_suite.sh $(OUT)/planner_e2e.sh
 
 .PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
@@ -176,6 +176,10 @@ $(OUT)/test_gateway: tests/test_gateway.c tests/arb_test.h common/arb_net_proto.
 	$(CC) $(CFLAGS) -o $@ $< $(SOCKET_LIBS)
 
 $(OUT)/gateway_suite.sh: tests/gateway_suite.sh | $(OUT)
+	install -m 755 $< $@
+
+# Target side of the scripted-planner end-to-end test (host/arbiter/planner_e2e.py).
+$(OUT)/planner_e2e.sh: tests/planner_e2e.sh | $(OUT)
 	install -m 755 $< $@
 
 # Sourced by the suites; executable so deploy.sh copies it.
