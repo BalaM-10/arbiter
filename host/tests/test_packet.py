@@ -110,3 +110,13 @@ def fr_e3_verify_packet_cli_passes_a_good_packet(tmp_path: Path) -> None:
     d = _bench(tmp_path)
     _write(d)
     assert cli_main(["evidence", "verify-packet", str(d)]) == 0
+
+
+def fr_e3_packet_names_the_policy_the_kernel_reports() -> None:
+    """The policy id is read from wherever `secpol -f all` prints it (not its first line)."""
+    from arbiter.bench.runner import policy_from
+
+    out = "-----\nSECPOL_BLOB_TYPE_MAP\narb_arm_t = 1\npolicy_id:dc122949  immutable\nallow_attach x y;\n"
+    assert policy_from(out) == "policy_id:dc122949  immutable"
+    assert policy_from("") == "none"
+    assert policy_from("secpol: no policy loaded\n") == "none"
