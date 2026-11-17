@@ -154,6 +154,14 @@ arb_guard_up
 ./test_e2e wdforged "$WD" || fail=1
 arb_down
 
+# Midpoint review M2: beats and trips count only from the watchdog's own
+# connection. test_wd_scoid plays the watchdog itself and starts the real arm
+# and guardian, so no arb_wd_up here.
+echo "## FR-W6, FR-W2: beats and trips only from the watchdog's connection (stand-in watchdog)"
+./test_wd_scoid "$CONTRACT" || fail=1
+slay -f arb-guardian arb-arm >/dev/null 2>&1
+sleep 1
+
 echo "## FR-W4, FR-G5: e-stop from any client, reset only from the operator, not without a watchdog"
 arb_wd_up
 arb_arm_up

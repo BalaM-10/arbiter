@@ -43,7 +43,7 @@ LIBCONTRACT_HDR := libcontract/arb_contract.h common/arb_contract_table.h common
 
 BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract_file $(OUT)/test_send_timeout \
         $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh \
-        $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/arm_suite.sh \
+        $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/test_wd_scoid $(OUT)/arm_suite.sh \
         $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh \
         $(OUT)/arb-inject $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh
 
@@ -108,6 +108,9 @@ $(OUT)/test_arm: tests/test_arm.c tests/arb_test.h $(ARM_HDR) $(LIBCONTRACT_HDR)
 
 $(OUT)/test_e2e: tests/test_e2e.c tests/arb_test.h tests/arb_as_gateway.h common/arb_ids.h $(ARM_HDR) common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
+
+$(OUT)/test_wd_scoid: tests/test_wd_scoid.c tests/arb_test.h common/arb_privdrop.c $(ARM_HDR) common/arb_devctl.h $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/test_wd_scoid.c common/arb_privdrop.c $(LDLIBS)
 
 $(OUT)/arm_suite.sh: tests/arm_suite.sh | $(OUT)
 	install -m 755 $< $@
