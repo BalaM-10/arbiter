@@ -23,7 +23,7 @@ do. What Arbiter defends against, and what it does not, is in
 
 | Works today, on QNX 8.0 in QEMU | Not built yet |
 | --- | --- |
-| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | The scripted planner (M2 P6); the evidence packet (FR-E3) |
+| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | The bench through the planner and gateway (M2 P6); the evidence packet (FR-E3) |
 | QEMU x86_64 target built with `mkqnximage`, reached over SSH | Fault scenarios F2, F3, F7, F8, F10, F12 to F15 in the bench (M2 P7) |
 | Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target, timing measurements, dashboard (M3) |
 | `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 72 tests on the host and on QNX; keep-out checks both links of the arm as segments | |
@@ -39,6 +39,7 @@ do. What Arbiter defends against, and what it does not, is in
 | System log (M2): guardian, arm and watchdog record startup, state changes, brakes, refused senders and watchdog trips through the QNX system logger, read on the target with `slog2info -b arb_guardian` (or `arb_arm`, `arb_watchdog`) | |
 | Evidence log (M2 P6): the guardian records every decision with its latency in a ring only the logger may read; `arb-logd` writes a SHA-256 hash-chained log (QNX Cryptography Library) and declares anything it lost; `arbiter evidence verify` recomputes the chain on the host and names the first edited, removed or reordered line. Every bench scenario verifies the target's log. Format: [`docs/EVIDENCE_LOG.md`](docs/EVIDENCE_LOG.md) | |
 | Gateway (`arb-gateway`, M2 P6): a planner connects over TCP and speaks the 64-byte frames of [`docs/PROTOCOL.md`](docs/PROTOCOL.md); each command is passed to the guardian as the gateway's user and its verdict comes back, with read-only observers getting a copy, and the arm's joint state about every 10 ms, relayed by the evidence logger so the gateway maps no trusted memory. One planner at a time; any malformed frame ends the session and is never forwarded; when the planner leaves the guardian holds at once, and a reconnecting planner continues at the guardian's last sequence number + 1. The gateway runs below every trusted process as its own user (and type, on the policy image); after its startup the network stack refuses it any new socket | |
+| Scripted planner (`arbiter planner`, M2 P6): plays the fixed pick-and-place path from the host to the gateway, resuming at the guardian's last sequence number + 1. It is never given the contract and reads no key; `arbiter planner e2e` runs it end to end against QNX and checks the target's evidence log | |
 | Message-passing sample from M0: send/receive/reply, malformed messages, pulses, sender identity (7 checks) | |
 
 On QEMU every result proves function only, never timing; timing claims will
@@ -74,6 +75,7 @@ sudo ./scripts/qemu-br0-dhcp.sh                                        # QEMU ne
 (cd targets/qemu-x86_64 && mkqnximage --run=-h && mkqnximage --getip)  # boot QNX
 ./scripts/run-tests.sh qemu                                            # build, deploy, run on QNX
 .venv/bin/arbiter bench run --target qemu                              # fault bench: F1, F4, F5, F6, F9
+.venv/bin/arbiter planner e2e --target qemu                            # the scripted planner, through the gateway
 ./scripts/host-checks.sh                                               # host unit tests, analyzers, traceability
 ```
 
@@ -88,6 +90,11 @@ Expected:
   with what decided it, and shows a top view of the arm's path next to the operator's hand
   area. On QEMU, F1 measures and prints control-tick spacing but does not judge it; the
   same check is strict on the Pi 5 (see [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md), F1).
+- `arbiter planner e2e` (about 30 s): the planner on this host plays the pick-and-place path
+  over TCP to the gateway on QNX, one `C seq ... -> ALLOW NONE` line per command, then the
+  target's evidence log is checked and it ends with
+  `PASS fr_p1_scripted_planner_runs_pick_and_place_through_the_gateway (qemu)`. To drive a
+  running gateway yourself: `.venv/bin/arbiter planner run --host <target address>`.
 - `host-checks.sh`: `SUMMARY host-checks: PASS`.
 
 To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/default.yaml -o build/contract.bin`.

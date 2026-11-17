@@ -1,0 +1,951 @@
+# run-tests qemu — 2026-11-17T11:53:04-06:00, REPEAT=1, security policy off
+# commit: c907fd1
+# host: Ubuntu 22.04.5 LTS; qcc 12.2.0,gcc_ntox86_64
+
+## contract corpus (host compiler)
+$ arbiter contract corpus contracts/default.yaml -o build/contract-corpus
+wrote build/contract-corpus/manifest.txt
+  3390650a5efb466213042e60cfd0c3dcf980025eace0a99b1dcd9caf03f90af9  build/contract-corpus/contract.bin
+
+## build (all architectures)
+$ make -C qnx ARCH=x86_64 clean all
+rm -rf ../build/x86_64 ../build/host
+mkdir -p ../build/x86_64
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/hello samples/hello/hello.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/msgpass samples/msgpass/msgpass.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_contract_file tests/test_contract_file.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_send_timeout tests/test_send_timeout.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -Iguardian -o ../build/x86_64/arb-guardian guardian/main.c guardian/arm_link.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-logd logd/main.c common/arb_privdrop.c libcontract/arb_contract.c -lm -lslog2 -lqcrypto
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb_arm_stub tests/arb_arm_stub.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_guardian tests/test_guardian.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_logd tests/test_logd.c
+install -m 755 tests/guardian_suite.sh ../build/x86_64/guardian_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-arm arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_arm_motion tests/test_arm_motion.c arm/arm_motion.c arm/arm_backend_sim.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_arm tests/test_arm.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_e2e tests/test_e2e.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_wd_scoid tests/test_wd_scoid.c common/arb_privdrop.c -lm
+install -m 755 tests/arm_suite.sh ../build/x86_64/arm_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-watchdog watchdog/main.c common/arb_privdrop.c -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_watchdog tests/test_watchdog.c common/arb_wd_client.c common/arb_server_check.c
+install -m 755 tests/watchdog_suite.sh ../build/x86_64/watchdog_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-inject tests/arb_inject.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-stall-probe tests/arb_stall_probe.c -lm
+install -m 755 tests/bench_scenario.sh ../build/x86_64/bench_scenario.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-ctl tools/arb_ctl.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-untrusted tests/arb_untrusted.c
+install -m 755 tests/f11_suite.sh ../build/x86_64/f11_suite.sh
+install -m 755 tests/policy_suite.sh ../build/x86_64/policy_suite.sh
+install -m 755 tests/arb_suite_lib.sh ../build/x86_64/arb_suite_lib.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-gateway gateway/main.c common/arb_privdrop.c -lslog2 -lsocket
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_gateway tests/test_gateway.c -lsocket
+install -m 755 tests/gateway_suite.sh ../build/x86_64/gateway_suite.sh
+install -m 755 tests/planner_e2e.sh ../build/x86_64/planner_e2e.sh
+  arb-arm  sha256 03e7e4b823734fda753a0ab1662b43ad2afb025d892d582fdb4a6cf8a5637576
+    ELF 64-bit LSB pie executable, x86-64
+  arb-ctl  sha256 69e244a17fa3ad509d8bc9cce59e7aea1e4931f5beb870de3809dd6ab6413058
+    ELF 64-bit LSB pie executable, x86-64
+  arb-gateway  sha256 4f2e116c257cc132b74db335e317f0de93622aa99a45ed79b33f11bc2ed676d5
+    ELF 64-bit LSB pie executable, x86-64
+  arb-guardian  sha256 a8432e22caf679ddac8cf38901ebc95afa7b1924146393ed8c3d2f407d88e538
+    ELF 64-bit LSB pie executable, x86-64
+  arb-inject  sha256 d0cfff63315331bfa4c33cb28fc6bbc732f4887a1672e6d2dcf4cfaa8f1b6479
+    ELF 64-bit LSB pie executable, x86-64
+  arb-logd  sha256 dd5f6a69f5ac898a92c420087da4d2e4f260a215b94be606889deb632c97da15
+    ELF 64-bit LSB pie executable, x86-64
+  arb-stall-probe  sha256 c8aafc5d542533f01061e7804ef4c19c862e0a8982713207c17e67135e52814e
+    ELF 64-bit LSB pie executable, x86-64
+  arb-untrusted  sha256 fdfec4568c68751bb9d068465d65988db0ddc5f1d58c88f013c5af5c43eb0bb2
+    ELF 64-bit LSB pie executable, x86-64
+  arb-watchdog  sha256 115f1e987459b0daff22aaa176d6456512542613985a81ce1cfb269fbb78508d
+    ELF 64-bit LSB pie executable, x86-64
+  arb_arm_stub  sha256 adbadd14e49cc189398424ac344a532ab185f620b1d9ad925b4d38b392e3e71f
+    ELF 64-bit LSB pie executable, x86-64
+  arb_suite_lib.sh  sha256 393c7b2d8f248d0ae6a7107486246c168223bd37bb5a121f89d04b7572281b7a
+    ASCII text
+  arm_suite.sh  sha256 f582f11409709335b5b3dd2764d93b6617df21f95b224e335e5503dec7a0b38c
+    POSIX shell script, ASCII text executable
+  bench_scenario.sh  sha256 25614c053865c30baefa179775c0e7ffa339805ba567e08ddb7334b7910c0075
+    POSIX shell script, ASCII text executable
+  f11_suite.sh  sha256 8a94dbd469acb8a561366bd7f0ba73bddcc6fe3a395ac20013c5a14899545e29
+    POSIX shell script, ASCII text executable
+  gateway_suite.sh  sha256 e25933ce4168cea874816963618eb3d602b3bdfa2ac04c2ff22ac91686744bbe
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 6a7be27d88315ef835471b933c20660a2b2eebb28482fe8bb07af00b424001a1
+    POSIX shell script, ASCII text executable
+  hello  sha256 e491474caa943f082c5eb613ccce073a77f6cfd2b75d39d99440d34ff4ec8d82
+    ELF 64-bit LSB pie executable, x86-64
+  msgpass  sha256 b6b20a163faa339894cdb71eb34eb3746f73486a6cd3f9a6f13a6baf5fa23c8a
+    ELF 64-bit LSB pie executable, x86-64
+  planner_e2e.sh  sha256 f18addb118dcf9273c890139c763eb6256299078c6819c1aa06ebc74059f983a
+    POSIX shell script, ASCII text executable
+  policy_suite.sh  sha256 d560f98342dc4feeb62fe32ccc5f2b71b20a4a473387ce3aa7ea9336ba921f1e
+    POSIX shell script, ASCII text executable
+  test_arm  sha256 d9f3f92b401596dc982c100b5ac11623068798e53cb376ce046f74cf007293c8
+    ELF 64-bit LSB pie executable, x86-64
+  test_arm_motion  sha256 25444e80f3e870f81448030e9942aaffd49ee6a8880a59ca451e927d0e8bb42c
+    ELF 64-bit LSB pie executable, x86-64
+  test_contract_file  sha256 883832f76207a3c49c4f8b4e5d164fc5f8ed5e0eeb1786841d6d54f39f80032f
+    ELF 64-bit LSB pie executable, x86-64
+  test_e2e  sha256 7c9be1616710c1c86e9cb9ee1bbeadcacf2847e17e38c27d7eadbee997ffa46c
+    ELF 64-bit LSB pie executable, x86-64
+  test_gateway  sha256 cd5cb4dac621fbbfd65c87ba8a271d02172e083074cadf4092f98ceb2100b114
+    ELF 64-bit LSB pie executable, x86-64
+  test_guardian  sha256 19e9f0edd265ec0167bf5b7450a4c42848f658dbd95e21b1f21744c3af08f64f
+    ELF 64-bit LSB pie executable, x86-64
+  test_libcontract  sha256 93239a2b1bb1dbe07d670e7828d72934186e87b2dda160c4b0261149be396f43
+    ELF 64-bit LSB pie executable, x86-64
+  test_logd  sha256 d202c997977deb45531c0e818c3504e2ad1c12814717200cf256765e5e34ef63
+    ELF 64-bit LSB pie executable, x86-64
+  test_send_timeout  sha256 1f58334bb9bcea95d2a0af51c6efe8b888e88d2c734224441b45c7f1f6ce4f21
+    ELF 64-bit LSB pie executable, x86-64
+  test_watchdog  sha256 688ca2233ea5a14c7e85e59fb81bc374cc5dbb3015d4918e3f11644169d5599f
+    ELF 64-bit LSB pie executable, x86-64
+  test_wd_scoid  sha256 ad00c3787165f8dff7fed5db7085f78d2bbe211bfff9aa6958972a27e5c50461
+    ELF 64-bit LSB pie executable, x86-64
+  watchdog_suite.sh  sha256 57dcb7adc7d33a150230bc5204bf1ad697c276b5e0e5db7b2faec30675f1bd96
+    POSIX shell script, ASCII text executable
+$ make -C qnx ARCH=aarch64le clean all
+rm -rf ../build/aarch64le ../build/host
+mkdir -p ../build/aarch64le
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/hello samples/hello/hello.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/msgpass samples/msgpass/msgpass.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_contract_file tests/test_contract_file.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_send_timeout tests/test_send_timeout.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -Iguardian -o ../build/aarch64le/arb-guardian guardian/main.c guardian/arm_link.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-logd logd/main.c common/arb_privdrop.c libcontract/arb_contract.c -lm -lslog2 -lqcrypto
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb_arm_stub tests/arb_arm_stub.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_guardian tests/test_guardian.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_logd tests/test_logd.c
+install -m 755 tests/guardian_suite.sh ../build/aarch64le/guardian_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-arm arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_arm_motion tests/test_arm_motion.c arm/arm_motion.c arm/arm_backend_sim.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_arm tests/test_arm.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_e2e tests/test_e2e.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_wd_scoid tests/test_wd_scoid.c common/arb_privdrop.c -lm
+install -m 755 tests/arm_suite.sh ../build/aarch64le/arm_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-watchdog watchdog/main.c common/arb_privdrop.c -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_watchdog tests/test_watchdog.c common/arb_wd_client.c common/arb_server_check.c
+install -m 755 tests/watchdog_suite.sh ../build/aarch64le/watchdog_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-inject tests/arb_inject.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-stall-probe tests/arb_stall_probe.c -lm
+install -m 755 tests/bench_scenario.sh ../build/aarch64le/bench_scenario.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-ctl tools/arb_ctl.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-untrusted tests/arb_untrusted.c
+install -m 755 tests/f11_suite.sh ../build/aarch64le/f11_suite.sh
+install -m 755 tests/policy_suite.sh ../build/aarch64le/policy_suite.sh
+install -m 755 tests/arb_suite_lib.sh ../build/aarch64le/arb_suite_lib.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-gateway gateway/main.c common/arb_privdrop.c -lslog2 -lsocket
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_gateway tests/test_gateway.c -lsocket
+install -m 755 tests/gateway_suite.sh ../build/aarch64le/gateway_suite.sh
+install -m 755 tests/planner_e2e.sh ../build/aarch64le/planner_e2e.sh
+  arb-arm  sha256 2c0cc626f0c2ba2ba2dc594a6af3d57509f03ecd94df5978f51a3794251d37bd
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-ctl  sha256 a75641b51daca2f66d38b80f71a9cdaf6b38459b72e90b38428e3d9294c36a51
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-gateway  sha256 e2fd73b87972a15ae37e7b68b6226b2938206165b23741b211f59bb499347239
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-guardian  sha256 1d3c69397c5975d265349083a6fb4fdd382e9391be8be908ef3f90230a42b6c9
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-inject  sha256 7800de92783a2badf5758d3dd0a2958fd523c8e5fab21809a78a192cbf95089b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-logd  sha256 9795ae66482e03870243ee4815a9d9421b879fc6ab05619e8ac3a64dcb975765
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-stall-probe  sha256 2f6c18fa5cc85264a84a7b56b70c4f989ab3f1d38a262bab988d454160aaa1ca
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-untrusted  sha256 b927481062d4c8541592e6887f2247efc1315d4b8dc0e07f7e6783f384ef391c
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-watchdog  sha256 16b7e5820e6bb0a3b2f4621abf9684d5ed5c1d30b976fac311a9f766e1ea28b2
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb_arm_stub  sha256 ad8f3423674ad90e83d776e30409c0167af5b8233ce3fde26374821f073c3af5
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb_suite_lib.sh  sha256 393c7b2d8f248d0ae6a7107486246c168223bd37bb5a121f89d04b7572281b7a
+    ASCII text
+  arm_suite.sh  sha256 f582f11409709335b5b3dd2764d93b6617df21f95b224e335e5503dec7a0b38c
+    POSIX shell script, ASCII text executable
+  bench_scenario.sh  sha256 25614c053865c30baefa179775c0e7ffa339805ba567e08ddb7334b7910c0075
+    POSIX shell script, ASCII text executable
+  f11_suite.sh  sha256 8a94dbd469acb8a561366bd7f0ba73bddcc6fe3a395ac20013c5a14899545e29
+    POSIX shell script, ASCII text executable
+  gateway_suite.sh  sha256 e25933ce4168cea874816963618eb3d602b3bdfa2ac04c2ff22ac91686744bbe
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 6a7be27d88315ef835471b933c20660a2b2eebb28482fe8bb07af00b424001a1
+    POSIX shell script, ASCII text executable
+  hello  sha256 1ab74333346df2367c5a3d0ecaa885a93cd1ec9810f1dd119626d56d96859569
+    ELF 64-bit LSB pie executable, ARM aarch64
+  msgpass  sha256 caca0169357d68d3bf54f1b3e4419a94380aaca1b84aa055fa4e8e007016a72b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  planner_e2e.sh  sha256 f18addb118dcf9273c890139c763eb6256299078c6819c1aa06ebc74059f983a
+    POSIX shell script, ASCII text executable
+  policy_suite.sh  sha256 d560f98342dc4feeb62fe32ccc5f2b71b20a4a473387ce3aa7ea9336ba921f1e
+    POSIX shell script, ASCII text executable
+  test_arm  sha256 cebee765eb7fe116b31451e905571e80600e734218e458afba9b2bab709bd878
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_arm_motion  sha256 3ae70102ea30e61902ebba8b91b3d840865878a644c42f86a2af45733e6293a8
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_contract_file  sha256 8ccaca6ba7f924598d38a0e42ebfc8c795649228791187bf46bcc50e14cfc3a3
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_e2e  sha256 8dab7876e559096efcd169d5fb5c4466878de9fdcc7ebc841a4746664c442355
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_gateway  sha256 dfbfb11c9306fba9eff8cd4c7e92ecb38806196cf590924b8b25b5e1810c669a
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_guardian  sha256 b80efe13e5b4e75f766c50e6fe294ba3f3aebbbae9fc5dab19cd7001c92279a4
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_libcontract  sha256 1d8eca5373fbee6966cb841e5ddbeaeb16011b44f37917db869860400942e467
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_logd  sha256 27331718b157180ee15fc1a8735178cc83fd46ed2da85f45e853de3d83a42e55
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_send_timeout  sha256 8e3f122f43780231816e91e73f174370ea4c007fb1580b1bdc94b60b9f58312b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_watchdog  sha256 9cbec786a30e8626bd8558a724c738afc20ff17badbb3a8baf5cbd5088635263
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_wd_scoid  sha256 344f738b76cc05e89c4203b73f02a60f75600382a131ecb3e2dd4bf1e2766b68
+    ELF 64-bit LSB pie executable, ARM aarch64
+  watchdog_suite.sh  sha256 57dcb7adc7d33a150230bc5204bf1ad697c276b5e0e5db7b2faec30675f1bd96
+    POSIX shell script, ASCII text executable
+deployed arb-arm arb-ctl arb-gateway arb-guardian arb-inject arb-logd arb-stall-probe arb-untrusted arb-watchdog arb_arm_stub arb_suite_lib.sh arm_suite.sh bench_scenario.sh f11_suite.sh gateway_suite.sh guardian_suite.sh hello msgpass planner_e2e.sh policy_suite.sh test_arm test_arm_motion test_contract_file test_e2e test_gateway test_guardian test_libcontract test_logd test_send_timeout test_watchdog test_wd_scoid watchdog_suite.sh to qemu (root@172.31.1.174:/data/home/root/arbiter/bin)
+
+## target: root@172.31.1.174:/data/home/root/arbiter/bin (x86_64)
+$ uname -a
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## hello — M0 toolchain: qcc-built binary runs
+$ cd /data/home/root/arbiter/bin && ./hello
+hello from Arbiter on QNX 8.0.0 2026/02/27-11:02:56EST (x86pc)
+exit=0
+
+## msgpass — M0 message passing (M0-MSG-1..7, previews NFR-Q2)
+$ cd /data/home/root/arbiter/bin && ./msgpass
+info server pid 1806357 chid 1, client pid 1810454
+PASS M0-MSG-1 round trip: sent 21, reply 42
+PASS M0-MSG-2 server saw the client's pid in _msg_info
+PASS M0-MSG-3 short message rejected with EBADMSG
+PASS M0-MSG-4 oversized message rejected with EBADMSG
+PASS M0-MSG-5 wrong version rejected with EPROTO
+info stats request answered after 1 try
+PASS M0-MSG-6 3 pulses received by the server, values summed to 7
+info server counters: replies 3, bad_length 2, bad_version 1, bad_sender 0, pulses 3, pulse_sum 7
+PASS M0-MSG-7 client exited 0 and the server's counters match every event
+RESULT PASS msgpass
+exit=0
+
+## test_libcontract — libcontract unit tests on QNX (FR-C4, FR-C5, FR-G2..G5, FR-G9 logic, NFR-I6, NFR-K2)
+$ cd /data/home/root/arbiter/bin && ./test_libcontract
+PASS fr_c4_crc32_matches_zlib_check_value
+PASS fr_c4_valid_table_loads
+PASS fr_c4_null_arguments_rejected
+PASS fr_c4_wrong_length_rejected
+PASS fr_c4_bad_magic_rejected
+PASS fr_c4_version_mismatch_rejected
+PASS fr_c4_table_size_field_mismatch_rejected
+PASS fr_c4_crc_mismatch_rejected
+PASS fr_c4_any_single_byte_change_rejected
+PASS fr_c4_out_of_range_values_rejected
+PASS fr_c4_max_duration_must_cover_a_full_range_move
+PASS fr_c4_output_untouched_on_error
+PASS fr_c5_text_contract_rejected
+PASS nfr_i6_command_wrong_length_rejected
+PASS nfr_i6_command_bad_fields_rejected
+PASS nfr_i6_random_bytes_never_crash_or_allow_garbage
+PASS fr_g2_command_fields_carried_through
+PASS fr_g2_duration_zero_denied
+PASS fr_g2_duration_minimum_and_contract_max_allowed
+PASS fr_g2_duration_one_over_contract_max_denied
+PASS fr_g2_clamp_beyond_contract_max_denied
+PASS fr_g3_every_verdict_names_its_rule
+PASS fr_g4_sequence_replay_and_old_denied
+PASS fr_g4_sequence_wraps_around
+PASS fr_g4_rate_limit_burst_then_deny_then_refill
+PASS fr_g4_rate_limit_uses_guardian_clock_not_sender_clock
+PASS fr_g4_rate_limit_sustained_rate_holds
+PASS fr_g4_joint_limit_exactly_at_max
+PASS fr_g4_joint_limit_just_inside
+PASS fr_g4_joint_limit_just_outside_denied
+PASS fr_g4_impossible_arm_position_fails_closed
+PASS fr_g4_unusable_contract_fails_closed
+PASS fr_g4_velocity_exactly_at_limit_allowed
+PASS fr_g4_velocity_over_limit_clamped_by_stretching_duration
+PASS fr_g4_velocity_clamped_motion_never_exceeds_vmax
+PASS fr_g4_keepout_target_inside_zone_denied
+PASS fr_g4_keepout_path_through_zone_denied_though_endpoints_clear
+PASS fr_g4_keepout_clear_path_allowed
+PASS fr_g4_keepout_just_outside_by_less_than_margin_denied
+PASS fr_g4_keepout_just_outside_by_more_than_margin_allowed
+PASS fr_g4_keepout_brief_crossing_of_thin_zone_denied
+PASS fr_g4_keepout_margin_includes_start_tolerance
+PASS fr_g4_keepout_forearm_across_zone_denied_though_elbow_and_tip_clear
+PASS fr_g4_keepout_upper_arm_across_zone_denied_though_elbow_and_tip_clear
+PASS fr_g4_keepout_forearm_sweeping_through_zone_denied
+PASS fr_g4_keepout_overrides_clamp
+PASS fr_g4_keepout_exit_only_move_from_inside_allowed
+PASS fr_g4_keepout_from_inside_going_deeper_denied
+PASS fr_g4_keepout_from_inside_not_ending_outside_denied
+PASS fr_g4_keepout_exit_through_another_zone_denied
+PASS fr_g4_keepout_forearm_starting_across_zone_exits_allowed
+PASS fr_g4_keepout_forearm_from_inside_going_deeper_denied
+PASS fr_g4_keepout_forearm_turning_back_in_on_the_way_out_denied
+PASS fr_g4_keepout_forearm_from_inside_not_ending_clear_denied
+PASS fr_g4_keepout_link_exit_through_another_zone_denied
+PASS fr_g4_keepout_normal_moves_carry_no_exit_flag
+PASS fr_g4_checks_run_in_the_specified_order
+PASS fr_g4_forward_kinematics_reference_poses
+PASS fr_g5_starts_in_hold_and_valid_command_enters_normal
+PASS fr_g5_silence_past_timeout_enters_hold
+PASS fr_g5_denied_commands_do_not_reset_silence
+PASS fr_g5_violation_threshold_enters_safe_stop
+PASS fr_g5_violations_spread_beyond_window_do_not_stop
+PASS fr_g5_only_joint_and_keepout_denials_count
+PASS fr_g5_safe_stop_denies_until_operator_reset
+PASS fr_g5_replay_protection_survives_reset
+PASS fr_g9_arm_send_timeout_fault_enters_safe_stop
+PASS fr_g4_three_step_decision_matches_one_call
+PASS fr_g4_pre_check_rejects_without_arm_position
+PASS fr_g5_approval_refused_by_arm_is_not_activity
+PASS fr_g9_arm_fault_denial_carries_no_setpoint
+PASS fr_g5_last_client_lost_enters_hold
+RESULT PASS test_libcontract 72/72
+exit=0
+
+## test_contract_file contract-corpus/manifest.txt — compiled contract loads on QNX exactly as written; corrupted tables rejected (FR-C3, FR-C4)
+$ cd /data/home/root/arbiter/bin && ./test_contract_file contract-corpus/manifest.txt
+PASS fr_c3_compiled_table_matches_source_dump contract.bin
+PASS fr_c4_corrupted_compiled_table_rejected truncated.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected extended.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected empty.bin (code 2)
+PASS fr_c4_corrupted_compiled_table_rejected magic.bin (code 3)
+PASS fr_c4_corrupted_compiled_table_rejected version.bin (code 4)
+PASS fr_c4_corrupted_compiled_table_rejected tablesize.bin (code 5)
+PASS fr_c4_corrupted_compiled_table_rejected crc.bin (code 6)
+PASS fr_c4_corrupted_compiled_table_rejected vmax0.bin (code 7)
+PASS fr_c4_corrupted_compiled_table_rejected shortmax.bin (code 7)
+PASS fr_c4_corrupted_compiled_table_rejected zones5.bin (code 7)
+RESULT PASS test_contract_file 11/11
+exit=0
+
+## test_send_timeout --timing=function — 2 ms TimerTimeout on MsgSend, SEND and REPLY states, measured (FR-G9 design check)
+$ cd /data/home/root/arbiter/bin && ./test_send_timeout --timing=function
+info clock period (tick) 1000000 ns; clock_getres(CLOCK_MONOTONIC) 0 s 1000000 ns; ClockCycles 2800167483 /s
+info requested timeout 2.000 ms
+info timing function (QEMU): SEND and REPLY fail above 20.000 ms
+info SEND  n=1000  min 2.317 ms  median 3.002 ms  p99.9 3.865 ms  max 3.865 ms
+info SEND  0 of 1000 samples above 5.000 ms (2 ms + 3 ticks); pass limit 20.000 ms
+PASS fr_g9_send_timeout_fires_when_server_never_receives
+info REPLY n=1000  min 2.457 ms  median 3.001 ms  p99.9 4.344 ms  max 4.344 ms
+info REPLY 0 of 1000 samples above 5.000 ms (2 ms + 3 ticks); pass limit 20.000 ms
+PASS fr_g9_send_timeout_fires_when_server_never_replies
+info UNBLK n=20  min 23.561 ms  median 24.127 ms  p99.9 25.014 ms  max 25.014 ms
+PASS fr_g9_unblock_flag_lets_server_delay_timed_out_client
+RESULT PASS test_send_timeout
+exit=0
+
+## test_arm_motion — arm motion model on QNX: straight line, vmax, brake on segment, time-based (FR-A2, FR-A3, FR-A4)
+$ cd /data/home/root/arbiter/bin && ./test_arm_motion
+PASS fr_a2_model_reports_position_and_velocity_per_joint
+PASS fr_a5_simulation_sits_behind_the_backend_interface
+PASS fr_a3_motion_reaches_target_at_its_duration
+PASS fr_a3_motion_is_a_straight_line_with_joints_arriving_together
+PASS fr_a3_never_faster_than_vmax_at_the_minimum_duration
+PASS fr_a3_min_duration_matches_the_guardian_rule
+PASS fr_a3_brake_stays_on_segment
+PASS fr_a4_brake_from_full_speed_stops_within_its_braking_time
+PASS fr_a3_hold_stops_without_latching_and_brake_upgrades_it
+PASS fr_a3_new_segment_starts_from_the_given_actual_position
+PASS fr_a3_motion_depends_on_time_not_on_tick_count
+RESULT PASS test_arm_motion 11/11
+exit=0
+
+## watchdog_suite.sh — arb-watchdog on QNX: priority, stuck by missed heartbeats, death by process-manager notice, brake and SAFE_STOP events, forged notices and heartbeats ignored (FR-W1..W3)
+$ cd /data/home/root/arbiter/bin && ./watchdog_suite.sh
+## watchdog priority
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+nrw-rw-rw-  1 root root   0 2026-11-17 17:53 /dev/name/local/arbiter_watchdog
+nrw-r--r--  2 root root 192 2026-11-17 17:53 /dev/shmem/arbiter_watchdog_status
+     pid tid prio name                                                                         
+ 1986582   1  66f ./arb-watchdog                                                                  
+PASS fr_w1_watchdog_runs_above_the_guardian_and_below_the_arm (66, FIFO)
+## fr_w3_stuck_detected_by_missed_heartbeat
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+info stuck: tripped 11.00 ms after the last heartbeat (timeout 10 ms)
+PASS fr_w3_stuck_detected_by_missed_heartbeat
+RESULT PASS test_watchdog 1/1
+## fr_w3_death_detected_by_death_notice
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+info death pulses 2, last value 2117656 (arm pid 2117656)
+info death: tripped 2.55 ms after the last heartbeat; death notices 1
+PASS fr_w3_death_detected_by_death_notice
+RESULT PASS test_watchdog 1/1
+## fr_w2_missed_guardian_heartbeat_brakes_the_arm
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w2_missed_guardian_heartbeat_brakes_the_arm
+RESULT PASS test_watchdog 1/1
+## fr_w3_forged_death_notice_ignored
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w3_forged_death_notice_ignored
+RESULT PASS test_watchdog 1/1
+## fr_w2_heartbeats_from_another_connection_ignored
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w2_heartbeats_from_another_connection_ignored
+RESULT PASS test_watchdog 1/1
+## fr_w3_live_role_cannot_be_registered_twice
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w3_live_role_cannot_be_registered_twice
+RESULT PASS test_watchdog 1/1
+RESULT PASS watchdog_suite
+exit=0
+
+## arm_suite.sh — arb-arm on QNX alone and end to end with arb-guardian and arb-watchdog: loop period, telemetry, sender binding, lease, disconnect brake, HOLD, watchdog trips (FR-A1..A6, FR-G5, FR-G6, FR-W1..W3, NFR-I3)
+$ cd /data/home/root/arbiter/bin && ./arm_suite.sh
+## FR-C4: the arm refuses to start on a bad contract table
+arb-arm: contract refused (FR-C4) (code 6); not starting
+PASS fr_c4_arm_refuses_corrupted_contract (exit 2)
+## FR-W1: the arm refuses to start without the watchdog
+arb-arm: register with the watchdog: No such file or directory
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+PASS fr_w1_trusted_processes_refuse_to_start_without_the_watchdog (arm exit 6)
+## the arm alone (test_arm plays the guardian, as root)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+nrw-rw-rw-  1 root root      0 2026-11-17 17:53 /dev/name/local/arbiter_arm
+nrw-r-----  2 811  813  393296 2026-11-17 17:53 /dev/shmem/arbiter_arm_telemetry
+     pid tid prio name                                                                         
+ 2379799   1  70f ./arb-arm                                                                       
+PASS nfr_i3_arm_runs_fifo_at_its_documented_priority (70, FIFO)
+PASS fr_g6_arm_binds_to_the_first_guardian_connection
+info telemetry: 1000 samples in 1 s
+PASS fr_a6_telemetry_published_every_cycle
+info control loop period (QEMU, function only): n=2014 min 0.671 ms median 0.999 ms p99.9 1.690 ms max 1.965 ms
+PASS fr_a1_control_loop_period_measured
+info forged ticks: 2000 sent; telemetry +56 samples in 56.7 ms; rejected +2000
+PASS fr_a1_forged_tick_pulses_do_not_drive_the_loop
+PASS nfr_i6_arm_refuses_a_message_too_short_to_hold_a_type
+PASS fr_g6_arm_rejects_setpoints_from_another_process
+info fastest joint 1000000 urad/s (vmax 1000000), max distance from the line 0.4 urad
+PASS fr_a3_arm_enforces_vmax_itself_and_moves_in_a_straight_line
+PASS fr_a3_arm_rejects_targets_beyond_joint_limits
+PASS fr_a3_stale_start_rejected
+info largest per-cycle step across the switch 1300 urad
+PASS fr_a3_new_setpoint_mid_move_starts_from_actual_position
+info no renewal: braking began 11.00 ms after the setpoint (lease 10 ms)
+PASS fr_a4_lease_expires_without_renewal_and_brakes
+PASS fr_a4_renewal_after_expiry_does_not_resume
+PASS fr_a4_renewal_from_another_process_ignored
+info disconnect: braking began 1.00 ms after the connection closed (lease would take 10 ms)
+PASS fr_a4_guardian_disconnect_brakes_at_once
+PASS fr_g5_hold_pulse_stops_without_latching
+PASS fr_g5_brake_pulse_latches
+PASS fr_g5_arm_reset_only_from_bound_guardian
+PASS fr_w6_arm_refuses_setpoints_after_losing_the_watchdog
+PASS fr_g5_arm_reset_from_its_guardian_clears_the_watchdog_latch
+RESULT PASS test_arm 19/19
+## guardian and arm end to end
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+PASS fr_a3_guardian_approved_command_moves_the_arm
+info silence: the arm was stopped 311.8 ms after the last command (timeout 250 ms + braking)
+PASS fr_g5_guardian_silence_holds_the_arm
+info guardian in 1 s: 1000 ticks, 1000 heartbeats accepted by the watchdog (QEMU, function only)
+PASS fr_g7_guardian_sends_a_heartbeat_every_tick
+PASS nfr_q2_each_command_is_one_synchronous_request_and_reply
+RESULT PASS test_e2e move 4/4
+## NFR-I5: own users, priorities kept, dropped abilities refused
+     pid        uid        gid tid prio name                                                                         
+ 2465814        812        812   1  66f ./arb-watchdog                                                                  
+     pid        uid        gid tid prio name                                                                         
+ 2482199        811        811   1  70f ./arb-arm                                                                       
+     pid        uid        gid tid prio name                                                                         
+ 2498584        810        810   1  64f ./arb-guardian                                                                  
+  ok   arb-watchdog: pid 2465814 user 812 group 812, FIFO 66
+  ok   arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+  ok   arb-arm: pid 2482199 user 811 group 811, FIFO 70
+  ok   arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+  ok   arb-guardian: pid 2498584 user 810 group 810, FIFO 64
+  ok   arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+PASS nfr_i5_trusted_processes_keep_their_priority_after_dropping_privileges
+PASS nfr_i5_dropped_abilities_are_denied
+## guardian killed mid-move
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info guardian killed: the arm began braking 0.97 ms later
+PASS fr_a4_guardian_killed_arm_brakes
+PASS fr_w3_watchdog_records_that_the_guardian_died
+RESULT PASS test_e2e killed 2/2
+## guardian stopped mid-move
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info guardian stopped: the arm began braking 10.97 ms later
+PASS fr_a4_lease_expires_when_guardian_stopped
+PASS fr_w2_watchdog_records_a_stuck_guardian_and_brakes_the_arm
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w2_arm_stays_braked_after_a_stuck_guardian_resumes
+RESULT PASS test_e2e stopped 3/3
+## arm killed: the watchdog puts the guardian in SAFE_STOP
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w2_arm_death_puts_the_guardian_in_safe_stop
+RESULT PASS test_e2e armkilled 1/1
+## FR-W5: the watchdog killed mid-move
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info watchdog killed: the arm began braking 1.15 ms later (beat timeout 10 ms; QEMU, function only)
+PASS fr_w5_watchdog_killed_mid_move_guardian_safe_stops_and_arm_brakes
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w5_nothing_moves_after_the_watchdog_died
+RESULT PASS test_e2e wdkilled 2/2
+## FR-W6: the watchdog stopped mid-move, then resumed
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info watchdog stopped: the arm began braking 9.97 ms later (beat timeout 10 ms; QEMU, function only)
+PASS fr_w6_watchdog_stopped_mid_move_guardian_safe_stops_and_arm_brakes
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w6_resumed_watchdog_does_not_restart_motion
+PASS fr_w6_operator_reset_after_the_watchdog_resumes_restores_motion
+RESULT PASS test_e2e wdstopped 3/3
+## FR-W6: the watchdog stopped while its beat is forged
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info watchdog stopped while beats were forged: the arm began braking 10.96 ms later (beat timeout 10 ms; QEMU, function only)
+info forged beats counted: arm 400, guardian 400 (800 sent)
+PASS fr_w6_forged_watchdog_beats_are_ignored
+RESULT PASS test_e2e wdforged 1/1
+## FR-W6, FR-W2: beats and trips only from the watchdog's connection (stand-in watchdog)
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info stand-in watchdog pid 3170327 (uid 812); arm pid 3174424, guardian pid 3182617
+info genuine beats delivered in 300 ms: 238 (errors 0); arm rejected +0, guardian foreign +0
+PASS fr_w6_genuine_beats_from_the_watchdog_connection_are_accepted
+info forged trips with the right token: 400 sent; arm wd_brakes +0, rejected +200; guardian trips +0, foreign +200, state 1
+PASS fr_w2_forged_trip_with_the_right_token_is_refused
+info forged beats with the right token: 400 sent in 400.1 ms; arm wd_lost +1 (cause 2) seen 10.1 ms after silence, rejected +200; guardian lost 1 (cause 2) seen 12.0 ms after silence, foreign +200, state 3 (-1.0: not seen while forging)
+PASS fr_w6_forged_beat_with_the_right_token_is_refused
+RESULT PASS test_wd_scoid 3/3
+## FR-W4, FR-G5: e-stop from any client, reset only from the operator, not without a watchdog
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info e-stop: braking in control cycle 1 after the devctl returned (0.44 ms; QEMU, function only)
+info devctl rc 0 verdict 3 rule 7 state 3
+PASS fr_w4_estop_from_any_client_safe_stops_within_2_cycles
+PASS fr_g5_reset_only_from_operator
+PASS fr_g5_motion_resumes_after_operator_reset
+PASS fr_g5_reset_refused_while_watchdog_absent
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_w5_motion_resumes_only_after_watchdog_back_and_reset
+RESULT PASS test_e2e operator 5/5
+## FR-W4, FR-G5: the operator console arb-ctl
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-ctl: estop: done
+state SAFE_STOP cause estop estops 1 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+arb-ctl: reset: Operation not permitted
+state SAFE_STOP cause estop estops 1 resets 0 resets_refused 1 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+arb-ctl: reset: done
+state HOLD cause none estops 1 resets 1 resets_refused 1 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+PASS fr_w4_operator_console_estop_and_reset
+## NFR-Q6: trusted processes log through slogger2
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info slog2 Nov 17 17:54:42.286           arb_guardian.3530776                 main*     1  privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+info slog2 Nov 17 17:54:42.287           arb_guardian.3530776                 main      1  ready on /dev/arbiter, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info slog2 Nov 17 17:54:42.287           arb_guardian.3530776                 main      3  state HOLD (no command within the silence timeout, or no client)
+info slog2 Nov 17 17:54:43.291           arb_guardian.3530776                 main      3  state NORMAL
+info slog2 Nov 17 17:54:43.541           arb_guardian.3530776                 main      3  state HOLD (no command within the silence timeout, or no client)
+info slog2 Nov 17 17:54:41.283                arb_arm.3514391                 main*     1  privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+info slog2 Nov 17 17:54:41.283                arb_arm.3514391                 main      1  ready as arbiter_arm, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info slog2 Nov 17 17:54:42.287                arb_arm.3514391                 main      8  bound the guardian, pid 3530776: only it may command the arm
+info slog2 Nov 17 17:54:43.541                arb_arm.3514391                 main      6  guardian HOLD: stopping along the segment (1 so far)
+info slog2 Nov 17 17:54:43.792                arb_arm.3514391                 main      5  refused a sender that is not the bound guardian (1 so far)
+info slog2 Nov 17 17:54:43.792                arb_arm.3514391                 main      8  guardian binding released
+info slog2 Nov 17 17:54:43.792                arb_arm.3514391                 main      6  guardian connection lost: braked (1 so far)
+info slog2 Nov 17 17:54:43.792                arb_arm.3514391                 main      6  watchdog brake: braked and latched until restart (1 so far)
+info slog2 Nov 17 17:54:40.266           arb_watchdog.3498006                 main*     1  privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+info slog2 Nov 17 17:54:40.266           arb_watchdog.3498006                 main      1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+info slog2 Nov 17 17:54:41.283           arb_watchdog.3498006                 main      8  registered the arm, pid 3514391
+info slog2 Nov 17 17:54:42.287           arb_watchdog.3498006                 main      8  registered the guardian, pid 3530776
+info slog2 Nov 17 17:54:43.792           arb_watchdog.3498006                 main      7  trip: the guardian disconnected, pid 3530776; the other client was told
+info slog2 Nov 17 17:54:43.792           arb_watchdog.3498006                 main      7  trip cause refined: the guardian died (death notice), pid 3530776
+PASS nfr_q6_trusted_processes_log_through_slog2
+RESULT PASS test_e2e log 1/1
+## NFR-Q6: slogger2 not running: the trusted processes still start and run
+slogger2: pid 16387, arguments '-U 21:21'
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-watchdog: slog2_register: No such file or directory; running without the system log
+arb-arm: slog2_register: No such file or directory; running without the system log
+arb-guardian: slog2_register: No such file or directory; running without the system log
+PASS fr_a3_guardian_approved_command_moves_the_arm
+info silence: the arm was stopped 311.7 ms after the last command (timeout 250 ms + braking)
+PASS fr_g5_guardian_silence_holds_the_arm
+info guardian in 1 s: 1001 ticks, 1001 heartbeats accepted by the watchdog (QEMU, function only)
+PASS fr_g7_guardian_sends_a_heartbeat_every_tick
+PASS nfr_q2_each_command_is_one_synchronous_request_and_reply
+RESULT PASS test_e2e move 4/4
+PASS nfr_q6_trusted_processes_run_without_slogger2
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+slogger2 restored:  3776515 /proc/boot/slogger2 -U 21:21 
+RESULT PASS arm_suite
+exit=0
+
+## guardian_suite.sh — arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)
+$ cd /data/home/root/arbiter/bin && ./guardian_suite.sh
+## FR-C4: the guardian refuses to start on a bad contract table
+arb-guardian: contract refused (FR-C4) (code 6); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/crc.bin (exit 2, no /dev/arbiter)
+arb-guardian: contract refused (FR-C4) (cPASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/truncated.bin (exit 2, no /dev/arbiter)
+ode 2); not starting
+arb-guardian: contract refused (FR-C4) (code 4); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/version.bin (exit 2, no /dev/arbiter)
+arb-guardian: open contract: No such file or directory
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/no-such-file.bin (exit 2, no /dev/arbiter)
+## well-behaved arm
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+nrw-rw-rw-  1 root root 0 2026-11-17 17:54 /dev/arbiter
+nrw-rw-rw-  1 root root 0 2026-11-17 17:54 /dev/name/local/arbiter_arm
+PASS nfr_q3_guardian_is_a_resource_manager_in_the_path_namespace
+     pid tid prio name                                                                         
+ 3969048   1  64f ./arb-guardian                                                                  
+PASS nfr_i3_guardian_runs_fifo_at_its_documented_priority (64, FIFO)
+PASS fr_g1_dev_arbiter_exists_in_path_namespace
+PASS fr_g1_command_round_trip_over_devctl
+PASS fr_g8_every_decision_is_recorded_with_its_latency
+info decision latency over the last 5 records: 0.4 to 96.8 us (QEMU, function only)
+PASS nfr_q4_decision_latency_measured_with_the_cycle_counter
+info gateway O_RDONLY -1 (errno 13); logger O_RDONLY 4, O_RDWR -1 (errno 13)
+PASS nfr_i1_gateway_user_cannot_open_the_decision_ring
+PASS fr_g3_clamp_and_denials_over_devctl
+PASS fr_g4_replay_denied_over_devctl
+PASS fr_g2_zero_duration_denied_over_devctl
+PASS fr_g4_rate_limit_over_devctl
+PASS nfr_i6_devctl_wrong_size_rejected
+PASS nfr_i6_unknown_devctl_command_rejected
+PASS nfr_i6_read_only_descriptor_cannot_submit
+PASS nfr_i6_random_payloads_never_crash_the_guardian
+info forged pulses: 2000 sent; guardian ticks +55 in 56.0 ms; foreign_pulses +2000
+PASS fr_g5_forged_tick_and_trip_pulses_are_ignored_and_counted
+PASS fr_g5_silence_enters_hold_over_devctl
+PASS fr_g10_only_the_gateway_user_may_submit
+PASS fr_g10_a_second_submitter_is_refused_until_the_first_closes
+PASS fr_g10_status_reports_the_last_sequence
+PASS fr_g10_restarted_client_resumes_after_the_published_sequence
+  info submitter killed -> HOLD after 0.602 ms (-1: not within 100 ms), clients 1
+PASS fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once
+PASS fr_g5_reset_through_the_gateway_is_refused
+info 1124 replays answered, ring head +1124, 0 holes in the newest 1024 slots
+PASS fr_g8_recording_never_waits_for_a_reader
+PASS fr_g5_last_client_close_enters_hold
+RESULT PASS test_guardian normal 23/23
+## arm receives setpoints and never replies (REPLY-blocked guardian)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info devctl with a faulty arm returned after 2.624 ms (send timeout 2 ms, 1 ms tick)
+PASS fr_g9_arm_never_replies_times_out_and_safe_stops
+RESULT PASS test_guardian hang 1/1
+## arm process stopped (SEND-blocked guardian)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info devctl with a faulty arm returned after 2.946 ms (send timeout 2 ms, 1 ms tick)
+PASS fr_g9_arm_not_receiving_times_out_and_safe_stops
+RESULT PASS test_guardian stopped 1/1
+## arm rejects the start position
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+PASS fr_g3_stale_start_reported_as_deny
+RESULT PASS test_guardian stale 1/1
+## FR-E1, FR-E2, FR-E4, FR-E5: the evidence logger
+PASS fr_e2_logger_sha256_matches_the_nist_vector
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+info R 1 idx 0 t_ns 174819059611 seq 5001 target -150000 0 dur 1000 verdict 1 rule 0 before 1 after 2 flags 0 fwd -150000 0 1000 latency_cycles 212983 prev b6d106e944d00152d71cf27ddc074ffb30d672f120efdf6b920ea9b2cf2b6236 hash 61896f5b0e02ce2f084a78c02634a6fc3a1940c7a5e3bd8f511ae2353c44e801
+info R 2 idx 1 t_ns 174819174078 seq 5002 target -700000 0 dur 100 verdict 2 rule 5 before 2 after 2 flags 0 fwd -700000 0 550 latency_cycles 145017 prev 61896f5b0e02ce2f084a78c02634a6fc3a1940c7a5e3bd8f511ae2353c44e801 hash 29d97c37b2da71b32b8e726f4fb36e2da0943aa702d3ea2535721dd5689f2c46
+info R 3 idx 2 t_ns 174819258915 seq 5001 target -150000 0 dur 1000 verdict 3 rule 2 before 2 after 2 flags 0 fwd 0 0 0 latency_cycles 2567 prev 29d97c37b2da71b32b8e726f4fb36e2da0943aa702d3ea2535721dd5689f2c46 hash 90011a677ab480d948e518db09271d6e7b3194438991ddc3e25658c2966aabb8
+PASS fr_e1_every_decision_is_logged_with_its_fields
+info 4 lines, 0 not linked to the previous one
+PASS fr_e2_each_line_carries_the_previous_lines_hash
+info G 4 lost 301 from_idx 3 to_idx 303 prev 90011a677ab480d948e518db09271d6e7b3194438991ddc3e25658c2966aabb8 hash cb154412d26e1f010bedcc958590a4afa57aba5d4cf2cb6432b0c03bfd700af6
+info 1324 of 1324 answered while the logger was stopped; 301 declared lost; 1023 records after
+PASS fr_e5_a_logger_that_falls_behind_declares_what_it_lost
+arb-logd: privileges dropped: uid 813 gid 813; kept PRIORITY 1-30; refused as expected: setuid(0), priority 31, fork()
+arb-logd: ready, /tmp/arbiter-logd-test/run.log, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-logd: stopped, 1026 records, 301 lost, last hash 64fb4be6916f450c1a26c4afb7ec38895737989b0a98b467004b593c7a403f22
+info last line: E 1028 records 1026 lost 301 prev 004ac13850ef28bfab291de52d25b6b9f80d61b06a6acf92b25940ec07753d6b hash 64fb4be6916f450c1a26c4afb7ec38895737989b0a98b467004b593c
+PASS fr_e4_the_logger_ends_with_a_record_and_publishes_its_anchor
+RESULT PASS test_logd run 4/4
+info allowed before the kill 10/10, after 10/10; guardian arm faults 0 -> 0, state 2
+PASS fr_e5_killing_the_logger_changes_no_decision
+RESULT PASS test_logd kill 1/1
+RESULT PASS guardian_suite
+exit=0
+
+## gateway_suite.sh — arb-gateway on QNX: planner and observers over TCP (docs/PROTOCOL.md), malformed frames, one planner, HOLD on disconnect, resume at last_seq + 1, e-stop, stopped and killed gateway, its own user (FR-N1..N4, FR-G10, FR-W4, NFR-I5)
+$ cd /data/home/root/arbiter/bin && ./gateway_suite.sh
+## FR-N1, FR-N2, FR-N4, FR-G10, FR-W4, NFR-I1: the gateway, from a planner and observers, with the logger
+pids: watchdog 4542486 arm 4558871 guardian 4575256 logger 4608025 gateway 4624410
+arb-gateway: privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()
+arb-gateway: refused as expected after the drop: socket() (no new socket of any kind)
+arb-gateway: ready, planner port 7700, observer port 7701, priority 10
+nrw-r-----  2 811  813 393296 2026-11-17 17:55 /dev/shmem/arbiter_arm_telemetry
+nrw-r-----  2 root 813  98328 2026-11-17 17:55 /dev/shmem/arbiter_decisions
+  ok   arb-gateway: pid 4624410 user 814 group 814, FIFO 10
+  ok   arb-gateway: privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()
+  ok   arb-gateway: refused as expected after the drop: socket() (no new socket of any kind)
+PASS nfr_i5_gateway_runs_as_its_own_user_with_no_network_ability
+PASS fr_n2_frames_match_the_documented_examples
+  WELCOME state 1 has_seq 0 last_seq 0 session 1
+PASS fr_n1_planner_gets_welcome_then_state
+PASS fr_n1_second_planner_is_refused_busy
+  10 commands: 10 ALLOW, guardian decisions +10, last_seq 11
+PASS fr_n1_each_command_is_forwarded_and_answered_in_order
+PASS fr_n2_malformed_frames_end_the_session_unforwarded
+PASS fr_n2_a_partial_frame_is_never_forwarded
+  planner closed -> guardian HOLD after 2 ms (silence timeout 250 ms; QEMU, function only)
+PASS fr_g10_planner_disconnect_holds_at_once
+  WELCOME last_seq 14: seq 14 DENY (sequence), seq 15 ALLOW
+PASS fr_g10_planner_resumes_at_last_seq_plus_one
+PASS fr_n4_observer_gets_welcome_and_every_verdict
+PASS fr_n4_observer_is_read_only
+PASS fr_n4_one_observer_too_many_is_refused_busy
+  gateway stopped -> guardian HOLD after 253 ms (silence timeout 250 ms; QEMU, function only)
+PASS fr_n3_a_stopped_gateway_holds_and_trusted_processes_run_on
+  arm telemetry: mode 640, owner 811, group 813; the gateway's user: Permission denied
+PASS nfr_i1_gateway_user_cannot_open_the_arm_telemetry
+  500 ms: 49 TELEMETRY frames matching the arm's ring, 0 not; arm moving: yes (QEMU, function only)
+PASS fr_n4_planner_gets_arm_telemetry_through_the_logger
+  observer, 500 ms: 50 TELEMETRY frames matching the arm's ring, 0 not
+PASS fr_n4_observer_gets_arm_telemetry
+PASS fr_w4_estop_through_the_gateway
+RESULT PASS test_gateway run 16/16
+## FR-N3: the gateway killed mid-move (and FR-N4: commands without the logger)
+PASS fr_n4_without_the_logger_commands_are_still_decided
+  gateway killed mid-move -> guardian HOLD after 2 ms (QEMU, function only)
+  arm stopped at -37945 32413 urad; watchdog, arm, guardian alive; no trip, fault or brake
+PASS fr_n3_killing_the_gateway_mid_move_holds_and_trusted_processes_run_on
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+exit=0
+
+## f11_suite.sh off — F11 bypass with the policy off: an untrusted user's setpoint to the arm, binding the arm before the guardian starts, attaching /dev/arbiter first (F11, FR-G6)
+$ cd /data/home/root/arbiter/bin && ./f11_suite.sh off
+## F11 case 1: an untrusted process sends a setpoint to the arm while the guardian is up (policy off)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+ARB-UNTRUSTED setpoint pid 5488669 uid 820 euid 820
+COUNTERS before rejected 0 bound_pid 5435420
+STEP name_open rc 1073741825 errno 0 ok
+STEP setpoint rc -1 errno 1 Operation not permitted
+COUNTERS after rejected 1 bound_pid 5435420
+  ok   the attacker ran as user 820
+  ok   connect succeeds (no policy)
+  ok   the arm refuses the setpoint with EPERM
+  ok   rejected +1 (0 -> 1)
+  ok   the refusal is in slog2
+  ok   the arm stays bound to the guardian (pid 5435420)
+Terminated 
+Terminated 
+Terminated 
+PASS f11_untrusted_setpoint_to_the_arm_is_refused (off)
+## F11 case 2: the untrusted process starts before the guardian and tries to bind the arm first (policy off)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+ARB-UNTRUSTED bind pid 5885981 uid 820 euid 820
+COUNTERS before rejected 0 bound_pid -1
+STEP name_open rc 1073741825 errno 0 ok
+STEP get_state rc -1 errno 1 Operation not permitted
+STEP setpoint rc -1 errno 1 Operation not permitted
+COUNTERS after rejected 2 bound_pid -1
+HOLDING 3000 ms
+COUNTERS held rejected 2 bound_pid 5902366
+  ok   the arm was unbound when the attacker came (-1)
+  ok   connect succeeds (no policy)
+  ok   the binding message is refused with EPERM
+  ok   the setpoint is refused with EPERM
+  ok   rejected +2 (0 -> 2)
+  ok   the refusal is in slog2
+  ok   the attacker bound nothing (-1)
+  ok   the guardian started later and bound the arm (pid 5902366, bound 5902366)
+Terminated 
+Terminated 
+Terminated 
+PASS f11_untrusted_started_first_cannot_bind_the_arm (off)
+## F11 case 3: the untrusted process tries to attach /dev/arbiter before the guardian starts (policy off)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+ARB-UNTRUSTED attach pid 6434843 uid 820 euid 820
+STEP dispatch_create rc 0 errno 0 ok
+STEP resmgr_attach rc -1 errno 1 Operation not permitted
+  ok   resmgr_attach is refused by the kernel
+  ok   with EPERM (no PATHSPACE ability: not root)
+  ok   no /dev/arbiter before the guardian
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+nrw-rw-rw-  1 root root 0 2026-11-17 17:55 /dev/arbiter
+  ok   the guardian then attaches /dev/arbiter and runs
+Terminated 
+Terminated 
+Terminated 
+PASS f11_untrusted_cannot_attach_dev_arbiter_first (off)
+## F11 case 4a: the untrusted process registers the arm's name before the arm starts (policy off)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: name_attach arbiter_arm (or it did not keep our channel): File exists
+  ok   the real arm cannot register its taken name and exits (5): fail-safe, nothing moves
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: the server of arbiter_arm is pid 6680603, user -1, not user 811: refused, not starting
+arb-guardian: find the arm controller arbiter_arm: Operation not permitted
+  ok   the guardian refuses to start (4)
+  ok   because the server of arbiter_arm is not the arm's user
+ARB-UNTRUSTED squat pid 6680603 uid 820 euid 820
+STEP name_attach rc 0 errno 0 ok
+SQUATTING arbiter_arm for 4000 ms
+RECEIVED connects 0 messages 0 pulses 1
+  ok   the attacker registered the name (no policy)
+  ok   the attacker received no message from the guardian
+Terminated 
+PASS f11_untrusted_cannot_impersonate_the_arm_by_its_name (off)
+## F11 case 4b: the untrusted process registers the watchdog's name (policy off)
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: the server of arbiter_watchdog is pid 6860825, user -1, not user 812: refused, not starting
+arb-arm: register with the watchdog: Operation not permitted
+  ok   the arm refuses to start (6)
+  ok   because the server of arbiter_watchdog is not the watchdog's user
+ARB-UNTRUSTED squat pid 6860825 uid 820 euid 820
+STEP name_attach rc 0 errno 0 ok
+SQUATTING arbiter_watchdog for 3000 ms
+RECEIVED connects 0 messages 0 pulses 1
+  ok   the attacker received no message from the arm
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+Terminated 
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: the server of arbiter_watchdog is pid 7090201, user -1, not user 812: refused, not starting
+arb-guardian: register with the watchdog: Operation not permitted
+  ok   a guardian started after the watchdog died refuses to start (6)
+  ok   because the server of arbiter_watchdog is not the watchdog's user
+ARB-UNTRUSTED squat pid 7090201 uid 820 euid 820
+STEP name_attach rc 0 errno 0 ok
+SQUATTING arbiter_watchdog for 3000 ms
+RECEIVED connects 0 messages 0 pulses 1
+  ok   the attacker received no message from the guardian
+Terminated 
+PASS f11_untrusted_cannot_impersonate_the_watchdog_by_its_name (off)
+## F11 case 5: the untrusted process submits a command to the guardian (policy off)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+arb-arm: privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arb-arm: ready as arbiter_arm, priority 70, backend sim, telemetry /arbiter_arm_telemetry, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+ARB-UNTRUSTED submit pid 7397405 uid 820 euid 820
+STEP open rc 3 errno 0 ok
+STEP submit rc -1 errno 1 Operation not permitted
+before: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+after:  state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 1 last_seq 0 has_seq 0
+  ok   the attacker ran as user 820
+  ok   open succeeds (no policy)
+  ok   the guardian refuses the command with EPERM (not the gateway's user)
+  ok   submits_refused +1 (0 -> 1)
+  ok   no decision was made (0 -> 0)
+  ok   the published sequence did not move (0 -> 0)
+Terminated 
+Terminated 
+Terminated 
+PASS f11_untrusted_cannot_submit_commands_to_the_guardian (off)
+PASS fr_s6_f11_holds_without_the_policy
+RESULT PASS f11_suite (off)
+exit=0
+
+SUMMARY 11/11 tests passed on qemu (each run 1 time(s))
