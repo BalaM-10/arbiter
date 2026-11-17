@@ -45,7 +45,7 @@ BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract
         $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh \
         $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/test_wd_scoid $(OUT)/arm_suite.sh \
         $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh \
-        $(OUT)/arb-inject $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh
+        $(OUT)/arb-inject $(OUT)/arb-stall-probe $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh
 
 .PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
@@ -140,6 +140,9 @@ $(OUT)/bench_scenario.sh: tests/bench_scenario.sh | $(OUT)
 	install -m 755 $< $@
 
 # F11 attacker (untrusted; run by f11_suite.sh as user ARB_UID_UNTRUSTED).
+$(OUT)/arb-stall-probe: tests/arb_stall_probe.c tests/arb_as_gateway.h common/arb_ids.h common/arb_telemetry.h common/arb_devctl.h common/arb_watchdog_proto.h $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/arb_stall_probe.c $(LDLIBS)
+
 $(OUT)/arb-untrusted: tests/arb_untrusted.c common/arb_arm_proto.h common/arb_telemetry.h common/arb_devctl.h common/arb_ids.h common/arb_watchdog_proto.h | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
