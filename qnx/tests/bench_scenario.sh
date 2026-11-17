@@ -25,6 +25,12 @@ sleep 1
 $ARB_ON_GUARD ./arb-guardian "$CONTRACT" </dev/null >"$LOGDIR/guardian.log" 2>&1 &
 GUARD=$!
 sleep 1
+# The evidence logger (docs/EVIDENCE_LOG.md): the bench verifies its chain and
+# that every verdict arb-inject received is in it (FR-E1, FR-E4).
+rm -f "$LOGDIR/evidence.log" "$LOGDIR/evidence.log.anchor"
+$ARB_ON_LOGD ./arb-logd "$CONTRACT" "$LOGDIR/evidence.log" </dev/null >"$LOGDIR/logd.log" 2>&1 &
+LOGD=$!
+sleep 1
 
 ./arb-inject <"$LOGDIR/script.txt"
 rc=$?
@@ -51,13 +57,26 @@ slog() {    # <process> <buffer set> <program> <pid from $!>
 slog watchdog arb_watchdog arb-watchdog "$WD"
 slog arm arb_arm arb-arm "$ARM"
 slog guardian arb_guardian arb-guardian "$GUARD"
+slog logd arb_logd arb-logd "$LOGD"
+
+# Stop the logger cleanly (its E line), then print its log and anchor.
+LOGD_PID=$(pidin -p arb-logd -F "%a" 2>/dev/null | tail -1 | tr -d ' ')
+case "$LOGD_PID" in ''|*[!0-9]*) LOGD_PID=$LOGD ;; esac
+kill -TERM "$LOGD_PID" 2>/dev/null
+for i in 1 2 3 4 5 6 7 8 9 10; do       # bound: 10 x 0.1 s
+    kill -0 "$LOGD_PID" 2>/dev/null || break
+    sleep 0.1
+done
+wait "$LOGD" 2>/dev/null
+sed 's/^/EVLOG /' "$LOGDIR/evidence.log" 2>/dev/null
+[ -r "$LOGDIR/evidence.log.anchor" ] && echo "EVANCHOR $(cat "$LOGDIR/evidence.log.anchor")"
 
 kill "$GUARD" "$ARM" 2>/dev/null
 wait "$GUARD" 2>/dev/null
 wait "$ARM" 2>/dev/null
 kill "$WD" 2>/dev/null
 wait "$WD" 2>/dev/null
-for p in watchdog arm guardian; do
+for p in watchdog arm guardian logd; do
     sed "s/^/LOG $p /" "$LOGDIR/$p.log"
 done
 exit "$rc"

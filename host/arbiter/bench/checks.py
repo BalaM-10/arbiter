@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import Any
 
+from .. import evidence
 from . import kinematics as kin
 from .records import Run, Verdict
 from .script import Command, Script
@@ -67,6 +68,51 @@ def contract_matches(run: Run, spec: Spec) -> Check:
               f"guardian {shown['guardian'] or 'nothing'}, arm {shown['arm'] or 'nothing'}; "
               f"{spec.source.name} is {spec.sha256}")
     return Check("trusted_processes_loaded_this_contract", ok, detail)
+
+
+def evidence_log_verifies(run: Run, spec: Spec) -> Check:
+    """FR-E2, FR-E4, FR-C6 on the target's own log: arb-logd's chain recomputed here with
+    hashlib, against the anchor it published, ended cleanly, nothing lost, and the header
+    names the contract the bench judges against."""
+    text = "".join(f"{x}\n" for x in run.evlog)
+    r = evidence.verify(text, anchor=run.evanchor or None)
+    problems = list(r.errors)
+    if not run.evlog:
+        problems = ["no evidence log from the target"]
+    else:
+        if not run.evanchor:
+            problems.append("no anchor published")
+        if r.ok and not r.terminated:
+            problems.append("no end record (the logger did not stop cleanly)")
+        if r.ok and r.lost:
+            problems.append(f"{r.lost} records declared lost")
+        if r.ok and r.contract != spec.sha256:
+            problems.append(f"header contract {r.contract}, {spec.source.name} is {spec.sha256}")
+    ok = not problems
+    detail = (f"{r.lines} lines, {r.records} decisions, chain and anchor recomputed with hashlib, "
+              "contract matches" if ok else "; ".join(problems))
+    return Check("evidence_log_verifies", ok, detail, {"lines": r.lines, "records": r.records, "lost": r.lost,
+                                                       "last_hash": r.last_hash})
+
+
+def evidence_log_has_every_verdict(run: Run) -> Check:
+    """FR-E1: every command the guardian decided for arb-inject is in the evidence log, in
+    order, with the verdict and rule arb-inject received."""
+    r = evidence.verify("".join(f"{x}\n" for x in run.evlog))
+    decided = [v for v in run.verdicts if v.rc == 0]
+    logged = r.decisions
+    bad: list[str] = []
+    if len(logged) != len(decided):
+        bad.append(f"{len(decided)} decided, {len(logged)} logged")
+    for v, ln in zip(decided, logged, strict=False):
+        if (ln.int("seq"), ln.int("verdict"), ln.int("rule")) != (v.seq, v.verdict, v.rule):
+            bad.append(f"seq {v.seq}: replied {v.verdict}/{v.rule}, logged seq {ln.int('seq')} "
+                       f"{ln.int('verdict')}/{ln.int('rule')}")
+            break
+    ok = r.ok and not bad
+    detail = (f"all {len(decided)} decisions logged in order with their verdict and rule" if ok
+              else "; ".join(bad or r.errors))
+    return Check("evidence_log_has_every_verdict", ok, detail)
 
 
 def _delta(run: Run, table: dict[str, dict[str, int]], key: str) -> int:

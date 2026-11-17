@@ -328,3 +328,64 @@ def fr_b3_bench_exits_nonzero_when_a_scenario_fails(monkeypatch: pytest.MonkeyPa
     assert len(reports) == 1 and '"passed": false' in reports[0].read_text()
     assert (reports[0].parent / "report.html").exists()
     assert (reports[0].parent / "raw" / "F9.slog2.txt").exists()       # the system log is kept per scenario
+
+
+# ------------------------------------------------- the target's evidence log
+
+def _evlog(decisions: list[tuple[int, int, int]], end: bool = True, lost: int = 0) -> tuple[list[str], str]:
+    """An arb-logd log (docs/EVIDENCE_LOG.md) for (seq, verdict, rule) decisions, hashed
+    here with hashlib; returns the lines and the anchor."""
+    import hashlib
+
+    bodies = [f"H format 1 contract {SPEC.sha256} cycles_per_sec 1 start_ns 1"]
+    idx = 0
+    if lost:
+        bodies.append(f"G lost {lost} from_idx 0 to_idx {lost - 1}")
+        idx = lost
+    for seq, verdict, rule in decisions:
+        bodies.append(f"R idx {idx} t_ns 1 seq {seq} target 0 0 dur 100 verdict {verdict} rule {rule} "
+                      f"before 2 after 2 flags 0 fwd 0 0 100 latency_cycles 9")
+        idx += 1
+    if end:
+        bodies.append(f"E records {len(decisions)} lost {lost}")
+    lines, prev = [], "0" * 64
+    for n, body in enumerate(bodies):
+        tag, _, rest = body.partition(" ")
+        text = f"{tag} {n} {rest} prev {prev}"
+        prev = hashlib.sha256(text.encode()).hexdigest()
+        lines.append(f"{text} hash {prev}")
+    return lines, prev
+
+
+def _verdict(seq: int, verdict: int, rule: int, rc: int = 0) -> Verdict:
+    return Verdict(0, 0, 0, seq, rc, verdict, rule, 2, 0, (0, 0), 100, 100)
+
+
+def fr_e4_bench_checks_the_targets_evidence_log_with_its_anchor() -> None:
+    run = Run()
+    run.evlog, run.evanchor = _evlog([(1, 1, 0), (2, 3, 4)])
+    assert ck.evidence_log_verifies(run, SPEC).passed
+    edited = Run(evlog=list(run.evlog), evanchor=run.evanchor)
+    edited.evlog[2] = edited.evlog[2].replace(" verdict 3 ", " verdict 1 ")
+    assert not ck.evidence_log_verifies(edited, SPEC).passed
+    truncated = Run(evlog=run.evlog[:-1], evanchor=run.evanchor)        # the E line removed
+    assert not ck.evidence_log_verifies(truncated, SPEC).passed
+    no_anchor = Run(evlog=list(run.evlog))
+    assert not ck.evidence_log_verifies(no_anchor, SPEC).passed
+    lossy = Run()
+    lossy.evlog, lossy.evanchor = _evlog([(1, 1, 0)], lost=3)
+    assert not ck.evidence_log_verifies(lossy, SPEC).passed               # the bench never expects a loss
+    assert not ck.evidence_log_verifies(Run(), SPEC).passed
+
+
+def fr_e1_bench_checks_every_verdict_is_in_the_evidence_log() -> None:
+    run = Run()
+    run.verdicts = [_verdict(1, 1, 0), _verdict(2, 3, 4), _verdict(3, 0, 0, rc=1)]   # the last: not decided
+    run.evlog, run.evanchor = _evlog([(1, 1, 0), (2, 3, 4)])
+    assert ck.evidence_log_has_every_verdict(run).passed
+    missing = Run(verdicts=run.verdicts)
+    missing.evlog, _ = _evlog([(1, 1, 0)])
+    assert not ck.evidence_log_has_every_verdict(missing).passed
+    wrong = Run(verdicts=run.verdicts)
+    wrong.evlog, _ = _evlog([(1, 1, 0), (2, 1, 0)])
+    assert not ck.evidence_log_has_every_verdict(wrong).passed

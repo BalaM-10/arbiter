@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ..contract import compile_file
+from . import checks as ck
 from . import report
 from .checks import TIMING_POLICY, Check, timing_judged
 from .records import parse
@@ -80,6 +81,11 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
         slog_text = "".join(f"{line}\n" for line in run.slog)
         (out / "raw" / f"{sid}.slog2.txt").write_text(slog_text, encoding="utf-8")
         checks: list[Check] = mod.judge(run, script, spec)
+        # Every scenario: the target's evidence log (FR-E1, FR-E2, FR-E4, FR-C6).
+        checks += [ck.evidence_log_verifies(run, spec), ck.evidence_log_has_every_verdict(run)]
+        ev_text = "".join(f"{x}\n" for x in run.evlog)
+        (out / "raw" / f"{sid}.evidence.log").write_text(ev_text, encoding="ascii")
+        (out / "raw" / f"{sid}.evidence.anchor").write_text(f"{run.evanchor}\n", encoding="ascii")
         passed = all(c.passed for c in checks)
         for c in checks:
             print(f"  {'pass' if c.passed else 'FAIL'} {c.name}: {c.detail}")
@@ -90,6 +96,7 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
                        for c in checks],
             "samples": len(run.samples), "commands": len(script.commands),
             "raw": f"raw/{sid}.out.gz", "script": f"raw/{sid}.script", "slog2": f"raw/{sid}.slog2.txt",
+            "evidence": f"raw/{sid}.evidence.log",
             "paths": report.tip_paths(run)})
 
     n_pass = sum(1 for s in scenarios if s["passed"])

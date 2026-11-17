@@ -59,6 +59,8 @@ class Run:
     alive: dict[str, int] = field(default_factory=dict)
     logs: list[str] = field(default_factory=list)
     slog: list[str] = field(default_factory=list)          # "<process> <slog2info line>", this scenario only
+    evlog: list[str] = field(default_factory=list)         # arb-logd's log lines (docs/EVIDENCE_LOG.md)
+    evanchor: str = ""                                     # its published last hash
     done: bool = False
     exit_code: int = -1
     t0_ns: int = 0          # clock of the first command; scenario times are relative to it
@@ -90,6 +92,10 @@ def parse(text: str, exit_code: int) -> Run:
             run.counters[f[1]] = {f[i]: int(f[i + 1]) for i in range(2, len(f), 2)}
         elif tag == "ALIVE" and len(f) == 7:
             run.alive = {f[i]: int(f[i + 1]) for i in range(1, 7, 2)}
+        elif tag == "EVLOG":
+            run.evlog.append(line[len("EVLOG "):])
+        elif tag == "EVANCHOR" and len(f) == 2:
+            run.evanchor = f[1]
         elif tag == "SLOG":
             run.slog.append(line[len("SLOG "):])
         elif tag == "LOG":
