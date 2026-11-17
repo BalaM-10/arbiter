@@ -1,0 +1,369 @@
+# run-tests qemu — 2026-11-17T16:09:06-06:00, REPEAT=20, ONLY=gateway_suite.sh, security policy off
+# commit: 5edd27e
+# host: Ubuntu 22.04.5 LTS; qcc 12.2.0,gcc_ntox86_64
+
+## contract corpus (host compiler)
+$ arbiter contract corpus contracts/default.yaml -o build/contract-corpus
+wrote build/contract-corpus/manifest.txt
+  3390650a5efb466213042e60cfd0c3dcf980025eace0a99b1dcd9caf03f90af9  build/contract-corpus/contract.bin
+
+## build (all architectures)
+$ make -C qnx ARCH=x86_64 clean all
+rm -rf ../build/x86_64 ../build/host
+mkdir -p ../build/x86_64
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/hello samples/hello/hello.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/msgpass samples/msgpass/msgpass.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_contract_file tests/test_contract_file.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_send_timeout tests/test_send_timeout.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -Iguardian -o ../build/x86_64/arb-guardian guardian/main.c guardian/arm_link.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-logd logd/main.c common/arb_privdrop.c libcontract/arb_contract.c -lm -lslog2 -lqcrypto
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb_arm_stub tests/arb_arm_stub.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_guardian tests/test_guardian.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_logd tests/test_logd.c
+install -m 755 tests/guardian_suite.sh ../build/x86_64/guardian_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-arm arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_arm_motion tests/test_arm_motion.c arm/arm_motion.c arm/arm_backend_sim.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_arm tests/test_arm.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_e2e tests/test_e2e.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_wd_scoid tests/test_wd_scoid.c common/arb_privdrop.c -lm
+install -m 755 tests/arm_suite.sh ../build/x86_64/arm_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-watchdog watchdog/main.c common/arb_privdrop.c -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_watchdog tests/test_watchdog.c common/arb_wd_client.c common/arb_server_check.c
+install -m 755 tests/watchdog_suite.sh ../build/x86_64/watchdog_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-inject tests/arb_inject.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-stall-probe tests/arb_stall_probe.c -lm
+install -m 755 tests/bench_scenario.sh ../build/x86_64/bench_scenario.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-ctl tools/arb_ctl.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-untrusted tests/arb_untrusted.c
+install -m 755 tests/f11_suite.sh ../build/x86_64/f11_suite.sh
+install -m 755 tests/policy_suite.sh ../build/x86_64/policy_suite.sh
+install -m 755 tests/arb_suite_lib.sh ../build/x86_64/arb_suite_lib.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-gateway gateway/main.c common/arb_privdrop.c -lslog2 -lsocket
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_gateway tests/test_gateway.c -lsocket
+install -m 755 tests/gateway_suite.sh ../build/x86_64/gateway_suite.sh
+install -m 755 tests/planner_e2e.sh ../build/x86_64/planner_e2e.sh
+  arb-arm  sha256 03e7e4b823734fda753a0ab1662b43ad2afb025d892d582fdb4a6cf8a5637576
+    ELF 64-bit LSB pie executable, x86-64
+  arb-ctl  sha256 69e244a17fa3ad509d8bc9cce59e7aea1e4931f5beb870de3809dd6ab6413058
+    ELF 64-bit LSB pie executable, x86-64
+  arb-gateway  sha256 956ef98839dbfc2ca5964bbf56f9ec6535576afa1c8de9b9dcf08a74386411b1
+    ELF 64-bit LSB pie executable, x86-64
+  arb-guardian  sha256 a8432e22caf679ddac8cf38901ebc95afa7b1924146393ed8c3d2f407d88e538
+    ELF 64-bit LSB pie executable, x86-64
+  arb-inject  sha256 edbaeead53eb1d1ce8a416c610295bae078b616c0c75cf0fa9298ce67942c2d4
+    ELF 64-bit LSB pie executable, x86-64
+  arb-logd  sha256 76d78e3dad7a9614da0f5099bc7dc700ee3b9ddeeef0e9e27ace98939af51c9c
+    ELF 64-bit LSB pie executable, x86-64
+  arb-stall-probe  sha256 c8aafc5d542533f01061e7804ef4c19c862e0a8982713207c17e67135e52814e
+    ELF 64-bit LSB pie executable, x86-64
+  arb-untrusted  sha256 fdfec4568c68751bb9d068465d65988db0ddc5f1d58c88f013c5af5c43eb0bb2
+    ELF 64-bit LSB pie executable, x86-64
+  arb-watchdog  sha256 115f1e987459b0daff22aaa176d6456512542613985a81ce1cfb269fbb78508d
+    ELF 64-bit LSB pie executable, x86-64
+  arb_arm_stub  sha256 adbadd14e49cc189398424ac344a532ab185f620b1d9ad925b4d38b392e3e71f
+    ELF 64-bit LSB pie executable, x86-64
+  arb_suite_lib.sh  sha256 393c7b2d8f248d0ae6a7107486246c168223bd37bb5a121f89d04b7572281b7a
+    ASCII text
+  arm_suite.sh  sha256 f582f11409709335b5b3dd2764d93b6617df21f95b224e335e5503dec7a0b38c
+    POSIX shell script, ASCII text executable
+  bench_scenario.sh  sha256 4e9de699003d43ada429067cc48d17b1ad377835745371b4fd53ff7ed6c56b27
+    POSIX shell script, ASCII text executable
+  f11_suite.sh  sha256 8a94dbd469acb8a561366bd7f0ba73bddcc6fe3a395ac20013c5a14899545e29
+    POSIX shell script, ASCII text executable
+  gateway_suite.sh  sha256 a7b9c9b0e4c1daf0c1b883724b84cf24eaa959a7c259f50d166ab10f26211a8b
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 2adf7d12f2cd2103772d21878dc2d799c09421887d8851aed687bf68e9742e25
+    POSIX shell script, ASCII text executable
+  hello  sha256 e491474caa943f082c5eb613ccce073a77f6cfd2b75d39d99440d34ff4ec8d82
+    ELF 64-bit LSB pie executable, x86-64
+  msgpass  sha256 b6b20a163faa339894cdb71eb34eb3746f73486a6cd3f9a6f13a6baf5fa23c8a
+    ELF 64-bit LSB pie executable, x86-64
+  planner_e2e.sh  sha256 f18addb118dcf9273c890139c763eb6256299078c6819c1aa06ebc74059f983a
+    POSIX shell script, ASCII text executable
+  policy_suite.sh  sha256 d560f98342dc4feeb62fe32ccc5f2b71b20a4a473387ce3aa7ea9336ba921f1e
+    POSIX shell script, ASCII text executable
+  test_arm  sha256 d9f3f92b401596dc982c100b5ac11623068798e53cb376ce046f74cf007293c8
+    ELF 64-bit LSB pie executable, x86-64
+  test_arm_motion  sha256 25444e80f3e870f81448030e9942aaffd49ee6a8880a59ca451e927d0e8bb42c
+    ELF 64-bit LSB pie executable, x86-64
+  test_contract_file  sha256 883832f76207a3c49c4f8b4e5d164fc5f8ed5e0eeb1786841d6d54f39f80032f
+    ELF 64-bit LSB pie executable, x86-64
+  test_e2e  sha256 7c9be1616710c1c86e9cb9ee1bbeadcacf2847e17e38c27d7eadbee997ffa46c
+    ELF 64-bit LSB pie executable, x86-64
+  test_gateway  sha256 1201bee2beac04f67523ac05ee910c24aa2d34d391329731a451185103da45b1
+    ELF 64-bit LSB pie executable, x86-64
+  test_guardian  sha256 19e9f0edd265ec0167bf5b7450a4c42848f658dbd95e21b1f21744c3af08f64f
+    ELF 64-bit LSB pie executable, x86-64
+  test_libcontract  sha256 93239a2b1bb1dbe07d670e7828d72934186e87b2dda160c4b0261149be396f43
+    ELF 64-bit LSB pie executable, x86-64
+  test_logd  sha256 d202c997977deb45531c0e818c3504e2ad1c12814717200cf256765e5e34ef63
+    ELF 64-bit LSB pie executable, x86-64
+  test_send_timeout  sha256 1f58334bb9bcea95d2a0af51c6efe8b888e88d2c734224441b45c7f1f6ce4f21
+    ELF 64-bit LSB pie executable, x86-64
+  test_watchdog  sha256 688ca2233ea5a14c7e85e59fb81bc374cc5dbb3015d4918e3f11644169d5599f
+    ELF 64-bit LSB pie executable, x86-64
+  test_wd_scoid  sha256 ad00c3787165f8dff7fed5db7085f78d2bbe211bfff9aa6958972a27e5c50461
+    ELF 64-bit LSB pie executable, x86-64
+  watchdog_suite.sh  sha256 57dcb7adc7d33a150230bc5204bf1ad697c276b5e0e5db7b2faec30675f1bd96
+    POSIX shell script, ASCII text executable
+$ make -C qnx ARCH=aarch64le clean all
+rm -rf ../build/aarch64le ../build/host
+mkdir -p ../build/aarch64le
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/hello samples/hello/hello.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/msgpass samples/msgpass/msgpass.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_contract_file tests/test_contract_file.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_send_timeout tests/test_send_timeout.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -Iguardian -o ../build/aarch64le/arb-guardian guardian/main.c guardian/arm_link.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-logd logd/main.c common/arb_privdrop.c libcontract/arb_contract.c -lm -lslog2 -lqcrypto
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb_arm_stub tests/arb_arm_stub.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_guardian tests/test_guardian.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_logd tests/test_logd.c
+install -m 755 tests/guardian_suite.sh ../build/aarch64le/guardian_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-arm arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_arm_motion tests/test_arm_motion.c arm/arm_motion.c arm/arm_backend_sim.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_arm tests/test_arm.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_e2e tests/test_e2e.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_wd_scoid tests/test_wd_scoid.c common/arb_privdrop.c -lm
+install -m 755 tests/arm_suite.sh ../build/aarch64le/arm_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-watchdog watchdog/main.c common/arb_privdrop.c -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_watchdog tests/test_watchdog.c common/arb_wd_client.c common/arb_server_check.c
+install -m 755 tests/watchdog_suite.sh ../build/aarch64le/watchdog_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-inject tests/arb_inject.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-stall-probe tests/arb_stall_probe.c -lm
+install -m 755 tests/bench_scenario.sh ../build/aarch64le/bench_scenario.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-ctl tools/arb_ctl.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-untrusted tests/arb_untrusted.c
+install -m 755 tests/f11_suite.sh ../build/aarch64le/f11_suite.sh
+install -m 755 tests/policy_suite.sh ../build/aarch64le/policy_suite.sh
+install -m 755 tests/arb_suite_lib.sh ../build/aarch64le/arb_suite_lib.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-gateway gateway/main.c common/arb_privdrop.c -lslog2 -lsocket
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_gateway tests/test_gateway.c -lsocket
+install -m 755 tests/gateway_suite.sh ../build/aarch64le/gateway_suite.sh
+install -m 755 tests/planner_e2e.sh ../build/aarch64le/planner_e2e.sh
+  arb-arm  sha256 2c0cc626f0c2ba2ba2dc594a6af3d57509f03ecd94df5978f51a3794251d37bd
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-ctl  sha256 a75641b51daca2f66d38b80f71a9cdaf6b38459b72e90b38428e3d9294c36a51
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-gateway  sha256 a2f5c1c3e12210321fd8527d5f6ebe3c4166f50a7b2285484e8892afb7f5e234
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-guardian  sha256 1d3c69397c5975d265349083a6fb4fdd382e9391be8be908ef3f90230a42b6c9
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-inject  sha256 6e3d0a75b44a68b378ac27caacc78ca3a06e20fac2f593628f5caf9c797d5f48
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-logd  sha256 e2871b30f8d4bb5b4c4d2a5dbd95d09f2928b7fa94fc0b25746a6f94e26548dd
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-stall-probe  sha256 2f6c18fa5cc85264a84a7b56b70c4f989ab3f1d38a262bab988d454160aaa1ca
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-untrusted  sha256 b927481062d4c8541592e6887f2247efc1315d4b8dc0e07f7e6783f384ef391c
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-watchdog  sha256 16b7e5820e6bb0a3b2f4621abf9684d5ed5c1d30b976fac311a9f766e1ea28b2
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb_arm_stub  sha256 ad8f3423674ad90e83d776e30409c0167af5b8233ce3fde26374821f073c3af5
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb_suite_lib.sh  sha256 393c7b2d8f248d0ae6a7107486246c168223bd37bb5a121f89d04b7572281b7a
+    ASCII text
+  arm_suite.sh  sha256 f582f11409709335b5b3dd2764d93b6617df21f95b224e335e5503dec7a0b38c
+    POSIX shell script, ASCII text executable
+  bench_scenario.sh  sha256 4e9de699003d43ada429067cc48d17b1ad377835745371b4fd53ff7ed6c56b27
+    POSIX shell script, ASCII text executable
+  f11_suite.sh  sha256 8a94dbd469acb8a561366bd7f0ba73bddcc6fe3a395ac20013c5a14899545e29
+    POSIX shell script, ASCII text executable
+  gateway_suite.sh  sha256 a7b9c9b0e4c1daf0c1b883724b84cf24eaa959a7c259f50d166ab10f26211a8b
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 2adf7d12f2cd2103772d21878dc2d799c09421887d8851aed687bf68e9742e25
+    POSIX shell script, ASCII text executable
+  hello  sha256 1ab74333346df2367c5a3d0ecaa885a93cd1ec9810f1dd119626d56d96859569
+    ELF 64-bit LSB pie executable, ARM aarch64
+  msgpass  sha256 caca0169357d68d3bf54f1b3e4419a94380aaca1b84aa055fa4e8e007016a72b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  planner_e2e.sh  sha256 f18addb118dcf9273c890139c763eb6256299078c6819c1aa06ebc74059f983a
+    POSIX shell script, ASCII text executable
+  policy_suite.sh  sha256 d560f98342dc4feeb62fe32ccc5f2b71b20a4a473387ce3aa7ea9336ba921f1e
+    POSIX shell script, ASCII text executable
+  test_arm  sha256 cebee765eb7fe116b31451e905571e80600e734218e458afba9b2bab709bd878
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_arm_motion  sha256 3ae70102ea30e61902ebba8b91b3d840865878a644c42f86a2af45733e6293a8
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_contract_file  sha256 8ccaca6ba7f924598d38a0e42ebfc8c795649228791187bf46bcc50e14cfc3a3
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_e2e  sha256 8dab7876e559096efcd169d5fb5c4466878de9fdcc7ebc841a4746664c442355
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_gateway  sha256 985273d4eb653e0d522df7b97dcb6d721d8e342a626f60fb92638340bc4221e4
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_guardian  sha256 b80efe13e5b4e75f766c50e6fe294ba3f3aebbbae9fc5dab19cd7001c92279a4
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_libcontract  sha256 1d8eca5373fbee6966cb841e5ddbeaeb16011b44f37917db869860400942e467
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_logd  sha256 27331718b157180ee15fc1a8735178cc83fd46ed2da85f45e853de3d83a42e55
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_send_timeout  sha256 8e3f122f43780231816e91e73f174370ea4c007fb1580b1bdc94b60b9f58312b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_watchdog  sha256 9cbec786a30e8626bd8558a724c738afc20ff17badbb3a8baf5cbd5088635263
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_wd_scoid  sha256 344f738b76cc05e89c4203b73f02a60f75600382a131ecb3e2dd4bf1e2766b68
+    ELF 64-bit LSB pie executable, ARM aarch64
+  watchdog_suite.sh  sha256 57dcb7adc7d33a150230bc5204bf1ad697c276b5e0e5db7b2faec30675f1bd96
+    POSIX shell script, ASCII text executable
+deployed arb-arm arb-ctl arb-gateway arb-guardian arb-inject arb-logd arb-stall-probe arb-untrusted arb-watchdog arb_arm_stub arb_suite_lib.sh arm_suite.sh bench_scenario.sh f11_suite.sh gateway_suite.sh guardian_suite.sh hello msgpass planner_e2e.sh policy_suite.sh test_arm test_arm_motion test_contract_file test_e2e test_gateway test_guardian test_libcontract test_logd test_send_timeout test_watchdog test_wd_scoid watchdog_suite.sh to qemu (root@172.31.1.174:/data/home/root/arbiter/bin)
+
+## target: root@172.31.1.174:/data/home/root/arbiter/bin (x86_64)
+$ uname -a
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## gateway_suite.sh — arb-gateway on QNX: planner and observers over TCP (docs/PROTOCOL.md), malformed frames, one planner, HOLD on disconnect, resume at last_seq + 1, e-stop, stopped and killed gateway, its own user (FR-N1..N4, FR-G10, FR-W4, NFR-I5)
+$ cd /data/home/root/arbiter/bin && ./gateway_suite.sh
+## FR-N1, FR-N2, FR-N4, FR-G10, FR-W4, NFR-I1: the gateway, from a planner and observers, with the logger
+pids: watchdog 25456662 arm 25473047 guardian 25489432 logger 25522201 gateway 25538586
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+arb-gateway: privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()
+arb-gateway: refused as expected after the drop: socket() (no new socket of any kind)
+arb-gateway: ready, listening on 172.31.1.174 ports 7700 7701 (interface vtnet0), priority 10
+nrw-r-----  2 811  813 393296 2026-11-17 22:08 /dev/shmem/arbiter_arm_telemetry
+nrw-r-----  2 root 813  98328 2026-11-17 22:08 /dev/shmem/arbiter_decisions
+  ok   arb-gateway: pid 25538586 user 814 group 814, FIFO 10
+  ok   arb-gateway: privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()
+  ok   arb-gateway: refused as expected after the drop: socket() (no new socket of any kind)
+  the target's wired IPv4 address: 172.31.1.174; the gateway listens on: 172.31.1.174
+tcp4       0      0 172.31.1.174.7701      *.*                    LISTEN     
+tcp4       0      0 172.31.1.174.7700      *.*                    LISTEN     
+PASS fr_n1_gateway_listens_on_the_wired_interface_only
+PASS nfr_i5_gateway_runs_as_its_own_user_with_no_network_ability
+PASS fr_n2_frames_match_the_documented_examples
+  127.0.0.1:7700: Connection refused
+  127.0.0.1:7701: Connection refused
+PASS fr_n1_gateway_is_not_reachable_on_other_addresses
+  WELCOME state 1 has_seq 0 last_seq 0 session 1
+PASS fr_n1_planner_gets_welcome_then_state
+PASS fr_n1_second_planner_is_refused_busy
+  10 commands: 10 ALLOW, guardian decisions +10, last_seq 11
+PASS fr_n1_each_command_is_forwarded_and_answered_in_order
+PASS fr_n2_malformed_frames_end_the_session_unforwarded
+PASS fr_n2_a_partial_frame_is_never_forwarded
+  planner closed -> guardian HOLD after 2 ms (silence timeout 250 ms; QEMU, function only)
+PASS fr_g10_planner_disconnect_holds_at_once
+  WELCOME last_seq 14: seq 14 DENY (sequence), seq 15 ALLOW
+PASS fr_g10_planner_resumes_at_last_seq_plus_one
+PASS fr_n4_observer_gets_welcome_and_every_verdict
+PASS fr_n4_observer_is_read_only
+PASS fr_n4_one_observer_too_many_is_refused_busy
+  gateway stopped -> guardian HOLD after 252 ms (silence timeout 250 ms; QEMU, function only)
+PASS fr_n3_a_stopped_gateway_holds_and_trusted_processes_run_on
+  arm telemetry: mode 640, owner 811, group 813; the gateway's user: Permission denied
+PASS nfr_i1_gateway_user_cannot_open_the_arm_telemetry
+  500 ms: 50 TELEMETRY frames matching the arm's ring, 0 not; arm moving: yes (QEMU, function only)
+PASS fr_n4_planner_gets_arm_telemetry_through_the_logger
+  observer, 500 ms: 50 TELEMETRY frames matching the arm's ring, 0 not
+PASS fr_n4_observer_gets_arm_telemetry
+PASS fr_w4_estop_through_the_gateway
+RESULT PASS test_gateway run 17/17
+## FR-N3: the gateway killed mid-move (and FR-N4: commands without the logger)
+PASS fr_n4_without_the_logger_commands_are_still_decided
+  gateway killed mid-move -> guardian HOLD after 2 ms (QEMU, function only)
+  arm stopped at -37897 32377 urad; watchdog, arm, guardian alive; no trip, fault or brake
+PASS fr_n3_killing_the_gateway_mid_move_holds_and_trusted_processes_run_on
+RESULT PASS test_gateway kill 2/2
+## FR-N1: the gateway refuses to listen on every address
+arb-gateway: refused: the wildcard address 0.0.0.0 would listen on every interface
+PASS fr_n1_gateway_refuses_the_wildcard_address
+RESULT PASS gateway_suite
+exit=0
+--- run 2 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 3 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 4 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 5 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 6 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 7 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 8 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 9 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 10 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 11 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 12 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 13 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 14 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 15 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 16 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 17 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 18 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 19 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+--- run 20 of 20: exit=0
+guardian at start: state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 0 submits_refused 0 last_seq 0 has_seq 0
+RESULT PASS test_gateway run 17/17
+RESULT PASS test_gateway kill 2/2
+RESULT PASS gateway_suite
+repeat: 20/20 runs passed
+
+SUMMARY 1/1 tests passed on qemu (each run 20 time(s))
