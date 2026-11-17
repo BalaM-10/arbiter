@@ -42,7 +42,7 @@ LIBCONTRACT_SRC := libcontract/arb_contract.c
 LIBCONTRACT_HDR := libcontract/arb_contract.h common/arb_contract_table.h common/arb_proto.h common/arb_arm_model.h
 
 BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract_file $(OUT)/test_send_timeout \
-        $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/guardian_suite.sh \
+        $(OUT)/arb-guardian $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/test_logd $(OUT)/guardian_suite.sh \
         $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/test_wd_scoid $(OUT)/arm_suite.sh \
         $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh \
         $(OUT)/arb-inject $(OUT)/arb-stall-probe $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh
@@ -88,6 +88,9 @@ $(OUT)/arb_arm_stub: tests/arb_arm_stub.c common/arb_arm_proto.h common/arb_ids.
 
 $(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h tests/arb_as_gateway.h common/arb_ids.h common/arb_devctl.h common/arb_decisions.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
+
+$(OUT)/test_logd: tests/test_logd.c tests/arb_test.h tests/arb_as_gateway.h common/arb_devctl.h common/arb_decisions.h $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/test_logd.c
 
 $(OUT)/guardian_suite.sh: tests/guardian_suite.sh | $(OUT)
 	install -m 755 $< $@

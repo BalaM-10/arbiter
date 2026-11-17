@@ -81,6 +81,40 @@ arb_start stale
 ./test_guardian stale || fail=1
 arb_stop
 
+# The evidence logger (docs/EVIDENCE_LOG.md): with the guardian and the stub
+# arm; it drops to its own user, so its output directory is created here.
+echo "## FR-E1, FR-E2, FR-E4, FR-E5: the evidence logger"
+EV=/tmp/arbiter-logd-test
+rm -rf "$EV"
+mkdir -p "$EV"
+want=$(./arb-logd --selftest 2>&1)
+if [ "$want" = "sha256(abc) ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" ]; then
+    echo "PASS fr_e2_logger_sha256_matches_the_nist_vector"
+else
+    echo "FAIL fr_e2_logger_sha256_matches_the_nist_vector (got: $want)"
+    fail=1
+fi
+./arb-watchdog &
+WD=$!
+sleep 1
+./arb_arm_stub normal &
+STUB=$!
+sleep 1
+./arb-guardian "$CONTRACT" >"$EV/guardian.out" 2>&1 &
+GUARD=$!
+sleep 1
+CHASH=$(sed -n 's/.*contract sha256 \([0-9a-f]*\).*/\1/p' "$EV/guardian.out" | head -1)
+./arb-logd "$CONTRACT" "$EV/run.log" &
+LOGD=$!
+sleep 1
+./test_logd run "$LOGD" "$EV/run.log" "$CHASH" || fail=1
+./arb-logd "$CONTRACT" "$EV/kill.log" &
+LOGD=$!
+sleep 1
+./test_logd kill "$LOGD" "$EV/kill.log" || fail=1
+kill "$LOGD" 2>/dev/null
+arb_stop
+
 if [ "$fail" -eq 0 ]; then
     echo "RESULT PASS guardian_suite"
 else
