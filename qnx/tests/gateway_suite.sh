@@ -114,13 +114,17 @@ up
 down
 
 echo "## FR-N1: the gateway refuses to listen on every address"
-$ARB_ON_GW ./arb-gateway -a 0.0.0.0 </dev/null >/tmp/arb-gateway-any.out 2>&1
-rc=$?
+# Started in the background: a gateway that accepts the wildcard keeps running,
+# and is then a failure (and stopped here), not a hang.
+$ARB_ON_GW ./arb-gateway -a 0.0.0.0 </dev/null >/tmp/arb-gateway-any.out 2>&1 &
+sleep 2
+running=$(pid_of arb-gateway)
 cat /tmp/arb-gateway-any.out
-if [ "$rc" -ne 0 ] && [ -z "$(pid_of arb-gateway)" ]; then
-    echo "PASS fr_n1_gateway_refuses_the_wildcard_address (exit $rc)"
+netstat -an | grep LISTEN | grep -v -E '[.](22|8000) '
+if [ -z "$running" ] && grep -q "refused: the wildcard address" /tmp/arb-gateway-any.out; then
+    echo "PASS fr_n1_gateway_refuses_the_wildcard_address"
 else
-    echo "FAIL fr_n1_gateway_refuses_the_wildcard_address (exit $rc)"
+    echo "FAIL fr_n1_gateway_refuses_the_wildcard_address (still running: ${running:-no})"
     fail=1
     slay -f arb-gateway >/dev/null 2>&1
 fi
