@@ -181,6 +181,10 @@ static void fr_g8_every_decision_is_recorded_with_its_latency(void)
             CHECK(r->t_ns >= q->t_ns && r->t_cycles >= q->t_cycles);
         }
     }
+    /* Back to where the next test starts (the stub arm reports its last setpoint). */
+    c[0] = cmd(-100000, 0, 1000);
+    CHECK_EQ_INT(submit(g_fd, &c[0], &w[0]), EOK);
+    CHECK_EQ_INT(w[0].verdict, ARB_VERDICT_ALLOW);
 }
 
 /* NFR-Q4: the latency is measured with the cycle counter, in the units the ring

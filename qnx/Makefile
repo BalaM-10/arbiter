@@ -77,7 +77,7 @@ $(OUT)/test_send_timeout: tests/test_send_timeout.c | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
 GUARDIAN_SRC := guardian/main.c guardian/arm_link.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c
-GUARDIAN_HDR := common/arb_log.h common/arb_own_pulse.h common/arb_hex.h guardian/arm_link.h common/arb_arm_proto.h common/arb_devctl.h common/arb_prio.h common/arb_pulses.h \
+GUARDIAN_HDR := common/arb_decisions.h common/arb_log.h common/arb_own_pulse.h common/arb_hex.h guardian/arm_link.h common/arb_arm_proto.h common/arb_devctl.h common/arb_prio.h common/arb_pulses.h \
                 common/arb_wd_client.h common/arb_watchdog_proto.h common/arb_ids.h common/arb_privdrop.h common/arb_server_check.h
 
 $(OUT)/arb-guardian: $(GUARDIAN_SRC) $(GUARDIAN_HDR) $(LIBCONTRACT_SRC) $(LIBCONTRACT_HDR) | $(OUT)

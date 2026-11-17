@@ -52,9 +52,12 @@
 #include <sys/iofunc.h>      /* before sys/dispatch.h, as the 8.0 skeleton requires */
 #include <sys/dispatch.h>
 #include <sys/neutrino.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/syspage.h>
 
 #include "arb_contract.h"
+#include "arb_decisions.h"
 #include "arb_devctl.h"
 #include "arb_hex.h"
 #include "arb_ids.h"
@@ -81,6 +84,7 @@ static arb_contract_table_t g_contract;
 static arb_guard_t          g_guard;
 static arm_link_t           g_arm;
 static arb_status_t         g_status;
+static arb_dec_ring_t      *g_dec;                  /* FR-G8: the decision ring, written only here */
 static int                  g_tick_scoid = -1;      /* our own timer's connection (arb_own_pulse.h) */
 static arb_wd_client_t      g_wd;
 static int                  g_wd_lost;              /* the watchdog itself is gone (FR-W5, FR-W6) */
@@ -273,6 +277,24 @@ static void to_wire(const arb_verdict_t *v, arb_verdict_wire_t *w)
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.resmgr/topic/messages_HANDLING_devctl.html
  * Errors are returned as the errno value itself (8.0: no _RESMGR_ERRNO).
  */
+/* FR-G8, FR-E1, NFR-Q4: one record per decided command, before the reply.
+ * Single writer, no lock and no blocking call: fill the slot, then publish the
+ * new head (release), as arb_decisions.h describes. Bounded: one copy. */
+static void record_decision(const arb_cmd_t *c, const arb_verdict_t *v, uint64_t t_ns, uint64_t t_rx, uint64_t t_done)
+{
+    const uint64_t h = atomic_load_explicit(&g_dec->head, memory_order_relaxed);
+    arb_dec_record_t *r = &g_dec->r[h % ARB_DEC_SLOTS];
+
+    r->index = h;
+    r->t_ns = (int64_t)t_ns;
+    r->t_cycles = t_rx;
+    r->latency_cycles = t_done - t_rx;
+    r->cmd = *c;
+    r->verdict = *v;
+    r->reserved = 0;
+    atomic_store_explicit(&g_dec->head, h + 1u, memory_order_release);
+}
+
 static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
 {
     const size_t hdr = sizeof msg->i;
@@ -290,6 +312,9 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
 
     switch (msg->i.dcmd) {
     case ARB_DCMD_SUBMIT: {
+        /* NFR-Q4: the cycle counter at receipt.
+         * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/clockcycles.html */
+        const uint64_t t_rx = ClockCycles();
         const size_t want = hdr + sizeof(arb_submit_t);
         arb_cmd_t cmd_copy;
         arb_verdict_t v;
@@ -317,8 +342,10 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
         memcpy(&cmd_copy, _IO_INPUT_PAYLOAD(msg), sizeof cmd_copy);
         {
             const uint8_t before = g_guard.state;
+            const uint64_t t_ns = now_ns();
             decide(&cmd_copy, sizeof cmd_copy, &v);
             follow_state(before);
+            record_decision(&cmd_copy, &v, t_ns, t_rx, ClockCycles());
         }
         to_wire(&v, &w);
         memset(&msg->o, 0, sizeof msg->o);
@@ -587,6 +614,46 @@ static int load_contract(const char *path)
     return 0;
 }
 
+/* FR-G8: create the decision ring while still root: mode 0640 and the logger's
+ * group, so the logger may read it and the gateway's user may not open it
+ * (NFR-I1). Not stated in the 8.0 pages: that fchown() applies to a shared
+ * memory object; confirmed on target by nfr_i1_gateway_user_cannot_open_the_decision_ring.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_unlink.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_open.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/fchown.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/ftruncate.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/mmap.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/syspage_entry.html */
+static int decisions_create(void)
+{
+    void *p;
+    int fd;
+
+    (void)shm_unlink(ARB_DEC_NAME);     /* a stale ring from an earlier run */
+    fd = shm_open(ARB_DEC_NAME, O_RDWR | O_CREAT | O_EXCL, 0640);
+    if (fd == -1) {
+        return -1;
+    }
+    if (fchown(fd, (uid_t)-1, (gid_t)ARB_UID_LOGD) == -1 || ftruncate(fd, (off_t)sizeof(arb_dec_ring_t)) == -1) {
+        const int e = errno;
+        (void)close(fd);
+        (void)shm_unlink(ARB_DEC_NAME);
+        errno = e;
+        return -1;
+    }
+    p = mmap(NULL, sizeof(arb_dec_ring_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    (void)close(fd);
+    if (p == MAP_FAILED) {
+        return -1;
+    }
+    g_dec = p;
+    memset(g_dec, 0, sizeof *g_dec);
+    g_dec->magic = ARB_DEC_MAGIC;
+    g_dec->version = ARB_DEC_VERSION;
+    g_dec->cycles_per_sec = SYSPAGE_ENTRY(qtime)->cycles_per_sec;
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     struct sched_param sp;
@@ -677,6 +744,10 @@ int main(int argc, char **argv)
     coid = ConnectAttach(0, 0, chid, _NTO_SIDE_CHANNEL, 0);
     if (coid == -1) {
         arb_log_fail("ConnectAttach", errno);
+        return 5;
+    }
+    if (decisions_create() != 0) {
+        arb_log_fail("create the decision ring " ARB_DEC_NAME, errno);
         return 5;
     }
     /* NFR-I5: root is needed no further (the path is attached); the watchdog and

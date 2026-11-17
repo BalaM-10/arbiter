@@ -7,8 +7,10 @@
  * (FR-E5).
  *
  * Writer: fill slot head % ARB_DEC_SLOTS, then publish head + 1 (release).
- * Reader: read head (acquire), copy a slot, check its index, read head again; a
- * slot with index < head2 - ARB_DEC_SLOTS may have been overwritten and is dropped.
+ * Reader: read head (acquire), copy a slot, check its index, read head again. The
+ * writer may be filling slot head2 % ARB_DEC_SLOTS, which held index
+ * head2 - ARB_DEC_SLOTS, so a copy with index <= head2 - ARB_DEC_SLOTS may be torn
+ * and is dropped (and counted, FR-E5).
  *
  * Access: mode 0640, group ARB_UID_LOGD (the logger's user and group ID), set by
  * the guardian while it is still root. The gateway's user cannot open it, so no
