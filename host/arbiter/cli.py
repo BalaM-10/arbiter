@@ -1,5 +1,5 @@
-"""Command-line entry point: ``arbiter contract compile|check|corpus``, ``arbiter bench run`` and
-``arbiter evidence verify``."""
+"""Command-line entry point: ``arbiter contract compile|check|corpus``, ``arbiter bench run``,
+``arbiter evidence verify`` and ``arbiter planner run|e2e``."""
 
 from __future__ import annotations
 
@@ -61,6 +61,24 @@ def _evidence_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _planner_run(args: argparse.Namespace) -> int:
+    from . import planner as pl
+
+    plan = pl.scripted_plan()
+    r = pl.run(args.host, args.port, plan, wait=not args.no_wait, log=print)
+    problems = pl.check(r, plan)
+    for x in problems:
+        print(f"  problem: {x}")
+    print(pl.summary(r, plan, problems))
+    return 0 if not problems else 1
+
+
+def _planner_e2e(args: argparse.Namespace) -> int:
+    from .planner_e2e import fr_p1_scripted_planner_runs_pick_and_place_through_the_gateway as e2e
+
+    return e2e(args.target, args.out, deploy=not args.no_deploy)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="arbiter", description="Arbiter host tools")
     sub = parser.add_subparsers(dest="tool", required=True)
@@ -100,6 +118,19 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--anchor", help="the last hash, published separately: detects lines removed from the end")
     p.add_argument("--anchor-file", type=Path, help="read the anchor from a file (e.g. <log>.anchor)")
     p.set_defaults(func=_evidence_verify, source=None)
+
+    pln = sub.add_parser("planner", help="the scripted planner (docs/PROTOCOL.md)")
+    psub = pln.add_subparsers(dest="action", required=True)
+    p = psub.add_parser("run", help="play the pick-and-place path to a gateway")
+    p.add_argument("--host", required=True, help="the gateway's address (the QNX target)")
+    p.add_argument("--port", type=int, default=7700)
+    p.add_argument("--no-wait", action="store_true", help="send each command as soon as the last is answered")
+    p.set_defaults(func=_planner_run, source=None)
+    p = psub.add_parser("e2e", help="end to end on a target: start the system there, run the planner here")
+    p.add_argument("--target", required=True, help="a target in scripts/targets.env (qemu, qemu_secpol, pi5)")
+    p.add_argument("--out", type=Path, default=Path("evidence/runs"))
+    p.add_argument("--no-deploy", action="store_true", help="skip building and deploying the binaries")
+    p.set_defaults(func=_planner_e2e, source=None)
 
     args = parser.parse_args(argv)
     try:
