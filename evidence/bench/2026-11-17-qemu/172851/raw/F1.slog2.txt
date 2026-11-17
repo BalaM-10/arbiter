@@ -1,0 +1,49 @@
+watchdog Nov 17 23:24:59.207          arb_watchdog.96608278                 main*     1  privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+watchdog Nov 17 23:24:59.207          arb_watchdog.96608278                 main      1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+watchdog Nov 17 23:25:00.216          arb_watchdog.96608278                 main      8  registered the arm, pid 96624663
+watchdog Nov 17 23:25:01.230          arb_watchdog.96608278                 main      8  registered the guardian, pid 96657432
+watchdog Nov 17 23:25:09.379          arb_watchdog.96608278                 main      7  trip: the guardian stuck (heartbeats missing), pid 96657432; the other client was told
+watchdog Nov 17 23:25:09.380          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (1 so far)
+watchdog Nov 17 23:25:09.384          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (2 so far)
+watchdog Nov 17 23:25:09.388          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (3 so far)
+watchdog Nov 17 23:25:09.389          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (4 so far)
+watchdog Nov 17 23:25:09.390          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (5 so far)
+watchdog Nov 17 23:25:09.391          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (6 so far)
+watchdog Nov 17 23:25:09.391          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (7 so far)
+watchdog Nov 17 23:25:09.400          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (8 so far)
+watchdog Nov 17 23:25:09.403          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (9 so far)
+watchdog Nov 17 23:25:09.405          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (10 so far)
+watchdog Nov 17 23:25:09.407          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (11 so far)
+watchdog Nov 17 23:25:09.407          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (12 so far)
+watchdog Nov 17 23:25:09.407          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (13 so far)
+watchdog Nov 17 23:25:09.407          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (14 so far)
+watchdog Nov 17 23:25:09.407          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (15 so far)
+watchdog Nov 17 23:25:09.407          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (16 so far)
+watchdog Nov 17 23:25:10.420          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (1024 so far)
+watchdog Nov 17 23:25:11.447          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (2048 so far)
+watchdog Nov 17 23:25:12.472          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (3072 so far)
+watchdog Nov 17 23:25:13.496          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (4096 so far)
+watchdog Nov 17 23:25:14.520          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (5120 so far)
+watchdog Nov 17 23:25:15.544          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (6144 so far)
+watchdog Nov 17 23:25:16.568          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (7168 so far)
+watchdog Nov 17 23:25:17.592          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (8192 so far)
+watchdog Nov 17 23:25:18.616          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (9216 so far)
+watchdog Nov 17 23:25:19.640          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (10240 so far)
+watchdog Nov 17 23:25:20.664          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (11264 so far)
+watchdog Nov 17 23:25:21.688          arb_watchdog.96608278                 main      5  refused a registration, message or pulse not from its rightful source (12288 so far)
+arm Nov 17 23:25:00.216               arb_arm.96624663                 main*     1  privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arm Nov 17 23:25:00.216               arb_arm.96624663                 main      1  ready as arbiter_arm, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arm Nov 17 23:25:01.230               arb_arm.96624663                 main      8  bound the guardian, pid 96657432: only it may command the arm
+arm Nov 17 23:25:09.303               arb_arm.96624663                 main      6  motion lease expired: braked (1 so far)
+arm Nov 17 23:25:09.379               arb_arm.96624663                 main      6  watchdog brake: braked and latched until restart (1 so far)
+arm Nov 17 23:25:09.407               arb_arm.96624663                 main      6  guardian SAFE_STOP: braked and latched (1 so far)
+arm Nov 17 23:25:09.407               arb_arm.96624663                 main      6  guardian SAFE_STOP: braked and latched (2 so far)
+guardian Nov 17 23:25:01.230          arb_guardian.96657432                 main*     1  privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+guardian Nov 17 23:25:01.230          arb_guardian.96657432                 main      1  ready on /dev/arbiter, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+guardian Nov 17 23:25:01.230          arb_guardian.96657432                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 17 23:25:03.698          arb_guardian.96657432                 main      3  state NORMAL
+guardian Nov 17 23:25:09.406          arb_guardian.96657432                 main      3  state SAFE_STOP, cause watchdog (the arm died or is stuck)
+guardian Nov 17 23:25:09.406          arb_guardian.96657432                 main      4  watchdog lost (no beat for 10 ticks): SAFE_STOP
+logd Nov 17 23:25:02.245              arb_logd.96682009                 main*     1  privileges dropped: uid 813 gid 813; kept PRIORITY 1-30; refused as expected: setuid(0), priority 31, fork()
+logd Nov 17 23:25:02.245              arb_logd.96682009                 main      1  ready, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+logd Nov 17 23:25:03.704              arb_logd.96682009                 main      8  mapped the arm's telemetry read-only, to relay it to the gateway
