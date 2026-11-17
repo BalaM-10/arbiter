@@ -122,13 +122,52 @@ On `qemu_secpol` the SSH root login runs as type `user_root_t`. The policy lets 
 start the Arbiter types and the attacker's type and use `/dev/arbiter` like any
 client, but not connect to the arm or the watchdog (owner decision 2026-11-15),
 so the tests that play the guardian or the watchdog (`test_arm`, `test_watchdog`,
-`guardian_suite.sh`, `test_e2e wdforged` and `log`) run on `qemu` only.
+`test_wd_scoid`, `guardian_suite.sh`, `test_e2e wdforged` and `log`) run on `qemu`
+only.
 
 To redraft the policy: `./scripts/build-image.sh qemu_secpol develop` builds the
 same image with `secpolgenerate` recording what runs (nothing is refused in that
 mode); exercise the system, copy `/dev/secpolgenerate/policy` off the target
 with `ssh ... cat` (the docs say not scp), then edit by hand as the header of
 `arbiter.secpol` describes, and rebuild with `./scripts/build-image.sh qemu_secpol`.
+
+## QEMU host pauses
+
+**On QEMU, a host pause of the virtual machine longer than 10 ms makes Arbiter
+safe-stop. This is by design.** The host (WSL2, Windows, a busy laptop) can stop
+the QEMU process or one of its virtual CPUs for a while. Inside the guest, every
+process then looks silent for that long: the watchdog trips the arm and the
+guardian as stuck, the arm brakes and latches, and the guardian enters
+`SAFE_STOP` (cause watchdog, or arm timeout when its bounded send to the arm fails
+first). On real hardware the same silence would mean a real fault, so the timeouts
+are not relaxed for QEMU.
+
+To recover, on the target, from the deploy directory (`/data/home/root/arbiter/bin`):
+
+```sh
+./arb-ctl status                                  # state SAFE_STOP cause watchdog (or arm_timeout)
+cp arb-ctl /tmp/ && on -u 800 /tmp/arb-ctl reset  # the operator's reset; root is refused
+./arb-ctl status                                  # state HOLD: the next command moves the arm
+```
+
+User 800 is the operator (the `arb-guardian` argument); it has no access to root's
+home, hence the copy in `/tmp`. The reset needs a running watchdog. In a bench run,
+a failed scenario's report names who tripped and why, and
+`raw/<scenario>.slog2.txt` has that scenario's system log; just run the bench again.
+
+Measured on this laptop (QEMU, function only;
+[`evidence/stall/README.md`](../evidence/stall/README.md) says how each was run):
+
+- Pauses of 20, 50, 100 and 200 ms each stopped the system, and each was recovered
+  by the reset above; a 9 ms pause stopped nothing
+  ([`210332-pause.log`](../evidence/stall/2026-11-16-qemu/210332-pause.log)).
+- Ten minutes with nothing paused: no arm tick interval of 5 ms or more, no trip
+  ([`210454-rate.log`](../evidence/stall/2026-11-16-qemu/210454-rate.log)).
+- Under load it still happens now and then: one bench F1 on the policy image
+  failed this way on 2026-11-16, and the next two passed.
+
+To measure it yourself (policy-off image): `./scripts/qemu-stall.sh pause 20 50`
+or `./scripts/qemu-stall.sh rate 600`.
 
 ## QEMU networking: `scripts/qemu-br0-dhcp.sh`
 

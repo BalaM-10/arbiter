@@ -1,0 +1,12 @@
+# qemu-stall rate 600 — 2026-11-16T21:04:59-06:00
+# commit: 3382c82
+# host: Ubuntu 22.04.5 LTS; QEMU pid 155627: -smp 2
+# target: root@172.31.1.174:/data/home/root/arbiter/bin, QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+# QEMU proves function; the times are QEMU measurements, not claims.
+## rate 600 s: nothing paused
+START mode rate seconds 600 telemetry_head 2002
+EVENT 0.072 guardian.state 1 2
+SUMMARY seconds 600 intervals 599930 ge2ms 24 ge5ms 0 ge10ms 0 ge20ms 0 ge50ms 0 below0.1ms 6 largest_ms 3.582 samples_lost 0
+SUMMARY submits_allowed 4000 submits_denied 0 safe_stops 0 resets_ok 0 resets_failed 0 wd_trips 0 probe_longest_pass_ms 8.850
+SUMMARY end arm.wd_lost=0 arm.wd_lost_cause=0 arm.wd_brakes=0 arm.rejected=0 arm.lease_expiries=0 wd.trips=0 wd.last_role=0 wd.last_cause=0 wd.rejected=0 guardian.state=2 guardian.stop_cause=0 guardian.watchdog_lost=0 guardian.watchdog_lost_cause=0 guardian.watchdog_trips=0 guardian.arm_faults=0 guardian.resets=0
+state HOLD cause none estops 0 resets 0 resets_refused 0 watchdog_lost 0 decisions 4000 submits_refused 0 last_seq 4000 has_seq 1

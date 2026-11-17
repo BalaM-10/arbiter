@@ -19,28 +19,42 @@ right, wrong, silent, flooding or dead, Arbiter decides on QNX what the arm may
 do. What Arbiter defends against, and what it does not, is in
 [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md).
 
-## Status: milestone M1 (safety core)
+## Status: milestone M2 (untrusted side), in progress
 
 | Works today, on QNX 8.0 in QEMU | Not built yet |
 | --- | --- |
-| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Gateway and planner (M2) |
-| QEMU x86_64 target built with `mkqnximage`, reached over SSH | Security policy, evidence logger (M2) |
-| Scripted build, deploy and on-target test run, with every log saved | Fault scenarios F2, F3, F7, F8, F10 to F15 (M2) |
-| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 72 tests on the host and on QNX; keep-out checks both links of the arm as segments | Raspberry Pi 5 target, timing measurements, dashboard (M3) |
+| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | Gateway, planner and evidence logger (M2 P6) |
+| QEMU x86_64 target built with `mkqnximage`, reached over SSH | Fault scenarios F2, F3, F7, F8, F10, F12 to F15 in the bench (M2 P7) |
+| Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target, timing measurements, dashboard (M3) |
+| `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 72 tests on the host and on QNX; keep-out checks both links of the arm as segments | |
 | Contract compiler (`arbiter contract`): strict YAML validation, binary table, checked against the C loader on the host and on QNX | |
-| Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link | |
+| Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link; commands only from the gateway's user, one submitter at a time, HOLD at once when it goes, last sequence number published | |
 | Arm controller (`arb-arm`): 1 kHz loop on its own timer, simulated 2-joint arm, its own speed and limit checks, guardian-only sender binding, 10 ms motion lease, brake on guardian loss, read-only telemetry; end to end with the guardian | |
-| Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred | |
-| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-16-qemu/203057/report.html) | |
+| Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred. The arm and the guardian accept its beat and trip only on the connection they registered with, so a forged pulse with the right value is refused | |
+| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-16-qemu/211853/report.html) | |
 | Watchdog failure is fail-safe (M2): if the watchdog dies or freezes, the arm brakes and latches and the guardian enters SAFE_STOP, each on its own; a watchdog that comes back restarts nothing | |
 | Emergency stop and operator reset (M2): `arb-ctl estop` from any client stops everything; `arb-ctl reset` works only for the operator's user ID, and only once a watchdog is running | |
-| Isolation without the security policy (M2): every process runs as its own user; the trusted ones drop root and keep only the abilities they need, and check at startup that the rest is refused; the arm accepts only the guardian's user, and the guardian and the arm check who serves a name before trusting it. F11 (bypass, TM-C2) passes all four cases with the policy off | |
-| Kernel security policy (M2, QEMU): a second image enforces `qnx/image/policy/arbiter.secpol`, pushed at boot: each Arbiter process has its own type, only the guardian's type may connect to the arm or attach `/dev/arbiter`, and F11's four bypass attempts are refused in the kernel before any Arbiter code runs (TM-C2). The rules are read back from the kernel with `secpol` into the run log | |
+| Isolation without the security policy (M2): every process runs as its own user; the trusted ones drop root and keep only the abilities they need, and check at startup that the rest is refused; the arm accepts only the guardian's user, and the guardian and the arm check who serves a name before trusting it. F11 (bypass, TM-C2) passes every case with the policy off, including an untrusted user submitting commands | |
+| Kernel security policy (M2, QEMU): a second image enforces `qnx/image/policy/arbiter.secpol`, pushed at boot: each Arbiter process has its own type, only the guardian's type may connect to the arm or attach `/dev/arbiter`, and F11's bypass attempts are refused in the kernel before any Arbiter code runs (TM-C2). The rules are read back from the kernel with `secpol` into the run log | |
 | System log (M2): guardian, arm and watchdog record startup, state changes, brakes, refused senders and watchdog trips through the QNX system logger, read on the target with `slog2info -b arb_guardian` (or `arb_arm`, `arb_watchdog`) | |
 | Message-passing sample from M0: send/receive/reply, malformed messages, pulses, sender identity (7 checks) | |
 
 On QEMU every result proves function only, never timing; timing claims will
 come only from the Raspberry Pi 5 (M3).
+
+**On QEMU, a host pause over 10 ms makes Arbiter safe-stop, by design.** The
+host can pause the virtual machine (WSL2 or Windows scheduling, a busy laptop).
+Inside the guest every process then looks silent for that long, so the watchdog
+trips, the arm brakes and latches and the guardian enters `SAFE_STOP`. Nothing
+moves until the operator resets. On the target, from the deploy directory:
+`cp arb-ctl /tmp/ && on -u 800 /tmp/arb-ctl reset` (user 800 is the operator and
+has no access to root's home; root itself is refused), then `./arb-ctl status` shows
+`HOLD` and the next command moves the arm again.
+Measured: pauses of 20 to 200 ms each stopped the system and each was recovered
+by that reset; a 9 ms pause stopped nothing
+([`evidence/stall/2026-11-16-qemu/210332-pause.log`](evidence/stall/2026-11-16-qemu/210332-pause.log)).
+How often it happens on its own: [`docs/TARGETS.md`](docs/TARGETS.md#qemu-host-pauses).
+Which stops need the operator: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Quick start (QEMU)
 
@@ -48,7 +62,9 @@ Tested with QNX SDP 8.0.4 on Ubuntu 22.04 (WSL2 on Windows 11), QEMU 6.2,
 toolchain `qcc` (GCC 12.2.0), target QEMU x86_64. Do the
 [first-time setup](docs/TARGETS.md#first-time-setup-ubuntu-2204-native-or-wsl2)
 once: host packages, KVM, the free QNX license, Software Center, SDP 8.0.4, an
-SSH key, the QEMU image and the Python virtual environment. Then, from the repo root:
+SSH key, the QEMU image and the Python virtual environment. There are two QEMU images: one without the kernel security policy, where every
+test runs, and one that enforces it, to show the same attacks refused in the
+kernel as well (FR-S6). Then, from the repo root:
 
 ```sh
 source ~/qnx800/qnxsdp-env.sh
@@ -61,7 +77,7 @@ sudo ./scripts/qemu-br0-dhcp.sh                                        # QEMU ne
 
 Expected:
 
-- `run-tests.sh`: `RESULT PASS test_libcontract 64/64`, `RESULT PASS test_contract_file 11/11`,
+- `run-tests.sh`: `RESULT PASS test_libcontract 72/72`, `RESULT PASS test_contract_file 11/11`,
   `RESULT PASS watchdog_suite`, `RESULT PASS arm_suite`, `RESULT PASS guardian_suite` and
   `SUMMARY 10/10 tests passed on qemu`. The log is saved under `evidence/runs/`.
 - `arbiter bench run` (about a minute): one line per check for each scenario, then
@@ -83,7 +99,7 @@ To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/def
 - [`docs/REQUIREMENTS_SUMMARY.md`](docs/REQUIREMENTS_SUMMARY.md): the requirement IDs cited in code, tests and commits.
 - [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md): each requirement, the code that implements it, its tests and where they passed.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): how the guardian decides, units, path checking, and leaving a keep-out zone.
-- [`evidence/`](evidence/): saved on-target run logs, bench reports with their raw records, and the host record.
+- [`evidence/`](evidence/): saved on-target run logs, bench reports with their raw records and each scenario's system log, the QEMU host-pause measurements ([`evidence/stall/`](evidence/stall/README.md)), and the host record.
 - [`host/arbiter/bench/`](host/arbiter/bench/): the fault bench: one module per scenario, and the independent checks.
 - [`qnx/samples/msgpass/msgpass.c`](qnx/samples/msgpass/msgpass.c): the message-passing sample.
 

@@ -1,8 +1,9 @@
 # Architecture
 
-Status: M1 in progress. This page describes what is built: the decision logic
-in `qnx/libcontract/`, the guardian in `qnx/guardian/` and the arm controller in
-`qnx/arm/` and the watchdog in `qnx/watchdog/`. The full M1 design (scheduling,
+Status: M2 in progress (2026-11-16; gateway, planner and logger next). This page
+describes what is built: the decision logic in `qnx/libcontract/`, the guardian in
+`qnx/guardian/`, the arm controller in `qnx/arm/` and the watchdog in
+`qnx/watchdog/`, each running as its own user. The full M1 design (scheduling,
 motion leases, timeouts, fault containment) is in `docs/DESIGN_M1_ADDENDUM.md`.
 
 **Startup order: watchdog, arm, guardian.** Each later process refuses to start
@@ -230,9 +231,22 @@ commands on `/dev/arbiter`, run by the operator console `arb-ctl`:
   **and** the operator resets (decision 8). The reset is the only path that
   blocks the guardian longer than a command's two sends; it exists only in
   `SAFE_STOP`, when nothing moves.
-- Until the per-process users of M2 P5, every Arbiter process runs as root; the
-  operator check is by user ID, so it holds already (the tests use uid 800 for
-  the operator and show root refused).
+- Root is not the operator: the check is by user ID (the tests use uid 800 for
+  the operator and show root refused), and every Arbiter process runs as its own
+  user (below).
+
+**Which stops need the operator.** The guardian and the arm together:
+
+| Stop | Caused by | Cleared by |
+| --- | --- | --- |
+| Guardian `HOLD`; the arm stops along its segment, not latched | No command within the silence timeout, or the submitter's open closed (the gateway died) | The next allowed command |
+| Arm stopped by its own lease | No renewal from the guardian for 10 ms (guardian stopped or stuck) | The next setpoint from the guardian |
+| Guardian `SAFE_STOP`; the arm braked and latched | Violation threshold, arm fault or send timeout, a watchdog trip, the watchdog lost, e-stop | Only the operator's reset (`arb-ctl reset` as the operator's user, with a watchdog running); then `HOLD`, then a new command |
+| Arm braked by the watchdog, or after losing the watchdog | The watchdog found the guardian dead or stuck, or the watchdog itself died or stopped | Only the guardian's reset message during that operator reset; until then the arm refuses every setpoint (TM-C4) |
+
+On QEMU a host pause of the virtual machine longer than 10 ms reaches the third
+and fourth rows: from inside the guest every process was silent, so the watchdog
+trips (TARGETS.md, "QEMU host pauses").
 
 ## The arm controller (`arb-arm`)
 
