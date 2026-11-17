@@ -1,0 +1,45 @@
+watchdog Nov 17 23:14:16.395          arb_watchdog.89489430                 main*     1  privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+watchdog Nov 17 23:14:16.395          arb_watchdog.89489430                 main      1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+watchdog Nov 17 23:14:17.407          arb_watchdog.89489430                 main      8  registered the arm, pid 89505815
+watchdog Nov 17 23:14:18.181          arb_watchdog.89489430                 main      7  trip: the arm stuck (heartbeats missing), pid 89505815; the other client was told
+watchdog Nov 17 23:14:18.181          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (1 so far)
+watchdog Nov 17 23:14:18.183          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (2 so far)
+watchdog Nov 17 23:14:18.184          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (3 so far)
+watchdog Nov 17 23:14:18.185          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (4 so far)
+watchdog Nov 17 23:14:18.186          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (5 so far)
+watchdog Nov 17 23:14:18.187          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (6 so far)
+watchdog Nov 17 23:14:18.188          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (7 so far)
+watchdog Nov 17 23:14:18.189          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (8 so far)
+watchdog Nov 17 23:14:18.190          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (9 so far)
+watchdog Nov 17 23:14:18.191          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (10 so far)
+watchdog Nov 17 23:14:18.192          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (11 so far)
+watchdog Nov 17 23:14:18.193          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (12 so far)
+watchdog Nov 17 23:14:18.194          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (13 so far)
+watchdog Nov 17 23:14:18.195          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (14 so far)
+watchdog Nov 17 23:14:18.196          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (15 so far)
+watchdog Nov 17 23:14:18.197          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (16 so far)
+watchdog Nov 17 23:14:18.420          arb_watchdog.89489430                 main      8  registered the guardian, pid 89538584
+watchdog Nov 17 23:14:19.205          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (1024 so far)
+watchdog Nov 17 23:14:20.229          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (2048 so far)
+watchdog Nov 17 23:14:21.253          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (3072 so far)
+watchdog Nov 17 23:14:22.277          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (4096 so far)
+watchdog Nov 17 23:14:23.301          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (5120 so far)
+watchdog Nov 17 23:14:24.325          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (6144 so far)
+watchdog Nov 17 23:14:25.349          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (7168 so far)
+watchdog Nov 17 23:14:26.373          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (8192 so far)
+watchdog Nov 17 23:14:27.397          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (9216 so far)
+watchdog Nov 17 23:14:28.421          arb_watchdog.89489430                 main      5  refused a registration, message or pulse not from its rightful source (10240 so far)
+arm Nov 17 23:14:17.407               arb_arm.89505815                 main*     1  privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arm Nov 17 23:14:17.407               arb_arm.89505815                 main      1  ready as arbiter_arm, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arm Nov 17 23:14:18.191               arb_arm.89505815                 main      6  watchdog lost (no beat for 10 control cycles): braked and latched until restart
+arm Nov 17 23:14:18.420               arb_arm.89505815                 main      8  bound the guardian, pid 89538584: only it may command the arm
+arm Nov 17 23:14:20.855               arb_arm.89505815                 main      5  refused a setpoint, malformed message or forged pulse (1 so far)
+arm Nov 17 23:14:20.855               arb_arm.89505815                 main      6  guardian SAFE_STOP: braked and latched (1 so far)
+guardian Nov 17 23:14:18.419          arb_guardian.89538584                 main*     1  privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+guardian Nov 17 23:14:18.420          arb_guardian.89538584                 main      1  ready on /dev/arbiter, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+guardian Nov 17 23:14:18.420          arb_guardian.89538584                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 17 23:14:20.855          arb_guardian.89538584                 main      3  state SAFE_STOP, cause arm timeout (a bounded send to the arm failed)
+guardian Nov 17 23:14:20.855          arb_guardian.89538584                 main      4  a bounded send to the arm failed or timed out (1 so far)
+logd Nov 17 23:14:19.433              arb_logd.89563161                 main*     1  privileges dropped: uid 813 gid 813; kept PRIORITY 1-30; refused as expected: setuid(0), priority 31, fork()
+logd Nov 17 23:14:19.433              arb_logd.89563161                 main      1  ready, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+logd Nov 17 23:14:20.853              arb_logd.89563161                 main      8  mapped the arm's telemetry read-only, to relay it to the gateway
