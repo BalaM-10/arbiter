@@ -1,0 +1,120 @@
+{
+ "format": 1,
+ "created": "2026-11-17T14:07:44-06:00",
+ "commit": "a8a5151",
+ "contract_sha256": "8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3",
+ "target": {
+  "name": "qemu_secpol",
+  "uname": "QNX arbiter-secpol 8.0.0 2026/02/27-11:02:56EST x86pc x86_64",
+  "pidin_info": "CPU:X86_64 Release:8.0.0  FreeMem:857MB/1023MB BootTime:Nov 17 19:59:59 UTC 2026\nProcesses: 22, Threads: 108\nProcessor1: 656046 Intel 686 F6M165S2 2820MHz FPU \nProcessor2: 656046 Intel 686 F6M165S2 2819MHz FPU",
+  "policy": "policy_id:dc122949  immutable"
+ },
+ "builds": {
+  "arch": "x86_64",
+  "target": {
+   "arb-guardian": "a8432e22caf679ddac8cf38901ebc95afa7b1924146393ed8c3d2f407d88e538",
+   "arb-arm": "03e7e4b823734fda753a0ab1662b43ad2afb025d892d582fdb4a6cf8a5637576",
+   "arb-watchdog": "115f1e987459b0daff22aaa176d6456512542613985a81ce1cfb269fbb78508d",
+   "arb-logd": "76d78e3dad7a9614da0f5099bc7dc700ee3b9ddeeef0e9e27ace98939af51c9c",
+   "arb-gateway": "956ef98839dbfc2ca5964bbf56f9ec6535576afa1c8de9b9dcf08a74386411b1",
+   "arb-inject": "d0cfff63315331bfa4c33cb28fc6bbc732f4887a1672e6d2dcf4cfaa8f1b6479",
+   "arb-ctl": "69e244a17fa3ad509d8bc9cce59e7aea1e4931f5beb870de3809dd6ab6413058"
+  },
+  "host": {
+   "arb-guardian": "a8432e22caf679ddac8cf38901ebc95afa7b1924146393ed8c3d2f407d88e538",
+   "arb-arm": "03e7e4b823734fda753a0ab1662b43ad2afb025d892d582fdb4a6cf8a5637576",
+   "arb-watchdog": "115f1e987459b0daff22aaa176d6456512542613985a81ce1cfb269fbb78508d",
+   "arb-logd": "76d78e3dad7a9614da0f5099bc7dc700ee3b9ddeeef0e9e27ace98939af51c9c",
+   "arb-gateway": "956ef98839dbfc2ca5964bbf56f9ec6535576afa1c8de9b9dcf08a74386411b1",
+   "arb-inject": "d0cfff63315331bfa4c33cb28fc6bbc732f4887a1672e6d2dcf4cfaa8f1b6479",
+   "arb-ctl": "69e244a17fa3ad509d8bc9cce59e7aea1e4931f5beb870de3809dd6ab6413058"
+  }
+ },
+ "bench": {
+  "passed": 5,
+  "total": 5,
+  "scenarios": {
+   "F1": true,
+   "F4": true,
+   "F5": true,
+   "F6": true,
+   "F9": true
+  }
+ },
+ "logs": [
+  {
+   "scenario": "F1",
+   "log": "raw/F1.evidence.log",
+   "anchor": "30116ce7b20f0902d3fce24b04e7b81c960b3c7c43bccd49a893d9534f9995f3",
+   "records": 81,
+   "lost": 0,
+   "contract": "8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3"
+  },
+  {
+   "scenario": "F4",
+   "log": "raw/F4.evidence.log",
+   "anchor": "4de88b50afd15fcf1dcd41e62ea7e928912f6dd33372e24ca24e80c80f65d576",
+   "records": 44,
+   "lost": 0,
+   "contract": "8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3"
+  },
+  {
+   "scenario": "F5",
+   "log": "raw/F5.evidence.log",
+   "anchor": "1156b8c68b687e3d6fb66c60c243252ce33714e18eb123194d3509ff4b4a2bf9",
+   "records": 19,
+   "lost": 0,
+   "contract": "8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3"
+  },
+  {
+   "scenario": "F6",
+   "log": "raw/F6.evidence.log",
+   "anchor": "2392569c624df7b73841b096df08b22b38b6660d90d867874213b1ef90b46b7f",
+   "records": 10,
+   "lost": 0,
+   "contract": "8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3"
+  },
+  {
+   "scenario": "F9",
+   "log": "raw/F9.evidence.log",
+   "anchor": "058ea30cdd5fe6ee8225fc00e51b3e9a947a9a8078ff2cb834a4dd550f0f3663",
+   "records": 7,
+   "lost": 0,
+   "contract": "8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3"
+  }
+ ],
+ "files": {
+  "raw/F1.evidence.anchor": "57736b24ff06b33ba41183cc0e57bf4dd12f3178947330487b53232c8342e87c",
+  "raw/F1.evidence.log": "38bc1b721e132b7fb0890a4ef71269efb00af1d91bb6625604aafd4f68f925b2",
+  "raw/F1.out.gz": "1fa1fc10e910d604ae0c8d198ab169ea9a64ae5073555a8dcf20b3e7eadd19f3",
+  "raw/F1.planner.gz": "55d972a061fb3294df10b28aea379c31e09a965d05a16e42325edbddfdb349a0",
+  "raw/F1.script": "c4ebc462c47d4ec8bd1468cb8dee74cceba55a55240d79b5f3c02f2de3c04b26",
+  "raw/F1.slog2.txt": "d145a674068b1b5c521a271db7fb38dfe50e3e1d1fea58793edee4c1e3048695",
+  "raw/F4.evidence.anchor": "f07a45e8c01640d41530e0ea9c16bf69e071c19f4326679f09ac5ac4d7143b66",
+  "raw/F4.evidence.log": "31fe89538365794924216551e766b06353c5f41ae2b78f64a3ab7bd634de15d0",
+  "raw/F4.out.gz": "b7c591be99e6256e7b1a1b99c7de0d4695c19e97a3ded0855244ecdc5b7ad5be",
+  "raw/F4.planner.gz": "33afc1447e0e26aff0c1d7323e38fa5b6a5284dd65dca24224d64eac83c8fd64",
+  "raw/F4.script": "70c672ea2f5cb60c56256a167935a937e897b2b8c9acd328a2d059152cb9a3c6",
+  "raw/F4.slog2.txt": "e0ed20bfd55ca61b36674bf1369006017e965f8dd7cec9255914d3c57e28644d",
+  "raw/F5.evidence.anchor": "6c12fa356a1a8ad4ed584fd46c7bb5ae99669f2a18c2146fc90cb7be49b2c4d2",
+  "raw/F5.evidence.log": "cfa42634d5853b413250baccb25079a533a51b19d5a27b243318cc5a7eb0cc33",
+  "raw/F5.out.gz": "0e843c851ecb74ba1b1a2a36e87720459c8956adb8e4e9aef56711e15994c446",
+  "raw/F5.planner.gz": "1142ab897788169fbc4ab559d49ca039d4d38ba239bfb9b844d6949791f43e95",
+  "raw/F5.script": "94309e3c5bfa1ab1297f53e7946a30d39b1c66947d530b7babbbbafec59ca88c",
+  "raw/F5.slog2.txt": "c141ae0d1ab2e211044435536baa01d346f0d5e06fb0a2d35b6a884cc2dbd526",
+  "raw/F6.evidence.anchor": "b14af873c122e0d748f121060d4c2de23f8ef799e891b1e57f2088a044049077",
+  "raw/F6.evidence.log": "ca03a905ed6350b1d64298e74e42de58784cc71c462e9ad8cebae10202642d01",
+  "raw/F6.out.gz": "dd408772587765a4fd21d77cda0d27e14788abca0be27bfd0f0e9c7bb5042393",
+  "raw/F6.planner.gz": "913e972cb3fb8d7e6829cac944d4d0a1f2e09e8a85344f82c476e22d58782a75",
+  "raw/F6.script": "dc34d7e549f0f821f1394b35ecc723d90a848101cf2c6d0a8f724db8cd0e3bee",
+  "raw/F6.slog2.txt": "096e030cae445f437e7734d2f0027c36a8992d3572662cffe6cce4de8b70473d",
+  "raw/F9.evidence.anchor": "a0d64a8b34c19d4791280464b330e0bd261000a7c0fb74726eb7e71cfa5ef9a8",
+  "raw/F9.evidence.log": "16857acc5b05db123881a0e595dec38e51b58554cf2a81659024fc33a58c6bb7",
+  "raw/F9.out.gz": "9ae41e9ee92b505c20f2a53662b73207051d6b2d50dd4afbc96891ad62fc32d0",
+  "raw/F9.planner.gz": "2311223452b5b421ae510cf5a46e07e446cd1980c72e6618fe41b66970e6a405",
+  "raw/F9.script": "486b02a8143a641fd0cdcbf90cf52dbb18be8ad5a36aef0f2ec2edb382d06b8d",
+  "raw/F9.slog2.txt": "36f17bf9ca149411856c44f8046d973ab4ef9a0214f7076de0eebf171f939c96",
+  "report.html": "d0bac24eed3476b22bb3e8bbf59d27a38e7d058a911aad33c067b32089859fda",
+  "report.json": "79071f831b6f6d460e1e7595c6773f28df5170c8020dca9655a367d28a401fce"
+ }
+}

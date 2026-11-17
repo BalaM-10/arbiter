@@ -23,7 +23,7 @@ do. What Arbiter defends against, and what it does not, is in
 
 | Works today, on QNX 8.0 in QEMU | Not built yet |
 | --- | --- |
-| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | The evidence packet (FR-E3) |
+| QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | |
 | QEMU x86_64 target built with `mkqnximage`, reached over SSH | Fault scenarios F2, F3, F7, F8, F10, F12 to F15 in the bench (M2 P7) |
 | Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target, timing measurements, dashboard (M3) |
 | `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 72 tests on the host and on QNX; keep-out checks both links of the arm as segments | |
@@ -31,7 +31,7 @@ do. What Arbiter defends against, and what it does not, is in
 | Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link; commands only from the gateway's user, one submitter at a time, HOLD at once when it goes, last sequence number published | |
 | Arm controller (`arb-arm`): 1 kHz loop on its own timer, simulated 2-joint arm, its own speed and limit checks, guardian-only sender binding, 10 ms motion lease, brake on guardian loss, read-only telemetry; end to end with the guardian | |
 | Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred. The arm and the guardian accept its beat and trip only on the connection they registered with, so a forged pulse with the right value is refused | |
-| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, sent from the host through the planner protocol and the gateway, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-17-qemu/133909/report.html) | |
+| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F4 joint limit, F5 keep-out, F6 over-speed, F9 replay, sent from the host through the planner protocol and the gateway, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 5/5](evidence/bench/2026-11-17-qemu/135730/report.html) | |
 | Watchdog failure is fail-safe (M2): if the watchdog dies or freezes, the arm brakes and latches and the guardian enters SAFE_STOP, each on its own; a watchdog that comes back restarts nothing | |
 | Emergency stop and operator reset (M2): `arb-ctl estop` from any client stops everything; `arb-ctl reset` works only for the operator's user ID, and only once a watchdog is running | |
 | Isolation without the security policy (M2): every process runs as its own user; the trusted ones drop root and keep only the abilities they need, and check at startup that the rest is refused; the arm accepts only the guardian's user, and the guardian and the arm check who serves a name before trusting it. F11 (bypass, TM-C2) passes every case with the policy off, including an untrusted user submitting commands | |
@@ -40,6 +40,7 @@ do. What Arbiter defends against, and what it does not, is in
 | Evidence log (M2 P6): the guardian records every decision with its latency in a ring only the logger may read; `arb-logd` writes a SHA-256 hash-chained log (QNX Cryptography Library) and declares anything it lost; `arbiter evidence verify` recomputes the chain on the host and names the first edited, removed or reordered line. Every bench scenario verifies the target's log. Format: [`docs/EVIDENCE_LOG.md`](docs/EVIDENCE_LOG.md) | |
 | Gateway (`arb-gateway`, M2 P6): a planner connects over TCP and speaks the 64-byte frames of [`docs/PROTOCOL.md`](docs/PROTOCOL.md); each command is passed to the guardian as the gateway's user and its verdict comes back, with read-only observers getting a copy, and the arm's joint state about every 10 ms, relayed by the evidence logger so the gateway maps no trusted memory. One planner at a time; any malformed frame ends the session and is never forwarded; when the planner leaves the guardian holds at once, and a reconnecting planner continues at the guardian's last sequence number + 1. The gateway runs below every trusted process as its own user (and type, on the policy image), listens on the target's wired interface only (never every address), and after its startup the network stack refuses it any new socket | |
 | Scripted planner (`arbiter planner`, M2 P6): plays the fixed pick-and-place path from the host to the gateway, resuming at the guardian's last sequence number + 1. It is never given the contract and reads no key; `arbiter planner e2e` runs it end to end against QNX and checks the target's evidence log | |
+| Evidence packet (FR-E3): every bench run writes `packet.json` next to its report: the contract hash, each binary's SHA-256 as the target hashes it and as built, the target and its security policy, the results, every scenario's hash-chained log with its anchor, and every file's hash; `arbiter evidence verify-packet <folder>` checks it all | |
 | Message-passing sample from M0: send/receive/reply, malformed messages, pulses, sender identity (7 checks) | |
 
 On QEMU every result proves function only, never timing; timing claims will
@@ -86,7 +87,7 @@ Expected:
   `SUMMARY 11/11 tests passed on qemu`. The log is saved under `evidence/runs/`.
 - `arbiter bench run` (about a minute): one line per check for each scenario, then
   `SUMMARY bench 5/5 scenarios passed on qemu` and the path of `report.html` under
-  `evidence/bench/`. Open it: each scenario states its pass condition, lists every check
+  `evidence/bench/`, then `packet: PASS ... packet.json` (the evidence packet, checked). Open it: each scenario states its pass condition, lists every check
   with what decided it, and shows a top view of the arm's path next to the operator's hand
   area. On QEMU, F1 measures and prints control-tick spacing but does not judge it; the
   same check is strict on the Pi 5 (see [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md), F1).

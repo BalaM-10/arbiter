@@ -1,0 +1,5 @@
+# arbiter evidence verify-packet — 2026-11-17T13:59:58-06:00
+# commit: bfeb47a
+$ .venv/bin/arbiter evidence verify-packet evidence/bench/2026-11-17-qemu/135730
+PASS evidence/bench/2026-11-17-qemu/135730: 32 files hashed; 5 evidence logs verified against their anchors and the contract; 7 binaries: target = build
+exit=0
