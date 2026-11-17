@@ -3,12 +3,16 @@
  *
  * Reads the guardian's decision ring (qnx/common/arb_decisions.h, mapped
  * read-only) every 10 ms and writes a SHA-256 hash-chained text log, format
- * docs/EVIDENCE_LOG.md. The guardian never waits for it: if the logger is slow,
+ * docs/EVIDENCE_LOG.md. It also relays the arm's newest telemetry sample to the
+ * gateway (arb_logd_proto.h, decision D1): it maps the arm's ring read-only,
+ * which the gateway's user may not, and answers each request at once, so the
+ * gateway shares no memory with a trusted process (NFR-I1). The guardian never waits for it: if the logger is slow,
  * stopped or dead, the ring overwrites the oldest records and the logger, when
  * it runs again, declares exactly what it lost in a G line (FR-E5). The latest
  * hash is kept in <log>.anchor and logged to slog2 at exit (TM-C6).
  *
- *   arb-logd <contract.bin> <log>     run until SIGTERM, then write the E line
+ *   arb-logd <contract.bin> <log>     run until SIGTERM, then write the E line;
+ *                                     serves ARB_LOGD_NAME meanwhile
  *   arb-logd --selftest               print sha256("abc") (NIST FIPS 180-2 vector)
  *
  * Not one of the trusted four (guardian, arm, watchdog, libcontract), but kept
@@ -29,7 +33,10 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/dispatch.h>
+#include <sys/iomsg.h>
 #include <sys/mman.h>
+#include <sys/neutrino.h>
 #include <qcrypto/qcrypto.h>
 
 #include "arb_contract.h"
@@ -37,14 +44,18 @@
 #include "arb_hex.h"
 #include "arb_ids.h"
 #include "arb_log.h"
+#include "arb_logd_proto.h"
+#include "arb_own_pulse.h"
 #include "arb_prio.h"
 #include "arb_privdrop.h"
+#include "arb_pulses.h"
 
 #define POLL_MS        10
 #define LINE_MAX_LEN   384u
 #define OUT_BUF        (256u * 1024u)       /* flushed before it can overflow */
 #define CONTRACT_MAX   (64u * 1024u)
 #define RING_WAIT_MS   5000                 /* the guardian creates the ring at startup */
+#define RECV_ERRORS_MAX 100
 
 static const arb_dec_ring_t *g_ring;
 static qcrypto_ctx_t *g_sha;
@@ -56,6 +67,10 @@ static uint64_t g_records, g_lost;
 static char g_buf[OUT_BUF];
 static size_t g_len;
 static volatile sig_atomic_t g_stop;
+static const arb_telem_t *g_telem;            /* the arm's ring, mapped on the first request */
+static int g_tick_scoid = -1;                 /* our own timer's connection (arb_own_pulse.h) */
+static uint64_t g_relayed, g_relay_refused, g_foreign;
+static int g_chid = -1;
 
 static void on_term(int sig)
 {
@@ -275,6 +290,86 @@ static int ring_open(void)
     return -1;
 }
 
+/* D1: map the arm's telemetry read-only, on demand (the arm may start after the
+ * logger, and the guardian's tests run with a stand-in arm that has none). The
+ * ring is 0640 with the logger's group, so the logger's user may open it. */
+static void telem_open(void)
+{
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_open.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/mmap.html */
+    const int fd = shm_open(ARB_TELEM_NAME, O_RDONLY, 0);
+    const void *p;
+
+    if (fd == -1) {
+        return;
+    }
+    p = mmap(NULL, sizeof(arb_telem_t), PROT_READ, MAP_SHARED, fd, 0);
+    (void)close(fd);
+    if (p == MAP_FAILED) {
+        return;
+    }
+    if (((const arb_telem_t *)p)->magic != ARB_TELEM_MAGIC || ((const arb_telem_t *)p)->version != ARB_TELEM_VERSION) {
+        (void)munmap((void *)p, sizeof(arb_telem_t));
+        return;
+    }
+    g_telem = p;
+    arb_log_c(ARB_LOG_CLIENT, SLOG2_INFO, "mapped the arm's telemetry read-only, to relay it to the gateway");
+}
+
+/* The arm's newest sample: read head, copy the slot before it, check its index
+ * (the arm may have overwritten it meanwhile: then no sample this time). */
+static void relay(rcvid_t rcvid)
+{
+    arb_logd_telem_rep_t rep;
+
+    memset(&rep, 0, sizeof rep);
+    rep.version = (uint16_t)ARB_LOGD_PROTO_VERSION;
+    if (g_telem == NULL) {
+        telem_open();
+    }
+    if (g_telem != NULL) {
+        const uint64_t head = atomic_load_explicit(&((arb_telem_t *)g_telem)->head, memory_order_acquire);
+        if (head > 0) {
+            rep.s = g_telem->s[(head - 1u) % ARB_TELEM_SLOTS];
+            rep.head = head;
+            rep.have = rep.s.index == head - 1u;
+            if (!rep.have) {
+                memset(&rep.s, 0, sizeof rep.s);
+            }
+        }
+    }
+    g_relayed++;
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgreply.html */
+    (void)MsgReply(rcvid, EOK, &rep, sizeof rep);
+}
+
+/* One message: a well-formed telemetry request gets the newest sample; anything
+ * else an error, after its length is checked and before any field is used. */
+static void serve(rcvid_t rcvid, const void *msg, const struct _msg_info *info)
+{
+    const arb_logd_telem_req_t *req = msg;
+    uint16_t type;
+
+    if (info->srcmsglen < (ssize64_t)sizeof type) {
+        g_relay_refused++;
+        (void)MsgError(rcvid, EBADMSG);
+        return;
+    }
+    memcpy(&type, msg, sizeof type);
+    if (type == _IO_CONNECT) {
+        (void)MsgReply(rcvid, EOK, NULL, 0);            /* defensive, as the arm */
+        return;
+    }
+    if (type != ARB_LOGD_MSG_TELEM || info->srcmsglen != (ssize64_t)sizeof *req ||
+        req->version != ARB_LOGD_PROTO_VERSION || req->reserved != 0) {
+        g_relay_refused++;
+        /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgerror.html */
+        (void)MsgError(rcvid, type <= _IO_MAX ? ENOSYS : EBADMSG);
+        return;
+    }
+    relay(rcvid);
+}
+
 int main(int argc, char **argv)
 {
     char contract[65], body[192];
@@ -336,6 +431,44 @@ int main(int argc, char **argv)
         arb_log_fail("sigaction", errno);
         return 3;
     }
+    /* D1: our own channel (no priority inheritance: a request from the gateway at
+     * priority 10 is served at 30; disconnect pulses), our name for the gateway,
+     * and a 10 ms timer pulse that paces the draining. Made while still root.
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/channelcreate.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/dispatch_create_channel.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_attach.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectattach.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/timer_create.html
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/timer_settime.html */
+    {
+        struct sigevent ev;
+        struct itimerspec its;
+        name_attach_t *attach;
+        dispatch_t *dpp;
+        timer_t timer;
+        int coid;
+
+        g_chid = ChannelCreate(_NTO_CHF_FIXED_PRIORITY | _NTO_CHF_DISCONNECT);
+        dpp = g_chid == -1 ? NULL : dispatch_create_channel(g_chid, 0);
+        attach = dpp == NULL ? NULL : name_attach(dpp, ARB_LOGD_NAME, 0);
+        if (attach == NULL || attach->chid != g_chid) {
+            arb_log_fail("channel and name_attach " ARB_LOGD_NAME, attach == NULL ? errno : EINVAL);
+            return 5;
+        }
+        coid = ConnectAttach(0, 0, g_chid, _NTO_SIDE_CHANNEL, 0);
+        if (coid == -1) {
+            arb_log_fail("ConnectAttach", errno);
+            return 5;
+        }
+        SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_LOGGER, ARB_PULSE_LOGD_TICK, 0);
+        memset(&its, 0, sizeof its);
+        its.it_value.tv_nsec = POLL_MS * 1000000L;
+        its.it_interval.tv_nsec = POLL_MS * 1000000L;
+        if (timer_create(CLOCK_MONOTONIC, &ev, &timer) == -1 || timer_settime(timer, 0, &its, NULL) == -1) {
+            arb_log_fail("timer", errno);
+            return 5;
+        }
+    }
     /* NFR-I5: root is needed no further (the files are open, the ring mapped). */
     {
         char report[ARB_PRIVDROP_REPORT_LEN];
@@ -369,13 +502,48 @@ int main(int argc, char **argv)
     printf("arb-logd: ready, %s, contract sha256 %s\n", argv[2], contract);
     arb_log_s(ARB_LOG_START, SLOG2_INFO, "ready, contract sha256 %s", contract);
 
-    while (!g_stop) {                    /* until SIGTERM; each pass is bounded by the ring size */
-        const struct timespec d = { 0, POLL_MS * 1000000L };
-        if (drain() != 0) {
-            arb_log_fail("write the evidence log", errno);
-            return 6;
+    /* One message or pulse per pass, until SIGTERM (which interrupts the receive).
+     * Each pass is bounded: a drain by the ring size, a request by one sample.
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgreceive.html */
+    {
+        int recv_errors = 0;
+
+        while (!g_stop) {
+            union {
+                struct _pulse        pulse;
+                arb_logd_telem_req_t req;
+                uint8_t              raw[64];
+            } msg;
+            struct _msg_info info;
+            const rcvid_t rcvid = MsgReceive(g_chid, &msg, sizeof msg, &info);
+
+            if (rcvid == -1) {
+                if (errno == EINTR) {
+                    continue;                /* SIGTERM: the loop condition ends it */
+                }
+                if (++recv_errors >= RECV_ERRORS_MAX) {
+                    arb_log_fail("MsgReceive, 100 consecutive errors; exiting", errno);
+                    return 7;
+                }
+                continue;
+            }
+            recv_errors = 0;
+            if (rcvid > 0) {
+                serve(rcvid, &msg, &info);
+                continue;
+            }
+            if (msg.pulse.code == ARB_PULSE_LOGD_TICK && arb_own_pulse(&g_tick_scoid, msg.pulse.scoid)) {
+                if (drain() != 0) {
+                    arb_log_fail("write the evidence log", errno);
+                    return 6;
+                }
+            } else if (msg.pulse.code == _PULSE_CODE_DISCONNECT) {
+                /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectdetach.html */
+                (void)ConnectDetach(msg.pulse.scoid);
+            } else if (msg.pulse.code != _PULSE_CODE_UNBLOCK) {
+                g_foreign++;                 /* not our tick: ignored (M1-J6) */
+            }
         }
-        (void)nanosleep(&d, NULL);
     }
     if (drain() != 0) {
         arb_log_fail("write the evidence log", errno);
@@ -390,6 +558,8 @@ int main(int argc, char **argv)
     arb_log_s(ARB_LOG_START, SLOG2_INFO, "stopped; last hash (anchor) %s", g_prev);
     arb_log_2(ARB_LOG_START, SLOG2_INFO, "stopped: %lld records, %lld declared lost", (int64_t)g_records,
               (int64_t)g_lost);
+    arb_log_3(ARB_LOG_CLIENT, SLOG2_INFO, "relay: %lld telemetry requests answered, %lld refused, %lld foreign pulses",
+              (int64_t)g_relayed, (int64_t)g_relay_refused, (int64_t)g_foreign);
     printf("arb-logd: stopped, %llu records, %llu lost, last hash %s\n", (unsigned long long)g_records,
            (unsigned long long)g_lost, g_prev);
     qcrypto_release_ctx(g_sha);

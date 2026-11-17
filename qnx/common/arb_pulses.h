@@ -33,9 +33,10 @@
  * delivered every ARB_WD_BEAT_PERIOD_MS, value = the client's token: */
 #define ARB_PULSE_ARM_WD_BEAT      (_PULSE_CODE_MINAVAIL + 11)  /* watchdog -> arm */
 #define ARB_PULSE_GUARDIAN_WD_BEAT (_PULSE_CODE_MINAVAIL + 12)  /* watchdog -> guardian */
+#define ARB_PULSE_LOGD_TICK        (_PULSE_CODE_MINAVAIL + 13)  /* the logger's own 10 ms timer (drain the decision ring) */
 
 _Static_assert(ARB_PULSE_DEMO >= _PULSE_CODE_MINAVAIL && ARB_PULSE_DEMO <= _PULSE_CODE_MAXAVAIL,
                "pulse code outside the user range");
-_Static_assert(ARB_PULSE_GUARDIAN_WD_BEAT <= _PULSE_CODE_MAXAVAIL, "pulse code outside the user range");
+_Static_assert(ARB_PULSE_LOGD_TICK <= _PULSE_CODE_MAXAVAIL, "pulse code outside the user range");
 
 #endif /* ARB_PULSES_H */

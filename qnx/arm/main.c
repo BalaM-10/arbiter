@@ -472,12 +472,20 @@ static int telemetry_create(void)
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/ftruncate.html
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/mmap.html */
     (void)shm_unlink(ARB_TELEM_NAME);   /* a stale ring from an earlier run */
-    fd = shm_open(ARB_TELEM_NAME, O_RDWR | O_CREAT | O_EXCL, 0644);   /* readers get read access only */
+    /* NFR-I1, D1: mode 0640, owned by the arm's user and the logger's group, set
+     * while still root: the logger may read it (and relays it to the gateway by
+     * message passing), the gateway's user may not open it. Root (the test tools
+     * and the bench) still reads it. As the guardian's decision ring.
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/fchown.html */
+    fd = shm_open(ARB_TELEM_NAME, O_RDWR | O_CREAT | O_EXCL, 0640);
     if (fd == -1) {
         return -1;
     }
-    if (ftruncate(fd, (off_t)sizeof(arb_telem_t)) == -1) {
+    if (fchown(fd, (uid_t)ARB_UID_ARM, (gid_t)ARB_UID_LOGD) == -1 || ftruncate(fd, (off_t)sizeof(arb_telem_t)) == -1) {
+        const int e = errno;
         (void)close(fd);
+        (void)shm_unlink(ARB_TELEM_NAME);
+        errno = e;
         return -1;
     }
     g_telem = mmap(NULL, sizeof(arb_telem_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);

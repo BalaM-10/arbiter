@@ -91,7 +91,7 @@ $(OUT)/test_guardian: tests/test_guardian.c tests/arb_test.h tests/arb_as_gatewa
 	$(CC) $(CFLAGS) -o $@ $<
 
 LOGD_SRC := logd/main.c common/arb_privdrop.c $(LIBCONTRACT_SRC)
-LOGD_HDR := common/arb_decisions.h common/arb_hex.h common/arb_ids.h common/arb_log.h common/arb_prio.h common/arb_privdrop.h $(LIBCONTRACT_HDR)
+LOGD_HDR := common/arb_pulses.h common/arb_logd_proto.h common/arb_own_pulse.h common/arb_telemetry.h common/arb_decisions.h common/arb_hex.h common/arb_ids.h common/arb_log.h common/arb_prio.h common/arb_privdrop.h $(LIBCONTRACT_HDR)
 
 $(OUT)/arb-logd: $(LOGD_SRC) $(LOGD_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $(LOGD_SRC) $(LDLIBS) $(SLOG2_LIBS) -lqcrypto
@@ -169,7 +169,7 @@ $(OUT)/policy_suite.sh: tests/policy_suite.sh | $(OUT)
 SOCKET_LIBS := -lsocket
 
 # The gateway (untrusted): sockets, slog2, and the shared privilege drop.
-$(OUT)/arb-gateway: gateway/main.c common/arb_privdrop.c common/arb_privdrop.h common/arb_net_proto.h common/arb_devctl.h common/arb_log.h common/arb_ids.h common/arb_prio.h $(LIBCONTRACT_HDR) | $(OUT)
+$(OUT)/arb-gateway: gateway/main.c common/arb_privdrop.c common/arb_privdrop.h common/arb_net_proto.h common/arb_logd_proto.h common/arb_telemetry.h common/arb_devctl.h common/arb_log.h common/arb_ids.h common/arb_prio.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ gateway/main.c common/arb_privdrop.c $(SLOG2_LIBS) $(SOCKET_LIBS)
 
 $(OUT)/test_gateway: tests/test_gateway.c tests/arb_test.h common/arb_net_proto.h common/arb_devctl.h common/arb_telemetry.h $(LIBCONTRACT_HDR) | $(OUT)

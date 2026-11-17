@@ -15,7 +15,8 @@
  *   - it listens as root, then drops to its own user with nothing kept but its
  *     priority (NFR-I5). After the drop it cannot open any new socket, which it
  *     checks at startup (evidence/runs/2026-11-17-qemu/gateway-net-privdrop-probe.log);
- *   - it maps no trusted memory (NFR-I1);
+ *   - it maps no trusted memory (NFR-I1): the arm's joint state comes from the
+ *     evidence logger by message passing, each send bounded (decision D1);
  *   - it never blocks on a client: non-blocking sockets and a bounded send queue
  *     per connection (PROTOCOL.md, back-pressure);
  *   - when the planner leaves, its submit handle closes and the guardian moves
@@ -45,17 +46,22 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/dispatch.h>
+#include <sys/neutrino.h>
 #include <sys/socket.h>
 
 #include "arb_devctl.h"
 #include "arb_ids.h"
 #include "arb_log.h"
+#include "arb_logd_proto.h"
 #include "arb_net_proto.h"
 #include "arb_prio.h"
 #include "arb_privdrop.h"
 
 #define FRAMES_PER_WAKE  8                   /* frames read from one client per poll wake-up */
 #define POLL_FDS         (2 + 1 + ARB_NET_OBSERVERS_MAX)
+#define LOGD_TIMEOUT_NS  20000000ull          /* one relay request: 20 ms at most */
+#define LOGD_RETRY_MS    1000                 /* a missing logger is looked for once a second */
 
 typedef struct {
     int             fd;                      /* -1: slot free */
@@ -74,6 +80,9 @@ static int g_listen_planner = -1, g_listen_obs = -1;
 static int g_status_fd = -1;                 /* /dev/arbiter, read only: status and nothing else */
 static int g_submit_fd = -1;                 /* /dev/arbiter, read-write: open only during a planner session */
 static uint32_t g_sessions;
+static int g_logd = -1;                      /* connection to the logger's relay, or -1 */
+static int64_t g_logd_retry_ms;              /* when to look for the logger again */
+static uint64_t g_telem_last = UINT64_MAX;   /* index of the last sample sent */
 static arb_status_t g_last;                  /* the status last sent in a STATE frame */
 static int g_have_last;
 static struct {                              /* counted, and logged after each wake-up */
@@ -296,6 +305,66 @@ static void planner_end(void)
         (void)close(g_submit_fd);
         g_submit_fd = -1;
     }
+}
+
+/* ------------------------------------------------------------ telemetry */
+
+/* D1: the arm's newest sample, from the evidence logger, which maps the arm's
+ * ring read-only (the gateway's user may not open it, NFR-I1). Each request is
+ * bounded with TimerTimeout(), so a stopped logger delays the gateway by 20 ms
+ * at most; a logger that is gone is looked for again once a second.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_open.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_close.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/t/timertimeout.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgsend.html */
+static void telemetry_tick(void)
+{
+    const arb_logd_telem_req_t req = { (uint16_t)ARB_LOGD_MSG_TELEM, (uint16_t)ARB_LOGD_PROTO_VERSION, 0 };
+    const uint64_t timeout = LOGD_TIMEOUT_NS;
+    arb_logd_telem_rep_t rep;
+    arb_net_frame_t f;
+    long rc;
+
+    if (g_logd == -1) {
+        if (now_ms() < g_logd_retry_ms) {
+            return;
+        }
+        g_logd = name_open(ARB_LOGD_NAME, 0);
+        if (g_logd == -1) {
+            g_logd_retry_ms = now_ms() + LOGD_RETRY_MS;
+            return;
+        }
+        arb_log_c(ARB_LOG_CLIENT, SLOG2_INFO, "connected to the logger's telemetry relay");
+    }
+    memset(&rep, 0, sizeof rep);
+    rc = TimerTimeout(CLOCK_MONOTONIC, _NTO_TIMEOUT_SEND | _NTO_TIMEOUT_REPLY, NULL, &timeout, NULL);
+    if (rc != -1) {
+        rc = MsgSend(g_logd, &req, sizeof req, &rep, sizeof rep);
+    }
+    if (rc == -1 || rep.version != ARB_LOGD_PROTO_VERSION) {
+        arb_log_1(ARB_LOG_FAULT, SLOG2_NOTICE, "telemetry relay request failed (errno %lld): reconnecting later",
+                  (int64_t)errno);
+        (void)name_close(g_logd);
+        g_logd = -1;
+        g_logd_retry_ms = now_ms() + LOGD_RETRY_MS;
+        return;
+    }
+    if (!rep.have || rep.s.index == g_telem_last) {
+        return;
+    }
+    g_telem_last = rep.s.index;
+    frame_init(&f, (uint8_t)ARB_NET_TELEMETRY);
+    f.telemetry.index = rep.s.index;
+    f.telemetry.t_ns = rep.s.t_ns;
+    f.telemetry.pos_urad[0] = rep.s.pos_urad[0];
+    f.telemetry.pos_urad[1] = rep.s.pos_urad[1];
+    f.telemetry.vel_urad_s[0] = rep.s.vel_urad_s[0];
+    f.telemetry.vel_urad_s[1] = rep.s.vel_urad_s[1];
+    f.telemetry.segment = rep.s.segment;
+    f.telemetry.arm_state = rep.s.state;
+    f.telemetry.lease_ok = rep.s.lease_ok;
+    send_to(&g_planner, &f);
+    send_to_observers(&f);
 }
 
 /* ---------------------------------------------------------------- frames */
@@ -716,6 +785,7 @@ int main(int argc, char **argv)
             }
             if (any_client()) {
                 state_changed(0);
+                telemetry_tick();
             }
         }
         if (g_planner.fd != -1 && conn_flush(&g_planner) != 0) {

@@ -1,7 +1,10 @@
 /*
  * Arm telemetry (FR-A6): a ring of per-cycle samples in shared memory, written
- * only by the arm controller and mapped read-only by readers (tests, bench, later
- * the gateway). Single writer, lock-free: readers never block the arm.
+ * only by the arm controller and mapped read-only by readers: the evidence
+ * logger, which relays the newest sample to the gateway by message passing
+ * (arb_logd_proto.h, decision D1), and root's test tools and bench. Mode 0640,
+ * group ARB_UID_LOGD: the gateway's user cannot open it (NFR-I1). Single writer,
+ * lock-free: readers never block the arm.
  *
  * Writer: fill slot head % ARB_TELEM_SLOTS, then publish head + 1 (release).
  * Reader: read head (acquire), copy the slots it wants, read head again; a slot
