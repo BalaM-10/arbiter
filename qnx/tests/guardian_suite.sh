@@ -94,6 +94,18 @@ else
     echo "FAIL fr_e2_logger_sha256_matches_the_nist_vector (got: $want)"
     fail=1
 fi
+# FR-E3: the logger also hashes files, for the evidence packet's build
+# identifiers on the target (the same qcrypto SHA-256). A file holding "abc"
+# gives the NIST vector; the deployed contract table gives its own hash.
+printf abc >"$EV/abc"
+got=$(./arb-logd --sha256 "$EV/abc" 2>&1)
+if [ "$got" = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  $EV/abc" ]; then
+    echo "PASS fr_e3_logger_hashes_files_with_sha256 ($got)"
+else
+    echo "FAIL fr_e3_logger_hashes_files_with_sha256 (got: $got)"
+    fail=1
+fi
+./arb-logd --sha256 "$CONTRACT"
 ./arb-watchdog &
 WD=$!
 sleep 1
