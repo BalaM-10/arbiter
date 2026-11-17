@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from .. import packet
 from .. import planner as pl
 from .. import protocol as pr
 from ..contract import compile_file
@@ -58,6 +59,34 @@ def _run_scenario(target: str, mod: Any, script: Any) -> tuple[str, int, pl.RunR
     elif result.error is not None:
         err += f"the gateway sent ERROR {result.error}\n"
     return out + "".join(f"STDERR {x}\n" for x in err.splitlines()), side.returncode, result
+
+
+# The binaries whose identity goes into the evidence packet (FR-E3).
+PACKET_BINARIES = ("arb-guardian", "arb-arm", "arb-watchdog", "arb-logd", "arb-gateway", "arb-inject",
+                   "arb-ctl")
+
+
+def _packet_inputs(target: str, uname: str) -> tuple[dict[str, str], dict[str, Any]]:
+    """The target's description and the build identifiers, as the target reports them."""
+    import hashlib
+
+    info = _ssh(target, "info").stdout.split()
+    arch = info[0] if info else ""
+    pidin = _ssh(target, "run", "pidin info | head -4").stdout.strip()
+    pol = _ssh(target, "run", "secpol -f all 2>/dev/null | head -1").stdout.strip()
+    desc = {"name": target, "uname": uname, "pidin_info": pidin,
+            "policy": pol if pol.startswith("policy_id:") else "none"}
+    on_target: dict[str, str] = {}
+    hashed = _ssh(target, "run", "./arb-logd --sha256 " + " ".join(PACKET_BINARIES)).stdout
+    for line in hashed.splitlines():
+        f = line.split()
+        if len(f) == 2 and len(f[0]) == 64:
+            on_target[f[1]] = f[0]
+    host: dict[str, str] = {}
+    for name in PACKET_BINARIES:
+        b = REPO_ROOT / "build" / arch / name
+        host[name] = hashlib.sha256(b.read_bytes()).hexdigest() if arch and b.is_file() else "missing"
+    return desc, {"arch": arch, "target": on_target, "host": host}
 
 
 def _git(*args: str) -> str:
@@ -151,4 +180,13 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
     print(f"SUMMARY bench {n_pass}/{len(scenarios)} scenarios passed on {target}")
     page = out / "report.html"
     print(f"report: {page.relative_to(REPO_ROOT) if page.is_relative_to(REPO_ROOT) else page}")
-    return 0 if n_pass == len(scenarios) else 1
+    # FR-E3: the evidence packet, written and checked at once.
+    desc, builds = _packet_inputs(target, uname)
+    packet.write(out, target=desc, builds=builds)
+    pv = packet.verify(out)
+    for e in pv.errors:
+        print(f"  packet: {e}")
+    pj = out / packet.NAME
+    shown = pj.relative_to(REPO_ROOT) if pj.is_relative_to(REPO_ROOT) else pj
+    print(f"packet: {'PASS' if pv.ok else 'FAIL'} {shown}{': ' + '; '.join(pv.checked) if pv.ok else ''}")
+    return 0 if n_pass == len(scenarios) and pv.ok else 1

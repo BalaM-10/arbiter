@@ -14,6 +14,8 @@
  *   arb-logd <contract.bin> <log>     run until SIGTERM, then write the E line;
  *                                     serves ARB_LOGD_NAME meanwhile
  *   arb-logd --selftest               print sha256("abc") (NIST FIPS 180-2 vector)
+ *   arb-logd --sha256 <file>...       print "<sha256>  <file>" for each file: the build
+ *                                     identifiers of the evidence packet, on the target (FR-E3)
  *
  * Not one of the trusted four (guardian, arm, watchdog, libcontract), but kept
  * plain: static buffers, bounded loops. SHA-256 comes from the QNX Cryptography
@@ -91,6 +93,46 @@ static int sha256_hex(const void *data, size_t n, char out[65])
     if (qcrypto_digest_init(g_sha) != 0 || qcrypto_digest_update(g_sha, data, n) != 0 ||
         qcrypto_digest_final(g_sha, d, &dn) != 0 || dn != sizeof d) {
         return -1;
+    }
+    for (size_t i = 0; i < sizeof d; i++) {   /* bound: 32 */
+        out[2 * i] = hx[d[i] >> 4];
+        out[2 * i + 1] = hx[d[i] & 15u];
+    }
+    out[64] = '\0';
+    return 0;
+}
+
+/* SHA-256 of a whole file (up to FILE_CHUNKS x 64 KB) into hex, the same digest
+ * as sha256_hex(), fed one chunk at a time. */
+#define FILE_CHUNK   (64u * 1024u)
+#define FILE_CHUNKS  4096u                   /* 256 MB: far above any Arbiter binary */
+static int sha256_file_hex(const char *path, char out[65])
+{
+    static uint8_t buf[FILE_CHUNK];
+    static const char hx[] = "0123456789abcdef";
+    uint8_t d[32];
+    size_t dn = sizeof d;
+    unsigned chunks = 0;
+    ssize_t n = 0;
+    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/r/read.html */
+    const int fd = open(path, O_RDONLY);
+
+    if (fd == -1 || qcrypto_digest_init(g_sha) != 0) {
+        if (fd != -1) {
+            (void)close(fd);
+        }
+        return -1;
+    }
+    while (chunks < FILE_CHUNKS && (n = read(fd, buf, sizeof buf)) > 0) {   /* bound: FILE_CHUNKS */
+        if (qcrypto_digest_update(g_sha, buf, (size_t)n) != 0) {
+            n = -1;
+            break;
+        }
+        chunks++;
+    }
+    (void)close(fd);
+    if (n != 0 || qcrypto_digest_final(g_sha, d, &dn) != 0 || dn != sizeof d) {
+        return -1;                           /* a read error, or a file too large to finish */
     }
     for (size_t i = 0; i < sizeof d; i++) {   /* bound: 32 */
         out[2 * i] = hx[d[i] >> 4];
@@ -386,8 +428,25 @@ int main(int argc, char **argv)
         printf("sha256(abc) %s\n", h);
         return 0;
     }
+    if (argc >= 3 && strcmp(argv[1], "--sha256") == 0) {
+        int bad = 0;
+        if (sha256_open() != 0) {
+            printf("sha256 unavailable\n");
+            return 1;
+        }
+        for (int i = 2; i < argc; i++) {     /* bound: argc */
+            char h[65];
+            if (sha256_file_hex(argv[i], h) == 0) {
+                printf("%s  %s\n", h, argv[i]);
+            } else {
+                printf("unreadable  %s\n", argv[i]);
+                bad = 1;
+            }
+        }
+        return bad;
+    }
     if (argc != 3) {
-        fprintf(stderr, "usage: arb-logd <contract.bin> <log> | --selftest\n");
+        fprintf(stderr, "usage: arb-logd <contract.bin> <log> | --selftest | --sha256 <file>...\n");
         return 2;
     }
     (void)arb_log_init("arb_logd", "arb-logd");

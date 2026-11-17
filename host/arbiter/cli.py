@@ -61,6 +61,17 @@ def _evidence_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _evidence_verify_packet(args: argparse.Namespace) -> int:
+    from . import packet
+
+    r = packet.verify(args.dir)
+    for e in r.errors:
+        print(f"FAIL {args.dir}: {e}")
+    if r.ok:
+        print(f"PASS {args.dir}: " + "; ".join(r.checked))
+    return 0 if r.ok else 1
+
+
 def _planner_run(args: argparse.Namespace) -> int:
     from . import planner as pl
 
@@ -118,6 +129,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--anchor", help="the last hash, published separately: detects lines removed from the end")
     p.add_argument("--anchor-file", type=Path, help="read the anchor from a file (e.g. <log>.anchor)")
     p.set_defaults(func=_evidence_verify, source=None)
+    p = esub.add_parser("verify-packet", help="check a bench folder's evidence packet (packet.json, FR-E3)")
+    p.add_argument("dir", type=Path)
+    p.set_defaults(func=_evidence_verify_packet, source=None)
 
     pln = sub.add_parser("planner", help="the scripted planner (docs/PROTOCOL.md)")
     psub = pln.add_subparsers(dest="action", required=True)
