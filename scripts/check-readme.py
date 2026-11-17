@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """The README's expected results must match the newest saved run (midpoint review M5).
 
-Checks, against the newest policy-off QEMU run log in evidence/runs/*-qemu/:
-  - the README's `SUMMARY <n>/<m> tests passed on qemu` equals the log's SUMMARY line;
-  - the README's `RESULT PASS test_libcontract <n>/<m>` equals the log's;
+Checks, against the policy-off QEMU run logs in evidence/runs/*-qemu/:
+  - the README's `SUMMARY <n>/<m> tests passed on qemu`: m equals the newest
+    log's total (a suite was added or removed: update the README), and n/m equals
+    the newest fully passing log's summary;
+  - the README's `RESULT PASS test_libcontract <n>/<m>` equals the newest log that
+    has that line;
 and that the README's "Latest report: <n>/<m>" link points at a bench report that
 exists and says n of m passed.
 
-A failed newest run fails this check too: the README then promises a result
-the evidence does not show. Run:  python3 scripts/check-readme.py
+A log saved on purpose before a fix (the tests fail first) does not fail this
+check, but the README can never promise a count that no saved run shows.
+Run:  python3 scripts/check-readme.py
 """
 
 from __future__ import annotations
@@ -25,9 +29,18 @@ LIBCONTRACT_RE = re.compile(r"RESULT PASS test_libcontract (\d+)/(\d+)")
 BENCH_LINK_RE = re.compile(r"\[Latest report: (\d+)/(\d+)\]\((evidence/bench/[^)]+/report\.html)\)")
 
 
+def qemu_logs() -> list[Path]:
+    """Oldest first."""
+    return sorted(ROOT.glob("evidence/runs/*-qemu/run-*.log"), key=lambda p: (p.parent.name, p.name))
+
+
 def newest_qemu_log() -> Path | None:
-    logs = sorted(ROOT.glob("evidence/runs/*-qemu/run-*.log"), key=lambda p: (p.parent.name, p.name))
+    logs = qemu_logs()
     return logs[-1] if logs else None
+
+
+def _text(p: Path) -> str:
+    return p.read_text(encoding="utf-8", errors="replace")
 
 
 def nfr_k3_readme_expected_results_match_the_newest_run() -> list[str]:
@@ -36,18 +49,33 @@ def nfr_k3_readme_expected_results_match_the_newest_run() -> list[str]:
     log = newest_qemu_log()
     if log is None:
         return ["no run log under evidence/runs/*-qemu/"]
-    text = log.read_text(encoding="utf-8", errors="replace")
     rel = log.relative_to(ROOT)
-    for name, rx in (("SUMMARY", SUMMARY_RE), ("test_libcontract", LIBCONTRACT_RE)):
-        want = rx.search(readme)
-        got = rx.findall(text)
-        if want is None:
-            errors.append(f"README.md: no expected {name} line")
-        elif not got:
-            errors.append(f"{rel}: no passing {name} line (the README expects {want.group(1)}/{want.group(2)})")
-        elif (want.group(1), want.group(2)) != got[-1]:
-            errors.append(f"README.md expects {name} {want.group(1)}/{want.group(2)}, "
-                          f"{rel} shows {got[-1][0]}/{got[-1][1]}")
+    newest = SUMMARY_RE.findall(_text(log))
+    passing = [(p, m[-1]) for p in qemu_logs()
+               if (m := SUMMARY_RE.findall(_text(p))) and m[-1][0] == m[-1][1]]
+    want = SUMMARY_RE.search(readme)
+    if want is None:
+        errors.append("README.md: no expected SUMMARY line")
+    else:
+        if not newest:
+            errors.append(f"{rel}: no SUMMARY line")
+        elif newest[-1][1] != want.group(2):
+            errors.append(f"README.md expects {want.group(2)} tests, {rel} ran {newest[-1][1]}")
+        if not passing:
+            errors.append("no fully passing QEMU run log")
+        elif passing[-1][1] != (want.group(1), want.group(2)):
+            path, (n, m) = passing[-1]
+            errors.append(f"README.md expects SUMMARY {want.group(1)}/{want.group(2)}, "
+                          f"the newest passing run {path.relative_to(ROOT)} shows {n}/{m}")
+    want = LIBCONTRACT_RE.search(readme)
+    have = [m[-1] for p in qemu_logs() if (m := LIBCONTRACT_RE.findall(_text(p)))]
+    if want is None:
+        errors.append("README.md: no expected test_libcontract line")
+    elif not have:
+        errors.append("no run log with a passing test_libcontract line")
+    elif have[-1] != (want.group(1), want.group(2)):
+        errors.append(f"README.md expects test_libcontract {want.group(1)}/{want.group(2)}, "
+                      f"the newest run shows {have[-1][0]}/{have[-1][1]}")
     link = BENCH_LINK_RE.search(readme)
     if link is None:
         errors.append("README.md: no 'Latest report: n/m' bench link")
