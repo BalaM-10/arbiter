@@ -2,7 +2,12 @@
  * arb-gateway: the untrusted door between a planner and the guardian
  * (FR-N1, FR-N2, FR-N3, FR-N4; protocol docs/PROTOCOL.md).
  *
- *   arb-gateway [<planner-port> <observer-port>]     (default 7700 7701)
+ *   arb-gateway [-a <IPv4 address> | -i <interface>] [-p <planner-port>] [-o <observer-port>]
+ *
+ * It listens on one address, never on every address (THREAT_MODEL A2): by
+ * default the target's own wired interface, the first interface that is up and
+ * running, is not loopback and has an IPv4 address; -i names the interface, -a
+ * the address. The wildcard 0.0.0.0 is refused. Ports default to 7700 and 7701.
  *
  * One planner connection at a time (port 7700) and up to two read-only
  * observers (port 7701). Each well-formed COMMAND becomes one ARB_DCMD_SUBMIT
@@ -46,6 +51,8 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <sys/dispatch.h>
 #include <sys/neutrino.h>
 #include <sys/socket.h>
@@ -610,7 +617,40 @@ static void observer_accept(void)
 }
 
 /* A listening socket, made while still root (after the drop no socket can be made). */
-static int listen_on(int port)
+/* The IPv4 address of an interface that is up and running and not loopback: the
+ * one named, or the first such. 0, or -1 if there is none. getifaddrs() and
+ * freeifaddrs() are listed with the io-sock Networking APIs (FreeBSD 14.4
+ * getifaddrs(3)); called once, at startup, while still root.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.io_sock/topic/socket_api.html */
+#define IFADDRS_MAX 64
+static int wired_address(const char *want, struct in_addr *addr, char name[IFNAMSIZ])
+{
+    struct ifaddrs *all, *ifa;
+    int n = 0, found = 0;
+
+    if (getifaddrs(&all) == -1) {
+        return -1;
+    }
+    for (ifa = all; ifa != NULL && n < IFADDRS_MAX && !found; ifa = ifa->ifa_next, n++) {   /* bound: 64 */
+        const unsigned fl = ifa->ifa_flags;
+        if (ifa->ifa_addr == NULL || ifa->ifa_addr->sa_family != AF_INET || (fl & IFF_UP) == 0 ||
+            (fl & IFF_RUNNING) == 0 || (fl & IFF_LOOPBACK) != 0 ||
+            (want != NULL && strcmp(ifa->ifa_name, want) != 0)) {
+            continue;
+        }
+        *addr = ((const struct sockaddr_in *)(const void *)ifa->ifa_addr)->sin_addr;
+        (void)snprintf(name, IFNAMSIZ, "%s", ifa->ifa_name);
+        found = 1;
+    }
+    freeifaddrs(all);
+    if (!found) {
+        errno = ENXIO;
+        return -1;
+    }
+    return 0;
+}
+
+static int listen_on(struct in_addr addr, int port)
 {
     struct sockaddr_in a;
     const int one = 1;
@@ -622,7 +662,7 @@ static int listen_on(int port)
     memset(&a, 0, sizeof a);
     a.sin_family = AF_INET;
     a.sin_port = htons((uint16_t)port);
-    a.sin_addr.s_addr = htonl(INADDR_ANY);
+    a.sin_addr = addr;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one) == -1 ||
         bind(fd, (struct sockaddr *)&a, sizeof a) == -1 || listen(fd, 2) == -1 || set_nonblocking(fd) == -1) {
         const int e = errno;
@@ -670,17 +710,58 @@ int main(int argc, char **argv)
     struct sched_param sp;
     struct sigaction sa;
     int planner_port = ARB_NET_PLANNER_PORT, obs_port = ARB_NET_OBSERVER_PORT;
+    const char *opt_addr = NULL, *opt_if = NULL;
+    struct in_addr addr;
+    char ifname[IFNAMSIZ] = "-";
+    char addr_text[INET_ADDRSTRLEN];
     int64_t next_tick;
     int rc;
 
     (void)arb_log_init("arb_gateway", "arb-gateway");
-    if (argc == 3) {
-        planner_port = atoi(argv[1]);
-        obs_port = atoi(argv[2]);
-    } else if (argc != 1) {
-        fprintf(stderr, "usage: arb-gateway [<planner-port> <observer-port>]\n");
+    for (int i = 1; i < argc; i += 2) {                          /* bound: argc */
+        const char *v = i + 1 < argc ? argv[i + 1] : NULL;
+        if (v == NULL) {
+            argc = -1;
+        } else if (strcmp(argv[i], "-a") == 0) {
+            opt_addr = v;
+        } else if (strcmp(argv[i], "-i") == 0) {
+            opt_if = v;
+        } else if (strcmp(argv[i], "-p") == 0) {
+            planner_port = atoi(v);
+        } else if (strcmp(argv[i], "-o") == 0) {
+            obs_port = atoi(v);
+        } else {
+            argc = -1;
+        }
+        if (argc == -1) {
+            break;
+        }
+    }
+    if (argc == -1 || (opt_addr != NULL && opt_if != NULL) || planner_port < 1 || planner_port > 65535 ||
+        obs_port < 1 || obs_port > 65535 || planner_port == obs_port) {
+        fprintf(stderr, "usage: arb-gateway [-a <IPv4 address> | -i <interface>] [-p <planner-port>] "
+                        "[-o <observer-port>]\n");
         return 2;
     }
+    /* One address, never all of them (THREAT_MODEL A2). inet_pton() and
+     * inet_ntop() are listed with the io-sock Networking APIs (FreeBSD inet(3)).
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.io_sock/topic/socket_api.html */
+    if (opt_addr != NULL) {
+        if (inet_pton(AF_INET, opt_addr, &addr) != 1) {
+            fprintf(stderr, "arb-gateway: -a %s is not an IPv4 address\n", opt_addr);
+            return 2;
+        }
+    } else if (wired_address(opt_if, &addr, ifname) != 0) {
+        arb_log_fail(opt_if != NULL ? "no IPv4 address on that interface (or it is down, or loopback)"
+                                    : "no wired interface with an IPv4 address", errno);
+        return 5;
+    }
+    if (addr.s_addr == htonl(INADDR_ANY)) {
+        fprintf(stderr, "arb-gateway: refused: the wildcard address 0.0.0.0 would listen on every interface\n");
+        arb_log_c(ARB_LOG_FAIL, SLOG2_ERROR, "refused to listen on the wildcard address 0.0.0.0");
+        return 2;
+    }
+    (void)inet_ntop(AF_INET, &addr, addr_text, sizeof addr_text);
     /* Below every trusted process.
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/pthread_setschedparam.html */
     memset(&sp, 0, sizeof sp);
@@ -703,8 +784,8 @@ int main(int argc, char **argv)
     for (int i = 0; i < ARB_NET_OBSERVERS_MAX; i++) {          /* bound: 2 */
         conn_reset(&g_obs[i]);
     }
-    g_listen_planner = listen_on(planner_port);
-    g_listen_obs = g_listen_planner == -1 ? -1 : listen_on(obs_port);
+    g_listen_planner = listen_on(addr, planner_port);
+    g_listen_obs = g_listen_planner == -1 ? -1 : listen_on(addr, obs_port);
     if (g_listen_planner == -1 || g_listen_obs == -1) {
         arb_log_fail("listen on the planner and observer ports", errno);
         return 5;
@@ -734,10 +815,9 @@ int main(int argc, char **argv)
         printf("arb-gateway: refused as expected after the drop: socket() (no new socket of any kind)\n");
         arb_log_c(ARB_LOG_START, SLOG2_INFO, "refused as expected after the drop: socket() (no new socket of any kind)");
     }
-    printf("arb-gateway: ready, planner port %d, observer port %d, priority %d\n", planner_port, obs_port,
-           ARB_PRIO_GATEWAY);
-    arb_log_2(ARB_LOG_START, SLOG2_INFO, "ready, planner port %lld, observer port %lld", (int64_t)planner_port,
-              (int64_t)obs_port);
+    printf("arb-gateway: ready, listening on %s ports %d %d (interface %s), priority %d\n", addr_text, planner_port,
+           obs_port, ifname, ARB_PRIO_GATEWAY);
+    arb_log_s(ARB_LOG_START, SLOG2_INFO, "ready, listening on %s (ports 7700 and 7701 unless -p, -o)", addr_text);
     fflush(stdout);
 
     next_tick = now_ms() + ARB_NET_TELEM_PERIOD_MS;
