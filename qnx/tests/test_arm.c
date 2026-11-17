@@ -342,7 +342,7 @@ static void fr_a3_new_setpoint_mid_move_starts_from_actual_position(void)
 {
     arb_telem_sample_t a, b;
     uint64_t i0, h;
-    int64_t max_step = 0;
+    int64_t max_step = 0, max_excess = INT64_MIN, at_dt = 0;
 
     CHECK_EQ_INT(move_to(0, 0, 1000), ARB_ARM_OK);
     renew_for(g_coid, 1100);
@@ -354,17 +354,27 @@ static void fr_a3_new_setpoint_mid_move_starts_from_actual_position(void)
     h = tm_head();
     for (uint64_t i = i0; i + 1u < h; i++) {
         if (tm_get(i, &a) && tm_get(i + 1u, &b)) {
+            const int64_t dt = b.t_ns - a.t_ns;
             for (int j = 0; j < 2; j++) {
                 const int64_t d = llabs((long long)b.pos_urad[j] - a.pos_urad[j]);
+                /* Motion is computed from time: a late tick takes a bigger step. A jump is
+                 * a step larger than vmax allows over the time between the two samples
+                 * (plus 2 urad of integer rounding), as the bench judges speed. */
+                const int64_t excess = d - (VMAX * dt) / 1000000000 - 2;
                 if (d > max_step) {
                     max_step = d;
+                    at_dt = dt;
+                }
+                if (excess > max_excess) {
+                    max_excess = excess;
                 }
             }
         }
     }
-    printf("info largest per-cycle step across the switch %lld urad\n", (long long)max_step);
-    /* no jump: at most vmax over one period, with margin for a late cycle */
-    CHECK(max_step <= 3000);
+    printf("info largest per-cycle step across the switch %lld urad over %.3f ms; largest step beyond vmax x dt "
+           "%lld urad\n", (long long)max_step, (double)at_dt / 1e6, (long long)max_excess);
+    CHECK(max_step > 0);
+    CHECK(max_excess <= 0);           /* no jump: the switch starts from where the arm actually is */
 }
 
 static void fr_a4_lease_expires_without_renewal_and_brakes(void)
