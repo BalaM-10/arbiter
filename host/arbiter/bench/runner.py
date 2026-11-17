@@ -66,6 +66,11 @@ PACKET_BINARIES = ("arb-guardian", "arb-arm", "arb-watchdog", "arb-logd", "arb-g
                    "arb-ctl")
 
 
+def policy_from(secpol_all: str) -> str:
+    """The loaded policy's id line from `secpol -f all` output, or "none"."""
+    return next((x.strip() for x in secpol_all.splitlines() if x.startswith("policy_id:")), "none")
+
+
 def _packet_inputs(target: str, uname: str) -> tuple[dict[str, str], dict[str, Any]]:
     """The target's description and the build identifiers, as the target reports them."""
     import hashlib
@@ -73,9 +78,8 @@ def _packet_inputs(target: str, uname: str) -> tuple[dict[str, str], dict[str, A
     info = _ssh(target, "info").stdout.split()
     arch = info[0] if info else ""
     pidin = _ssh(target, "run", "pidin info | head -4").stdout.strip()
-    pol = _ssh(target, "run", "secpol -f all 2>/dev/null | head -1").stdout.strip()
-    desc = {"name": target, "uname": uname, "pidin_info": pidin,
-            "policy": pol if pol.startswith("policy_id:") else "none"}
+    pol = _ssh(target, "run", "secpol -f all 2>/dev/null | grep '^policy_id:' || true").stdout
+    desc = {"name": target, "uname": uname, "pidin_info": pidin, "policy": policy_from(pol)}
     on_target: dict[str, str] = {}
     hashed = _ssh(target, "run", "./arb-logd --sha256 " + " ".join(PACKET_BINARIES)).stdout
     for line in hashed.splitlines():
