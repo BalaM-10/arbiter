@@ -63,6 +63,16 @@ else
     fail=1
 fi
 
+# FR-S1 on the policy image: the gateway runs as its own type.
+if [ "$ARB_POLICY_IMAGE" -eq 1 ]; then
+    if [ -n "$GW" ] && pidin -f a_n | awk -v p="$GW" '$1 == p && $2 == "arb_gateway_t" {f = 1} END {exit !f}'; then
+        echo "PASS fr_s1_the_gateway_runs_as_its_own_type (pid $GW, arb_gateway_t)"
+    else
+        echo "FAIL fr_s1_the_gateway_runs_as_its_own_type"
+        fail=1
+    fi
+fi
+
 ./test_gateway run "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
 down
 

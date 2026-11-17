@@ -735,11 +735,11 @@ static void fr_w4_estop_through_the_gateway(void)
     }
     CHECK(got);
     got = 0;
-    for (int i = 0; i < 50 && !got; i++) {                     /* bound: 50 STATE frames */
-        if (recv_type(ob, ARB_NET_STATE, &f, WAIT_MS) != 1) {
+    for (int i = 0; i < 200 && !got; i++) {                    /* bound: 200 frames; the observer also */
+        if (recv_frame(ob, &f, WAIT_MS) != 1) {                /* gets the VERDICT copy of the step */
             break;
         }
-        got = f.state.state == ARB_STATE_SAFE_STOP;
+        got = f.h.type == ARB_NET_STATE && f.state.state == ARB_STATE_SAFE_STOP;
     }
     CHECK(got);
     CHECK(status(&s1) == EOK);
@@ -779,13 +779,13 @@ static void fr_n3_killing_the_gateway_mid_move_holds_and_trusted_processes_run_o
     CHECK(send_command(fd, g_seq, -400000, 300000, 2000) == 0);      /* a 2 s move */
     CHECK_EQ_INT(recv_type(fd, ARB_NET_VERDICT, &f, WAIT_MS), 1);
     CHECK_EQ_INT(f.verdict.verdict, ARB_VERDICT_ALLOW);
-    ms_sleep(300);
+    ms_sleep(100);                    /* well inside the 250 ms silence timeout */
     a = arm_sample();
     CHECK_EQ_INT(a.state, 2);                                         /* moving */
     CHECK(kill(g_gw, SIGKILL) == 0);
     ms = state_within(ARB_STATE_HOLD, 1000);
     printf("  gateway killed mid-move -> guardian HOLD after %ld ms (QEMU, function only)\n", ms);
-    CHECK(ms >= 0 && ms < 150);
+    CHECK(ms >= 0 && ms < 100);       /* before the silence timeout could (about 150 ms after the kill) */
     ms_sleep(1500);                                                   /* past the end of the move */
     a = arm_sample();
     CHECK(a.vel_urad_s[0] == 0 && a.vel_urad_s[1] == 0);              /* the arm stopped */

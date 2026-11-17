@@ -18,12 +18,14 @@
 #define ARB_PRIO_WATCHDOG   66
 #define ARB_PRIO_GUARDIAN   64
 #define ARB_PRIO_LOGGER     30
-#define ARB_PRIO_UNTRUSTED  20   /* gateway and test clients */
+#define ARB_PRIO_UNTRUSTED  20   /* test clients: the most an untrusted test tool uses */
+#define ARB_PRIO_GATEWAY    10   /* arb-gateway (M2 plan, P6) */
 
 #define ARB_PRIO_UNPRIVILEGED_MAX 63
 
 _Static_assert(ARB_PRIO_ARM > ARB_PRIO_WATCHDOG && ARB_PRIO_WATCHDOG > ARB_PRIO_GUARDIAN &&
-               ARB_PRIO_GUARDIAN > ARB_PRIO_LOGGER && ARB_PRIO_LOGGER > ARB_PRIO_UNTRUSTED,
+               ARB_PRIO_GUARDIAN > ARB_PRIO_LOGGER && ARB_PRIO_LOGGER > ARB_PRIO_UNTRUSTED &&
+               ARB_PRIO_UNTRUSTED >= ARB_PRIO_GATEWAY,
                "priority order");
 _Static_assert(ARB_PRIO_GUARDIAN > ARB_PRIO_UNPRIVILEGED_MAX, "trusted threads must be privileged");
 _Static_assert(ARB_PRIO_ARM < 254, "254 and 255 are reserved for interrupt service threads");

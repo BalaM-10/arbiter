@@ -46,7 +46,7 @@ BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract
         $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/test_wd_scoid $(OUT)/arm_suite.sh \
         $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh \
         $(OUT)/arb-inject $(OUT)/arb-stall-probe $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh \
-        $(OUT)/test_gateway $(OUT)/gateway_suite.sh
+        $(OUT)/arb-gateway $(OUT)/test_gateway $(OUT)/gateway_suite.sh
 
 .PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
@@ -167,6 +167,10 @@ $(OUT)/policy_suite.sh: tests/policy_suite.sh | $(OUT)
 # "described elsewhere" (the io-sock Networking APIs page).
 # QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.io_sock/topic/socket_api.html
 SOCKET_LIBS := -lsocket
+
+# The gateway (untrusted): sockets, slog2, and the shared privilege drop.
+$(OUT)/arb-gateway: gateway/main.c common/arb_privdrop.c common/arb_privdrop.h common/arb_net_proto.h common/arb_devctl.h common/arb_log.h common/arb_ids.h common/arb_prio.h $(LIBCONTRACT_HDR) | $(OUT)
+	$(CC) $(CFLAGS) -o $@ gateway/main.c common/arb_privdrop.c $(SLOG2_LIBS) $(SOCKET_LIBS)
 
 $(OUT)/test_gateway: tests/test_gateway.c tests/arb_test.h common/arb_net_proto.h common/arb_devctl.h common/arb_telemetry.h $(LIBCONTRACT_HDR) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $< $(SOCKET_LIBS)

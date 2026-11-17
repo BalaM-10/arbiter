@@ -58,7 +58,7 @@ result() {         # result <name> <0 ok | other fail>
 echo "## FR-S5: the loaded policy, as the inspection tool reports it"
 c=0
 secpol -v || c=1
-for t in arb_arm_t arb_watchdog_t arb_guardian_t; do
+for t in arb_arm_t arb_watchdog_t arb_guardian_t arb_gateway_t; do
     echo "\$ secpol -f connect -t $t"
     secpol -f connect -t "$t" || c=1
 done
@@ -79,6 +79,14 @@ echo "## FR-S2: only the guardian's type may connect to the arm"
 who=$(secpol -f connect -t arb_arm_t | awk '/^[a-z_]+  crc:/ {cur = $1} /\(arb_arm_t\)/ {print cur}' | sort -u | tr '\n' ' ')
 echo "  types that may connect to arb_arm_t: $who"
 result fr_s2_only_the_guardians_type_may_connect_to_the_arm "$([ "$who" = "arb_guardian_t " ]; echo $?)"
+
+echo "## FR-S2: among Arbiter's processes, the gateway's type may connect only to the guardian"
+# The rules listed under arb_gateway_t's own entry name the types it may connect to.
+gw=$(secpol -f connect -t arb_gateway_t | awk '/^[a-z_]+  crc:/ {cur = $1}
+    cur == "arb_gateway_t" && match($0, /\(arb_[a-z_]+\)/) {print substr($0, RSTART + 1, RLENGTH - 2)}' |
+    sort -u | tr '\n' ' ')
+echo "  Arbiter types arb_gateway_t may connect to: $gw"
+result fr_s2_the_gateways_type_may_connect_only_to_the_guardian "$([ "$gw" = "arb_guardian_t " ]; echo $?)"
 
 echo "## FR-S3: only the guardian's type may attach /dev/arbiter"
 rules=$(secpol -f all | grep '^allow_attach .* /dev/arbiter;')
