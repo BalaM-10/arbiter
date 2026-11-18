@@ -6,9 +6,12 @@
  * group ARB_UID_LOGD: the gateway's user cannot open it (NFR-I1). Single writer,
  * lock-free: readers never block the arm.
  *
- * Writer: fill slot head % ARB_TELEM_SLOTS, then publish head + 1 (release).
- * Reader: read head (acquire), copy the slots it wants, read head again; a slot
- * with index < head2 - ARB_TELEM_SLOTS may have been overwritten and is dropped.
+ * Writer: write sample head into slot head % ARB_TELEM_SLOTS under the slot's
+ * sequence lock (arb_seqlock.h), then publish head + 1 (release).
+ * Reader: read head (acquire), copy the slot under its sequence lock; a copy that
+ * was being written, or holds another sample (overwritten), is dropped. Since
+ * version 4 a torn copy cannot be accepted on any C11 memory model (review M2-J8;
+ * before, it relied on x86's ordering).
  * The 8.0 shared-memory pages state no cross-process ordering rule, so ordering
  * relies on C11 atomics (lock-free 64-bit on x86_64 and aarch64, checked below).
  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_open.html
@@ -20,10 +23,11 @@
 #include <stdint.h>
 
 #include "arb_contract_table.h"
+#include "arb_seqlock.h"
 
 #define ARB_TELEM_NAME    "/arbiter_arm_telemetry"   /* /dev/shmem/arbiter_arm_telemetry */
 #define ARB_TELEM_MAGIC   0x4D4C4554u                /* "TELM" */
-#define ARB_TELEM_VERSION 3u                      /* 2: t_ns added; 3: wd_lost, wd_lost_cause */
+#define ARB_TELEM_VERSION 4u                      /* 2: t_ns added; 3: wd_lost, wd_lost_cause; 4: seqlock slots */
 #define ARB_TELEM_SLOTS   8192u                      /* 8 s at 1 kHz */
 
 typedef struct {
@@ -39,6 +43,14 @@ typedef struct {
     uint16_t reserved;
 } arb_telem_sample_t;
 
+#define ARB_TELEM_WORDS (sizeof(arb_telem_sample_t) / sizeof(uint64_t))
+
+/* One slot: its sequence word and the sample as atomic 64-bit words. */
+typedef struct {
+    _Atomic uint64_t seq;
+    _Atomic uint64_t w[ARB_TELEM_WORDS];
+} arb_telem_slot_t;
+
 typedef struct {
     uint32_t magic;
     uint32_t version;
@@ -51,10 +63,12 @@ typedef struct {
     _Atomic uint64_t wd_brakes;        /* brakes commanded by the watchdog */
     _Atomic uint64_t wd_lost;          /* brakes because the watchdog itself was lost (FR-W5, FR-W6) */
     _Atomic uint64_t wd_lost_cause;    /* ARB_WD_LOST_* of the first such brake, 0 if none */
-    arb_telem_sample_t s[ARB_TELEM_SLOTS];
+    arb_telem_slot_t s[ARB_TELEM_SLOTS];
 } arb_telem_t;
 
 _Static_assert(sizeof(arb_telem_sample_t) == 48, "layout");
+_Static_assert(sizeof(arb_telem_sample_t) % sizeof(uint64_t) == 0 && ARB_TELEM_WORDS <= ARB_SEQ_MAX_WORDS,
+               "a sample is whole 64-bit words");
 _Static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "64-bit atomics must be lock-free for shared memory");
 
 /* The ring protocol, in one place for every writer and reader (and the host test).
@@ -63,10 +77,11 @@ _Static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "64-bit atomics must be lock-free fo
 static inline void arb_telem_put(arb_telem_t *t, const arb_telem_sample_t *s)
 {
     const uint64_t h = atomic_load_explicit(&t->head, memory_order_relaxed);
-    arb_telem_sample_t *e = &t->s[h % ARB_TELEM_SLOTS];
+    arb_telem_slot_t *e = &t->s[h % ARB_TELEM_SLOTS];
+    arb_telem_sample_t c = *s;
 
-    *e = *s;
-    e->index = h;
+    c.index = h;
+    arb_seq_write(&e->seq, e->w, &c, ARB_TELEM_WORDS);
     atomic_store_explicit(&t->head, h + 1u, memory_order_release);
 }
 
@@ -76,14 +91,18 @@ static inline uint64_t arb_telem_head(const arb_telem_t *t)
     return atomic_load_explicit(&((arb_telem_t *)t)->head, memory_order_acquire);
 }
 
-/* Readers: sample number i into *out. 1 if it is sample i and was not being
- * overwritten while copied, else 0 (not written yet, overwritten, or possibly
- * torn: drop it and count it). */
+/* Readers: sample number i into *out. 1 if the copy is whole and is sample i,
+ * else 0 (not written yet, being written, or overwritten: drop it and count it;
+ * *out is then zero). */
 static inline int arb_telem_get(const arb_telem_t *t, uint64_t i, arb_telem_sample_t *out)
 {
+    const arb_telem_slot_t *e = &t->s[i % ARB_TELEM_SLOTS];
     uint64_t h2;
 
-    *out = t->s[i % ARB_TELEM_SLOTS];
+    memset(out, 0, sizeof *out);
+    if (!arb_seq_read(&e->seq, e->w, out, ARB_TELEM_WORDS)) {
+        return 0;
+    }
     h2 = atomic_load_explicit(&((arb_telem_t *)t)->head, memory_order_acquire);
     return out->index == i && i < h2 && i + ARB_TELEM_SLOTS > h2;
 }
