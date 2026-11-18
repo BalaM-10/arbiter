@@ -46,3 +46,21 @@ I5_ARM_LINE="privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION
 I5_GUARD_LINE="privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()"
 I5_GW_LINE="privileges dropped: uid 814 gid 814; kept PRIORITY 1-10; refused as expected: setuid(0), priority 11, fork()"
 I5_GW_SOCKET_LINE="refused as expected after the drop: socket() (no new socket of any kind)"
+
+# Diagnostics only (judges nothing): the guardian starts in HOLD. If it does not,
+# print its status and the newest system-log lines of the watchdog, the arm and
+# the guardian now running, so a start that is not clean carries its own cause
+# (who tripped, why, when) instead of a guess. Call it right after the guardian
+# is up.   arb_start_check <label>
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slog2info.html
+arb_start_check() {
+    _st=$(./arb-ctl status 2>&1 | head -1)
+    case "$_st" in
+        "state HOLD cause none"*) ;;
+        *) echo "DIAG start not clean ($1): guardian $_st"
+           for _p in arb_watchdog:arb-watchdog arb_arm:arb-arm arb_guardian:arb-guardian; do
+               _pid=$(pid_of "${_p#*:}")
+               slog2info -b "${_p%%:*}" 2>/dev/null | grep "${_p%%:*}.${_pid:-none} " | tail -15 | sed 's/^/DIAG   /'
+           done ;;
+    esac
+}

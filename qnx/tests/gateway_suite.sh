@@ -46,15 +46,8 @@ down
 up logd
 echo "pids: watchdog $WD arm $ARM guardian $GUARD logger $(pid_of arb-logd) gateway ${GW:-none}"
 # The guardian starts in HOLD. If it is not, say why before any test runs.
-# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slog2info.html
-st=$(./arb-ctl status | head -1)
-echo "guardian at start: $st"
-case "$st" in
-    "state HOLD cause none"*) ;;
-    *) echo "  the guardian did not start in HOLD; its log and the watchdog's:"
-       slog2info -b arb_guardian | grep "arb_guardian.$GUARD " | tail -10
-       slog2info -b arb_watchdog | grep "arb_watchdog.$WD " | tail -10 ;;
-esac
+echo "guardian at start: $(./arb-ctl status | head -1)"
+arb_start_check gateway_suite
 cat /tmp/arb-gateway.out
 ls -l /dev/shmem/arbiter_arm_telemetry /dev/shmem/arbiter_decisions
 if [ -z "$GW" ]; then

@@ -33,6 +33,7 @@ up() {
     $ARB_ON_GUARD ./arb-guardian "$CONTRACT" "$OPERATOR_UID" &
     GUARD=$!
     sleep 1
+    arb_start_check policy_suite
 }
 stop_pid() {       # SIGCONT and SIGTERM, then wait for it to go (bounded: 20 x 0.1 s)
     [ -n "$1" ] || return 0

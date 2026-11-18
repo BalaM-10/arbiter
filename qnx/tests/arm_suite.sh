@@ -28,6 +28,7 @@ arb_guard_up() {
     ./arb-guardian "$CONTRACT" "$OPERATOR_UID" &
     GUARD=$!
     sleep 1
+    arb_start_check arm_suite
 }
 
 arb_down() {
