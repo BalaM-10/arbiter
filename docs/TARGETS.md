@@ -186,6 +186,23 @@ Measured on this laptop (QEMU, function only;
   ([`210454-rate.log`](../evidence/stall/2026-11-16-qemu/210454-rate.log)).
 - Under load it still happens now and then: one bench F1 on the policy image
   failed this way on 2026-11-16, and the next two passed.
+- 2026-11-17, recorded as findings (the runs are kept; each stopped safely):
+  - Bench at 325e3b0, F6 ([`171618`](../evidence/bench/2026-11-17-qemu/171618/report.html)):
+    774 ms after the arm registered, the watchdog tripped it as stuck and, at the
+    same moment, the arm lost the watchdog's beat. Nothing on the target outranks
+    the arm (70) and the watchdog (66), so both going silent at once points to a
+    pause of the guest: likely, not proven (no tick record covers that moment).
+  - Bench at 325e3b0, F1 ([`172851`](../evidence/bench/2026-11-17-qemu/172851/report.html)):
+    the arm's own ticks show gaps up to 9.3 ms (65 of 2 periods or more) and the
+    watchdog tripped the guardian as stuck: a guest pause, shown by the arm's own
+    clock. A 2-minute probe right after showed none over 3.6 ms
+    ([`173905-rate.log`](../evidence/stall/2026-11-17-qemu/173905-rate.log)): the
+    pauses come in bursts.
+  - The gateway suite in [`run-124700.log`](../evidence/runs/2026-11-17-qemu/run-124700.log)
+    found the guardian already in `SAFE_STOP` when its first planner connected:
+    likely the same cause, a watchdog trip just after startup, **not proven**: the
+    run kept no system log, and 25 later starts with the diagnostic did not repeat
+    it ([`evidence/README.md`](../evidence/README.md)).
 
 To measure it yourself (policy-off image): `./scripts/qemu-stall.sh pause 20 50`
 or `./scripts/qemu-stall.sh rate 600`.

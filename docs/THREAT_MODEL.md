@@ -84,6 +84,7 @@ its left is assumed hostile.
 - Pulse floods from an untrusted process that has a connection to the arm are
   bounded only once a channel pulse pool is confirmed, or once the M2 policy
   removes the connection (addendum section 6).
+- **QEMU host pauses stop the system** (`docs/TARGETS.md`, QEMU host pauses). A pause of the whole virtual machine longer than 10 ms looks, inside it, like every process stuck at once: the watchdog trips, the arm brakes and the guardian enters `SAFE_STOP`. That is the designed, safe outcome (a host fault, O3), recorded in the failing runs kept on 2026-11-17 and probably behind the `SAFE_STOP` at start in `run-124700.log` (likely, not proven). It costs availability on QEMU only; timing claims come from the Pi 5.
 - **The planner link is not authenticated** (protocol version 1, `docs/PROTOCOL.md`). Mitigated, not closed: the gateway listens on one address only (the target's wired interface by default, the wildcard refused), so it is reachable only from that network; anyone there is a planner (A2), bound by the contract (TM-C1), and can at worst hold the planner slot (O5).
 - **Closed in M2 P5, policy off: first-come binding.** The guardian now runs as
   user 810 and the arm binds only that user, so the startup order no longer
