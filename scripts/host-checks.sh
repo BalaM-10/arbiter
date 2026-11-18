@@ -35,6 +35,7 @@ step() {   # step <title> <command...>
     echo "# commit: $(git -C "$REPO_ROOT" rev-parse --short HEAD)${dirty:+ (UNCOMMITTED changes)}"
     echo "# host: $(lsb_release -ds 2>/dev/null || uname -sr); $(gcc --version | head -1); $(cppcheck --version)"
     step "libcontract unit tests (host, ASan + UBSan)" make -C "$REPO_ROOT/qnx" -B host-test
+    step "shared-memory rings (host, ThreadSanitizer)" make -C "$REPO_ROOT/qnx" -B host-rings
     step "static analysis (gcc -fanalyzer, cppcheck)"   make -C "$REPO_ROOT/qnx" analyze
     step "static analysis, trusted QNX code (qcc)"      make -C "$REPO_ROOT/qnx" analyze-qnx
     step "purity, x86_64"                                make -C "$REPO_ROOT/qnx" check-pure ARCH=x86_64

@@ -48,7 +48,7 @@ BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract
         $(OUT)/arb-inject $(OUT)/arb-stall-probe $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh \
         $(OUT)/arb-gateway $(OUT)/test_gateway $(OUT)/gateway_suite.sh $(OUT)/planner_e2e.sh
 
-.PHONY: all clean qnx-env host-test analyze analyze-qnx check-pure
+.PHONY: all clean qnx-env host-test host-rings analyze analyze-qnx check-pure
 all: qnx-env $(BINS)
 
 qnx-env:
@@ -197,6 +197,15 @@ $(HOST_OUT)/test_arm_motion: tests/test_arm_motion.c tests/arb_test.h arm/arm_mo
 host-test: $(HOST_OUT)/test_libcontract $(HOST_OUT)/test_arm_motion
 	$(HOST_OUT)/test_libcontract
 	$(HOST_OUT)/test_arm_motion
+
+# Review M2-J8: the shared-memory rings under ThreadSanitizer, one writer and one
+# reader thread (qnx/tests/test_rings_host.c). This gcc's ThreadSanitizer refuses
+# to start under the kernel's full address-space randomisation ("unexpected memory
+# mapping"), so the run turns it off for that one process with setarch -R.
+host-rings: | $(HOST_OUT)
+	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -O1 -g -fsanitize=thread -pthread \
+	           $(INCLUDES) tests/test_rings_host.c -o $(HOST_OUT)/test_rings_host
+	setarch "$$(uname -m)" -R $(HOST_OUT)/test_rings_host
 
 analyze: | $(HOST_OUT)
 	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -fanalyzer $(INCLUDES) -c $(LIBCONTRACT_SRC) -o $(HOST_OUT)/arb_contract.analyze.o
