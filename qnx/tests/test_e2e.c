@@ -298,6 +298,20 @@ static int get_status(arb_status_t *st)
     return devctl(g_fd, ARB_DCMD_GET_STATUS, st, sizeof *st, NULL);
 }
 
+/* Poll the guardian's status every 1 ms until it is in `state`: ms waited, or -1. */
+static long guardian_state_within(uint8_t state, long timeout_ms)
+{
+    arb_status_t st;
+
+    for (long i = 0; i < timeout_ms; i++) {                  /* bound: timeout_ms polls */
+        if (get_status(&st) == EOK && st.state == state) {
+            return i;
+        }
+        ms_sleep(1);
+    }
+    return -1;
+}
+
 static uint64_t wd_heartbeats(uint32_t role)
 {
     return atomic_load(&((arb_wd_status_t *)g_wd)->heartbeats[role]);
@@ -692,8 +706,11 @@ static void fr_g5_reset_refused_while_watchdog_absent(void)
 
     CHECK(kill(g_watchdog, SIGKILL) == 0);
     CHECK(wait_state(ARM_STATE_BRAKED, 500) != 0);
-    CHECK_EQ_INT(get_status(&st), EOK);
-    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    /* The arm (priority 70) can take the death pulse and brake before the guardian
+     * (64) has taken its own; the guardian's reaction time is measured by
+     * fr_w5_watchdog_killed_mid_move_guardian_safe_stops_and_arm_brakes. Here:
+     * it gets there, then refuses the reset. */
+    CHECK(guardian_state_within(ARB_STATE_SAFE_STOP, 100) >= 0);
     CHECK_EQ_INT(devctl_as(OPERATOR_UID, O_RDWR, ARB_DCMD_RESET, NULL), ENOLINK);
     ms_sleep(50);
     CHECK_EQ_INT(get_status(&st), EOK);
