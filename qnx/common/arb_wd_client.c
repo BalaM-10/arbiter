@@ -49,7 +49,11 @@ int arb_wd_client_register(arb_wd_client_t *w, uint32_t role, int self_coid, int
     w->code = code;
     w->beat_code = beat_code;
     w->token = make_token();
-    /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_open.html */
+    /* name_open() and arb_server_check() (an open of /proc and a devctl()) are
+     * procnto calls with no timeout of their own; only the registration send below
+     * is bounded. They run at startup and on the operator reset (review M2-J7),
+     * never on a command's path.
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/n/name_open.html */
     w->coid = name_open(ARB_WD_NAME, 0);
     if (w->coid == -1) {
         return -1;

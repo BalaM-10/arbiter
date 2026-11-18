@@ -15,8 +15,13 @@
  * QEMU, function only; Pi 5 bound in M3). */
 #define ARM_LINK_TIMEOUT_NS 2000000ull
 /* The operator reset (FR-G5) allows longer: the arm first registers again with the
- * watchdog, itself bounded at 2 ms. Only in SAFE_STOP, so no command waits on it. */
-#define ARM_LINK_RESET_TIMEOUT_NS 10000000ull
+ * watchdog (one send bounded at 2 ms, plus name_open(), an open of /proc and a
+ * devctl(), procnto calls with no timeout). Review M2-J7: it must stay well under
+ * the watchdog's 10 ms stuck limit (ARB_WD_TIMEOUT_MS), since the guardian sends no
+ * heartbeat while it waits; 5 ms requested fires by about 7 ms on QEMU's 1 ms tick
+ * (QEMU, function only; Pi 5 bound in M3). A slower arm gets the reset refused
+ * (EIO), never a trip. Only in SAFE_STOP, so no command waits on it. */
+#define ARM_LINK_RESET_TIMEOUT_NS 5000000ull
 
 typedef enum {
     ARM_LINK_OK      = 0,

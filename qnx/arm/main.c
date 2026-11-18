@@ -277,8 +277,12 @@ static void handle_setpoint(rcvid_t rcvid, const arb_arm_setpoint_t *sp, int64_t
 }
 
 /* FR-G5 operator reset, from the bound guardian only (the caller checked). The
- * arm first registers again with a watchdog (bounded, ~2 ms; the arm is braked,
- * so the missed cycles move nothing). Only if that works does it clear the
+ * arm first registers again with a watchdog: one send bounded at 2 ms, plus
+ * name_open(), an open of /proc and a devctl(), procnto calls with no timeout of
+ * their own (review M2-J7). It runs in this loop thread, so control cycles are
+ * missed meanwhile; the arm is braked (it only resets from the watchdog latch), so
+ * they move nothing, and the guardian gives up on the reply after 5 ms
+ * (ARM_LINK_RESET_TIMEOUT_NS). Only if that works does it clear the
  * watchdog latch; the next approved setpoint then moves it. Without a watchdog
  * it stays latched and says so (FR-W5: motion resumes only with the watchdog
  * back and an operator reset). */

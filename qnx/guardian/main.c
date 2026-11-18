@@ -79,6 +79,24 @@ static resmgr_connect_funcs_t g_connect_funcs;
 static resmgr_io_funcs_t      g_io_funcs;
 static iofunc_attr_t          g_attr;
 
+/* FR-G9, review M2-J3: the open control blocks (OCBs) of /dev/arbiter come from
+ * this fixed pool, not from the library's allocator, so no client open allocates
+ * memory in the guardian after startup. The library calls the mount's
+ * ocb_calloc() on each open and its ocb_free() on the last close
+ * (iofunc_close_ocb_default page). Each user but root may hold at most
+ * ARB_DEV_OPENS_PER_USER of them, so one user cannot take every block from the
+ * gateway or an e-stop; root (trusted, O1) is bounded by the pool alone. One
+ * owner: the single resource-manager thread (DISPATCH_FLAG_NOLOCK), so no lock.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.resmgr/topic/extend_ExtendingOCBstructures.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/i/iofunc_mount_t.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/i/iofunc_ocb_calloc.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/i/iofunc_close_ocb_default.html */
+static iofunc_ocb_t   g_ocb_pool[ARB_DEV_OPENS_MAX];
+static uint8_t        g_ocb_used[ARB_DEV_OPENS_MAX];
+static uid_t          g_ocb_uid[ARB_DEV_OPENS_MAX];
+static iofunc_funcs_t g_ocb_funcs;
+static iofunc_mount_t g_mount;
+
 /* Decision state. One owner: the single resource-manager thread. */
 static arb_contract_table_t g_contract;
 static arb_guard_t          g_guard;
@@ -99,7 +117,7 @@ static const RESMGR_OCB_T  *g_submitter;
 static struct {
     uint8_t  state, cause;
     uint32_t arm_faults, watchdog_trips, foreign_pulses, bad_messages, arm_pulse_errors, watchdog_lost;
-    uint32_t estops, resets, resets_refused, submits_refused, wd_stale;
+    uint32_t estops, resets, resets_refused, submits_refused, wd_stale, opens_refused;
 } g_logged;
 
 static uint64_t now_ns(void)
@@ -193,8 +211,12 @@ static void estop(void)
 }
 
 /* FR-G5 operator reset (the caller checked who is asking). Returns EOK or the
- * errno documented in arb_devctl.h. Bounded: one arm send (10 ms) and one
- * watchdog registration (2 ms), only reachable in SAFE_STOP. */
+ * errno documented in arb_devctl.h. Only reachable in SAFE_STOP. Two blocking
+ * steps, each under the watchdog's 10 ms stuck limit with a heartbeat before and
+ * after it (review M2-J7), since this thread sends none while it waits: the arm
+ * send (ARM_LINK_RESET_TIMEOUT_NS, 5 ms), then the guardian's own registration
+ * (one send bounded at 2 ms, plus name_open(), an open of /proc and a devctl():
+ * procnto calls with no timeout of their own, on this operator-only path). */
 static int operator_reset(void)
 {
     const uint8_t before = g_guard.state;
@@ -204,18 +226,24 @@ static int operator_reset(void)
     }
     /* The arm first: it registers again with the watchdog and clears its latch,
      * or refuses when there is no watchdog (FR-W5). */
+    arb_wd_client_heartbeat(&g_wd);
     switch (arm_link_reset(&g_arm)) {
     case ARM_LINK_OK:
         break;
     case ARM_LINK_NO_WATCHDOG:
+        arb_wd_client_heartbeat(&g_wd);
         return ENOLINK;
     default:
+        arb_wd_client_heartbeat(&g_wd);
         return EIO;
     }
+    arb_wd_client_heartbeat(&g_wd);
     /* Then the guardian, last, so its heartbeats resume at once. */
     if (arb_wd_client_reregister(&g_wd) != 0) {
+        arb_wd_client_heartbeat(&g_wd);    /* still the old registration */
         return ENOLINK;
     }
+    arb_wd_client_heartbeat(&g_wd);        /* the new one */
     g_wd_lost = 0;
     if (arb_guard_reset(&g_guard, now_ns()) != 0) {
         return EALREADY;
@@ -400,6 +428,59 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
     }
 }
 
+/* ocb_calloc for /dev/arbiter (FR-G9): a free block of the pool, or NULL (the
+ * open fails) when the pool or the opener's share is full. The opener is the
+ * user the kernel reports for this open message, as for every other check.
+ * Bounded: one pass over the pool.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/connectclientinfo.html */
+static IOFUNC_OCB_T *ocb_from_pool(resmgr_context_t *ctp, IOFUNC_ATTR_T *attr)
+{
+    struct _client_info ci;
+    int free_slot = -1;
+    int share = 0;
+
+    (void)attr;
+    if (ConnectClientInfo(ctp->info.scoid, &ci, 0) == -1) {
+        g_status.opens_refused++;          /* unsure who it is: refuse */
+        errno = EPERM;
+        return NULL;
+    }
+    for (int i = 0; i < ARB_DEV_OPENS_MAX; i++) {             /* bound: ARB_DEV_OPENS_MAX */
+        if (!g_ocb_used[i]) {
+            if (free_slot == -1) {
+                free_slot = i;
+            }
+        } else if (g_ocb_uid[i] == ci.cred.euid) {
+            share++;
+        }
+    }
+    if (free_slot == -1 || (ci.cred.euid != 0 && share >= ARB_DEV_OPENS_PER_USER)) {
+        g_status.opens_refused++;
+        errno = ENFILE;                    /* the iofunc_ocb_calloc page's errno when OCBs run out */
+        return NULL;
+    }
+    memset(&g_ocb_pool[free_slot], 0, sizeof g_ocb_pool[free_slot]);
+    g_ocb_used[free_slot] = 1;
+    g_ocb_uid[free_slot] = ci.cred.euid;
+    return &g_ocb_pool[free_slot];
+}
+
+/* ocb_free for /dev/arbiter: the block goes back to the pool. A pointer that is
+ * not one of the pool's blocks is ignored (it cannot come from ocb_from_pool).
+ * The signature is iofunc_funcs_t's ocb_free (iofunc_mount_t page), so the
+ * parameter cannot be const. */
+/* cppcheck-suppress constParameter */
+static void ocb_to_pool(IOFUNC_OCB_T *ocb)
+{
+    for (int i = 0; i < ARB_DEV_OPENS_MAX; i++) {             /* bound: ARB_DEV_OPENS_MAX */
+        if (ocb == &g_ocb_pool[i]) {
+            g_ocb_used[i] = 0;
+            g_ocb_uid[i] = 0;
+            return;
+        }
+    }
+}
+
 /*
  * Last close of an open: runs when a client closes /dev/arbiter or terminates
  * for any reason. When it is the submitter's open, NORMAL goes to HOLD at once,
@@ -576,6 +657,8 @@ static void log_changes(int first)
               "the watchdog's own, not forged (%lld so far)");
     log_count(&g_logged.submits_refused, g_status.submits_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
               "refused a command: not the gateway's user, or not the submitter's open (%lld so far)");
+    log_count(&g_logged.opens_refused, g_status.opens_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
+              "refused an open of " ARB_DEV_PATH ": the pool or that user's share is full (%lld so far)");
     if (g_status.watchdog_lost != g_logged.watchdog_lost) {
         g_logged.watchdog_lost = g_status.watchdog_lost;
         arb_log_c(ARB_LOG_FAULT, SLOG2_ERROR,
@@ -719,6 +802,18 @@ int main(int argc, char **argv)
      * FR-W4: e-stop from anyone). On the policy image, only the listed types may
      * connect at all (FR-S2). */
     iofunc_attr_init(&g_attr, S_IFNAM | 0666, NULL, NULL);
+    /* FR-G9: every open of the path takes an OCB from the fixed pool (above).
+     * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/i/iofunc_mount_init.html */
+    if (iofunc_mount_init(&g_mount, sizeof g_mount) == -1) {
+        arb_log_fail("iofunc_mount_init", errno);
+        return 5;
+    }
+    memset(&g_ocb_funcs, 0, sizeof g_ocb_funcs);
+    g_ocb_funcs.nfuncs = _IOFUNC_NFUNCS;
+    g_ocb_funcs.ocb_calloc = ocb_from_pool;
+    g_ocb_funcs.ocb_free = ocb_to_pool;
+    g_mount.funcs = &g_ocb_funcs;
+    g_attr.mount = &g_mount;
 
     memset(&rattr, 0, sizeof rattr);
     rattr.nparts_max = 1;
