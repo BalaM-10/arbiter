@@ -60,6 +60,20 @@ by that reset; a 9 ms pause stopped nothing
 How often it happens on its own: [`docs/TARGETS.md`](docs/TARGETS.md#qemu-host-pauses).
 Which stops need the operator: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
+## Check the evidence without a QNX license
+
+Every saved run can be checked on any Linux host with Python 3.10+, no QNX needed:
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install -e .                    # the host tools
+.venv/bin/arbiter evidence verify-packet evidence/bench/2026-11-17-qemu/190715
+```
+
+`verify-packet` recomputes every file hash, each scenario's hash-chained evidence log
+against its anchor and the contract, and checks the binaries' hashes as the target
+reported them against the build. Then open
+[`evidence/bench/2026-11-17-qemu/190715/report.html`](evidence/bench/2026-11-17-qemu/190715/report.html).
+
 ## Quick start (QEMU)
 
 Tested with QNX SDP 8.0.4 on Ubuntu 22.04 (WSL2 on Windows 11), QEMU 6.2,
@@ -97,6 +111,12 @@ Expected:
   `PASS fr_p1_scripted_planner_runs_pick_and_place_through_the_gateway (qemu)`. To drive a
   running gateway yourself: `.venv/bin/arbiter planner run --host <target address>`.
 - `host-checks.sh`: `SUMMARY host-checks: PASS`.
+
+On QEMU these are the results of a quiet host. The newest full run at the newest
+code may differ when the host pauses the virtual machine (see above): at aa4776b,
+`run-tests.sh` gave 10/11 (`fr_n4_observer_gets_arm_telemetry`, 22 of 50 frames) and
+the planner run safe-stopped after command 65; both are kept and explained in
+[`docs/TARGETS.md`](docs/TARGETS.md#qemu-host-pauses).
 
 To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/default.yaml -o build/contract.bin`.
 

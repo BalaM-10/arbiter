@@ -70,11 +70,11 @@ Do these once, in order, from the repo root. Steps 3 to 5 need a myQNX account.
 7. **Build the QEMU image** (QNX-licensed, so it stays in the git-ignored `targets/`):
    ```sh
    source ~/qnx800/qnxsdp-env.sh
-   mkdir -p targets/qemu-x86_64 && cd targets/qemu-x86_64
-   mkqnximage --type=qemu --arch=x86_64 --hostname=arbiter-qemu \
-     --ssh-ident=$HOME/.ssh/qnx_target_ed25519.pub --build
-   cd ../..
+   ./scripts/build-image.sh qemu        # mkqnximage --type=qemu --arch=x86_64, no security policy
    ```
+   The script runs `mkqnximage` in `targets/qemu-x86_64` with the options in
+   `scripts/build-image.sh` (the SSH key from `scripts/targets.env`), so the image
+   is built the same way every time; the policy image is `./scripts/build-image.sh qemu_secpol`.
 8. **Python host tools** (contract compiler and its tests), in a project-local
    virtual environment; versions are pinned in `pyproject.toml`, licenses in `NOTICE`:
    ```sh
@@ -189,9 +189,11 @@ Measured on this laptop (QEMU, function only;
 - 2026-11-17, recorded as findings (the runs are kept; each stopped safely):
   - Bench at 325e3b0, F6 ([`171618`](../evidence/bench/2026-11-17-qemu/171618/report.html)):
     774 ms after the arm registered, the watchdog tripped it as stuck and, at the
-    same moment, the arm lost the watchdog's beat. Nothing on the target outranks
-    the arm (70) and the watchdog (66), so both going silent at once points to a
-    pause of the guest: likely, not proven (no tick record covers that moment).
+    same moment, the arm lost the watchdog's beat. No Arbiter process or test tool
+    outranks the arm (70) and the watchdog (66), so both going silent at once points
+    to a pause of the guest: likely, not proven. No tick record covers that moment,
+    and system threads (the network stack, the disk driver) may run above 70; no
+    thread listing of the running image is saved yet.
   - Bench at 325e3b0, F1 ([`172851`](../evidence/bench/2026-11-17-qemu/172851/report.html)):
     the arm's own ticks show gaps up to 9.3 ms (65 of 2 periods or more) and the
     watchdog tripped the guardian as stuck: a guest pause, shown by the arm's own
@@ -208,7 +210,8 @@ Measured on this laptop (QEMU, function only;
   [`planner-e2e-191106.log`](../evidence/runs/2026-11-17-qemu/planner-e2e-191106.log))
   and one gateway test saw 22 of 50 telemetry frames in 500 ms
   ([`run-185858.log`](../evidence/runs/2026-11-17-qemu/run-185858.log)). Both are
-  kept as findings, linked to the measured pauses (likely, not proven per event).
+  kept as findings. The probe ran right after them (it started 2 minutes after the
+  planner run), not at the same moment: a host pause is the likely cause, not shown.
 - **Not a host pause: the SAFE_STOP at start in `run-182322.log`** (twice in
   `arm_suite`, the guardian tripped as stuck). Found and fixed: the guardian and
   the arm wrote their startup lines to stdout only after registering with the

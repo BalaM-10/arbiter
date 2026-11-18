@@ -1,7 +1,7 @@
 # Evidence
 
 Saved output of Arbiter running on QNX, and of the host checks. Every number in
-the documentation comes from a file here (CLAUDE.md rule 6). Nothing here is
+the documentation comes from a file here: no number is typed in by hand. Nothing here is
 built from QNX-licensed files: no binaries, no images.
 
 | Folder | What |
