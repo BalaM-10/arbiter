@@ -22,7 +22,7 @@ if the one before it is not there. Requirement IDs are defined in
 | Planner, contract compiler, bench | Host | Untrusted / build-time / test | Python tools |
 
 Only the guardian, the arm controller, the watchdog and `libcontract` are <!-- not a claim -->
-trusted code (the trust list is T1 to T6 in `docs/THREAT_MODEL.md`). They follow the rules in `rt-c-review`: no allocation after
+trusted code (the trust list is T1 to T6 in `docs/THREAT_MODEL.md`). They follow the rules in `docs/TRUSTED_CODE_CHECKLIST.md`: no allocation after
 startup, no recursion, every loop bounded, every input validated first.
 
 ## Units

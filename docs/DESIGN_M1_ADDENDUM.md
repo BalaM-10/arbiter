@@ -184,7 +184,8 @@ from the saved run `evidence/runs/2026-11-13-qemu/run-133305.log` (lines
 | Same with `_NTO_CHF_UNBLOCK`, server replies 20 ms later | 20 | 23.505 ms | 24.059 ms | 24.380 ms | 24.380 ms | client held until the server answered |
 
 So on QEMU the 2 ms timeout never fired early and fired by the second tick
-after expiry: an observed range of 2 to 4 ms in that run.
+after expiry: an observed range of 2 to 4 ms in that run (QEMU, function only;
+Pi 5 bound in M3).
 
 Correction, 2026-11-15: later QEMU runs show a rare tail beyond that. REPLY took
 6.314 ms once in `evidence/runs/2026-11-15-qemu/run-151353.log`, and SEND took
@@ -239,14 +240,14 @@ The same bound applies to the guardian's state query to the arm (section 5).
   thread uses FIFO.
 - **Consequence of the arm being highest:** if the arm's loop itself spun
   forever, it would starve the watchdog, which could then not record it. The
-  arm's per-cycle work is bounded by construction (`rt-c-review`), and a faulty
+  arm's per-cycle work is bounded by construction (`docs/TRUSTED_CODE_CHECKLIST.md`), and a faulty
   trusted process is out of scope (O4 in `docs/THREAT_MODEL.md`). <!-- not a claim -->
 
 | Thread | Priority (FIFO) | Activation | Period | Work budget per activation (to measure) | Channel flags |
 | --- | --- | --- | --- | --- | --- |
 | Arm controller loop | 70 | Own timer pulse; guardian messages and pulses; watchdog brake pulse | 1 ms | ≤ 50 µs per tick; ≤ 30 µs per setpoint | Own channel created with `_NTO_CHF_FIXED_PRIORITY \| _NTO_CHF_DISCONNECT \| _NTO_CHF_COID_DISCONNECT`, **not** `_NTO_CHF_UNBLOCK`; registered with `name_attach()` |
 | Watchdog | 66 | Own timer pulse; heartbeat pulses; death-notice pulses | 1 ms | ≤ 20 µs | Heartbeat channel: `_NTO_CHF_FIXED_PRIORITY`. Death-notice channel: `_NTO_CHF_PRIVATE` |
-| Guardian | 64 | devctl from clients; own 1 ms tick pulse | 1 ms tick; commands as they come (rate-limited by the contract) | Decision ≤ 200 µs (NFR-T2 target); tick ≤ 20 µs; arm send bounded at 2 to 4 ms (section 3) | `/dev/arbiter` resource manager channel: `_NTO_CHF_FIXED_PRIORITY \| _NTO_CHF_UNBLOCK \| _NTO_CHF_DISCONNECT` |
+| Guardian | 64 | devctl from clients; own 1 ms tick pulse | 1 ms tick; commands as they come (rate-limited by the contract) | Decision ≤ 200 µs (NFR-T2 target); tick ≤ 20 µs; arm send bounded at 2 to 4 ms on QEMU, function only; Pi 5 bound in M3 (section 3) | `/dev/arbiter` resource manager channel: `_NTO_CHF_FIXED_PRIORITY \| _NTO_CHF_UNBLOCK \| _NTO_CHF_DISCONNECT` |
 | Evidence logger (M2) | 30 | Own timer | 10 ms | Bounded batch per drain | — |
 | Gateway (M2) and test clients | 20 | Network / test input | — | Untrusted; no budget | — |
 | Shells, sshd, other system processes | as configured by the image (to record with `pidin` on target) | | | | |
@@ -478,7 +479,7 @@ the strict rule: 0 intervals of 2 periods or more, longest 1.988 ms.
 1. The three stop levels; L3 is out of scope (section 1).
 2. Lease = 10 control cycles, renewed by guardian pulses; expiry latches (section 2).
 3. Arm channel without `_NTO_CHF_UNBLOCK`; 2 ms send timeout, **measured on QEMU
-   as an effective 2 to 4 ms** (section 3); Pi 5 value in M3.
+   as an effective 2 to 4 ms** (section 3; QEMU, function only); Pi 5 bound in M3.
 4. **Priority order: arm 70 > watchdog 66 > guardian 64 > logger 30 > untrusted
    ≤ 20**; watchdog above the guardian; arm loop highest; trusted processes in the
    privileged range (section 4). Budgets are measurement targets.

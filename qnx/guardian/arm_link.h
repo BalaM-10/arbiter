@@ -11,7 +11,8 @@
 #include "arb_arm_proto.h"
 
 /* Send timeout: 2 ms requested; measured on QEMU as an effective 2 to 4 ms because
- * timers fire on the 1 ms tick (evidence/runs/2026-11-13-qemu/run-133305.log). */
+ * timers fire on the 1 ms tick (evidence/runs/2026-11-13-qemu/run-133305.log;
+ * QEMU, function only; Pi 5 bound in M3). */
 #define ARM_LINK_TIMEOUT_NS 2000000ull
 /* The operator reset (FR-G5) allows longer: the arm first registers again with the
  * watchdog, itself bounded at 2 ms. Only in SAFE_STOP, so no command waits on it. */

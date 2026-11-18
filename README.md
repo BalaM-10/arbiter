@@ -109,6 +109,7 @@ To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/def
 - [`docs/REQUIREMENTS_SUMMARY.md`](docs/REQUIREMENTS_SUMMARY.md): the requirement IDs cited in code, tests and commits.
 - [`docs/TRACEABILITY.md`](docs/TRACEABILITY.md): each requirement, the code that implements it, its tests and where they passed.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): how the guardian decides, units, path checking, and leaving a keep-out zone.
+- [`docs/TRUSTED_CODE_CHECKLIST.md`](docs/TRUSTED_CODE_CHECKLIST.md): the review checklist every change to the trusted C code goes through, and which script or test checks each item.
 - [`evidence/`](evidence/): saved on-target run logs, bench reports with their raw records and each scenario's system log, the QEMU host-pause measurements ([`evidence/stall/`](evidence/stall/README.md)), and the host record.
 - [`host/arbiter/bench/`](host/arbiter/bench/): the fault bench: one module per scenario, and the independent checks.
 - [`qnx/samples/msgpass/msgpass.c`](qnx/samples/msgpass/msgpass.c): the message-passing sample.

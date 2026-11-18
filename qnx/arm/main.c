@@ -203,7 +203,7 @@ static int authorized(int scoid, int may_bind)
         return 0;
     }
     g_bound_scoid = scoid;
-    /* Published, not printed: no I/O on the message path (rt-c-review). */
+    /* Published, not printed: no I/O on the message path (docs/TRUSTED_CODE_CHECKLIST.md). */
     atomic_store_explicit(&g_telem->bound_pid, (int64_t)ci.pid, memory_order_relaxed);
     return 1;
 }

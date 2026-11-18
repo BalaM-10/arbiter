@@ -203,7 +203,7 @@ analyze: | $(HOST_OUT)
 	cppcheck --std=c11 --enable=warning,style,performance,portability --inline-suppr \
 	         --error-exitcode=1 --quiet $(INCLUDES) $(LIBCONTRACT_SRC)
 
-# Trusted QNX code (rt-c-review): qcc's gcc 12 static analyzer with extra
+# Trusted QNX code (docs/TRUSTED_CODE_CHECKLIST.md): qcc's gcc 12 static analyzer with extra
 # warnings, and cppcheck. Needs the SDP environment.
 analyze-qnx: qnx-env
 	$(CC) -std=c11 -Wall -Wextra -Werror -Wconversion -Wshadow -fanalyzer -O2 -D_QNX_SOURCE $(INCLUDES) -Iguardian -c guardian/main.c -o /dev/null
