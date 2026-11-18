@@ -768,14 +768,19 @@ static void fr_g9_opens_come_from_a_fixed_pool_with_a_share_per_user(void)
            (unsigned)(b.ticks - a.ticks));
     CHECK_EQ_INT(b.opens_refused - a.opens_refused, 101);
     CHECK(b.ticks - a.ticks >= 50);                           /* still ticking (1 ms tick; QEMU, function only) */
-    gw = open_as(ARB_UID_GATEWAY, O_RDWR);                    /* the gateway still gets in */
+    gw = open_as(ARB_UID_GATEWAY, O_RDWR);                    /* the gateway's user still gets in */
     CHECK(gw != -1);
     if (gw != -1) {
-        c = cmd(-100000, 0, 1000);
-        CHECK_EQ_INT(submit(gw, &c, &w), EOK);
-        CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+        arb_status_t s;
+        memset(&s, 0, sizeof s);
+        CHECK_EQ_INT(devctl(gw, ARB_DCMD_GET_STATUS, &s, sizeof s, NULL), EOK);
         (void)close(gw);
     }
+    /* and commands are still decided (on this test's own open, the current
+     * submitter: FR-G10 allows one submitter open at a time) */
+    c = cmd(-100000, 0, 1000);
+    CHECK_EQ_INT(submit(g_fd, &c, &w), EOK);
+    CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
     op = open_as(ARB_UID_OPERATOR, O_RDONLY);                 /* and the operator */
     CHECK(op != -1);
     if (op != -1) {
