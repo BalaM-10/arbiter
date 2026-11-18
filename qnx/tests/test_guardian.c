@@ -34,6 +34,7 @@
 #include "arb_devctl.h"
 #include "arb_pulses.h"
 #include "arb_test.h"
+#include "arb_watchdog_proto.h"
 
 static int g_fd = -1;          /* opened read-write */
 static uint32_t g_seq = 100;
@@ -689,6 +690,187 @@ static void fr_g3_stale_start_reported_as_deny(void)
 
 /* ---------------------------------------------------------------------- run */
 
+/* ------------------------------------------- FR-G9: a fixed pool of opens */
+
+/* open() as effective user euid, then back to root; -1 with errno, or the fd.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/seteuid.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/o/open.html */
+static int open_as(uid_t euid, int flags)
+{
+    int fd, e;
+
+    if (seteuid(euid) == -1) {
+        return -1;
+    }
+    fd = open(ARB_DEV_PATH, flags);
+    e = errno;
+    if (seteuid(0) == -1) {
+        if (fd != -1) {
+            (void)close(fd);
+        }
+        return -1;
+    }
+    errno = e;
+    return fd;
+}
+
+static void close_all(int *fds, int n)
+{
+    for (int i = 0; i < n; i++) {                            /* bound: n <= 2 * ARB_DEV_OPENS_MAX */
+        if (fds[i] != -1) {
+            (void)close(fds[i]);
+            fds[i] = -1;
+        }
+    }
+}
+
+/* An untrusted user opens /dev/arbiter again and again (review M2-J3): it gets
+ * its share, ARB_DEV_OPENS_PER_USER, and every further open is refused and
+ * counted. While it holds them: the guardian still ticks, the gateway's user
+ * opens and its command is decided, and another user still reads the status.
+ * Closed opens are reused: 1000 open/close cycles never run out. Root, uncapped
+ * per user, stops at the pool's size. */
+static void fr_g9_opens_come_from_a_fixed_pool_with_a_share_per_user(void)
+{
+    int mine[2 * ARB_DEV_OPENS_MAX];
+    int got = 0, refused_errno = 0, gw = -1, op = -1;
+    arb_status_t a, b;
+    arb_verdict_wire_t w;
+    arb_cmd_t c;
+
+    for (int i = 0; i < 2 * ARB_DEV_OPENS_MAX; i++) {        /* bound: 64 */
+        mine[i] = -1;
+    }
+    ms_sleep(250);                                            /* refill the rate bucket */
+    CHECK_EQ_INT(status(&a), EOK);
+    for (int i = 0; i < 2 * ARB_DEV_OPENS_MAX; i++) {        /* bound: 64 attempts */
+        mine[i] = open_as(ARB_UID_UNTRUSTED, O_RDONLY);
+        if (mine[i] == -1) {
+            refused_errno = errno;
+            break;
+        }
+        got++;
+    }
+    printf("  user %d: %d opens granted, the next refused with %s (share %d, pool %d)\n", ARB_UID_UNTRUSTED, got,
+           refused_errno != 0 ? strerror(refused_errno) : "nothing", ARB_DEV_OPENS_PER_USER, ARB_DEV_OPENS_MAX);
+    CHECK_EQ_INT(got, ARB_DEV_OPENS_PER_USER);
+    CHECK(refused_errno != 0);
+    for (int i = 0; i < 100; i++) {                           /* bound: 100 more attempts */
+        const int fd = open_as(ARB_UID_UNTRUSTED, O_RDONLY);
+        CHECK(fd == -1);
+        if (fd != -1) {
+            (void)close(fd);
+        }
+    }
+    ms_sleep(100);
+    CHECK_EQ_INT(status(&b), EOK);
+    printf("  opens refused +%u; ticks +%u in about 100 ms\n", (unsigned)(b.opens_refused - a.opens_refused),
+           (unsigned)(b.ticks - a.ticks));
+    CHECK_EQ_INT(b.opens_refused - a.opens_refused, 101);
+    CHECK(b.ticks - a.ticks >= 50);                           /* still ticking (1 ms tick; QEMU, function only) */
+    gw = open_as(ARB_UID_GATEWAY, O_RDWR);                    /* the gateway still gets in */
+    CHECK(gw != -1);
+    if (gw != -1) {
+        c = cmd(-100000, 0, 1000);
+        CHECK_EQ_INT(submit(gw, &c, &w), EOK);
+        CHECK_EQ_INT(w.verdict, ARB_VERDICT_ALLOW);
+        (void)close(gw);
+    }
+    op = open_as(ARB_UID_OPERATOR, O_RDONLY);                 /* and the operator */
+    CHECK(op != -1);
+    if (op != -1) {
+        arb_status_t s;
+        memset(&s, 0, sizeof s);
+        CHECK_EQ_INT(devctl(op, ARB_DCMD_GET_STATUS, &s, sizeof s, NULL), EOK);
+        (void)close(op);
+    }
+    close_all(mine, 2 * ARB_DEV_OPENS_MAX);
+    for (int i = 0; i < 1000; i++) {                          /* bound: 1000 cycles */
+        const int fd = open_as(ARB_UID_UNTRUSTED, O_RDONLY);
+        if (fd == -1) {
+            printf("  open/close cycle %d refused: %s\n", i, strerror(errno));
+            arb_test_failures++;
+            break;
+        }
+        (void)close(fd);
+    }
+    /* Root: no share, but the pool's size bounds it. */
+    got = 0;
+    CHECK_EQ_INT(status(&a), EOK);
+    for (int i = 0; i < 2 * ARB_DEV_OPENS_MAX; i++) {        /* bound: 64 attempts */
+        mine[i] = open(ARB_DEV_PATH, O_RDONLY);
+        if (mine[i] == -1) {
+            break;
+        }
+        got++;
+    }
+    CHECK_EQ_INT(status(&b), EOK);
+    printf("  root: %d more opens granted with %u already open, then refused; clients %u (pool %d)\n", got,
+           (unsigned)a.clients, (unsigned)b.clients, ARB_DEV_OPENS_MAX);
+    CHECK_EQ_INT(b.clients, ARB_DEV_OPENS_MAX);
+    CHECK_EQ_INT(got, ARB_DEV_OPENS_MAX - (int)a.clients);
+    close_all(mine, 2 * ARB_DEV_OPENS_MAX);
+    ms_sleep(20);
+    CHECK_EQ_INT(status(&b), EOK);
+    CHECK_EQ_INT(b.clients, a.clients);
+}
+
+/* ------------------------- FR-G5 with FR-W2: the reset path stays supervised */
+
+/* Review M2-J7. The stand-in arm holds every operator reset unanswered, so each
+ * reset waits out the guardian's whole reset timeout. The guardian is registered
+ * with the real watchdog all along: however long the reset waits, the watchdog
+ * must never see the guardian silent for its 10 ms (ARB_WD_TIMEOUT_MS). Each
+ * reset is refused (EIO), the guardian stays in SAFE_STOP, no trip is recorded.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/shm_open.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/mmap.html */
+static void fr_g5_reset_with_an_arm_that_never_answers_never_trips_the_watchdog(void)
+{
+    const arb_wd_status_t *wd;
+    arb_status_t st;
+    uint64_t trips0, trips1;
+    double longest = 0.0;
+    int fd, eio = 0;
+
+    fd = shm_open(ARB_WD_STATUS_NAME, O_RDONLY, 0);
+    CHECK(fd != -1);
+    if (fd == -1) {
+        return;
+    }
+    wd = mmap(NULL, sizeof *wd, PROT_READ, MAP_SHARED, fd, 0);
+    (void)close(fd);
+    CHECK(wd != MAP_FAILED);
+    if (wd == MAP_FAILED) {
+        return;
+    }
+    CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_ESTOP, NULL, 0, NULL), EOK);
+    CHECK_EQ_INT(status(&st), EOK);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    ms_sleep(50);
+    trips0 = atomic_load((_Atomic uint64_t *)&wd->trips);
+    for (int i = 0; i < 20; i++) {                            /* bound: 20 resets */
+        const uint64_t t0 = ClockCycles();
+        const int rc = arb_devctl_as(ARB_UID_OPERATOR, g_fd, ARB_DCMD_RESET, NULL, 0);
+        const double ms = ms_since(t0);
+        if (ms > longest) {
+            longest = ms;
+        }
+        if (rc == EIO) {
+            eio++;
+        }
+        ms_sleep(20);
+    }
+    trips1 = atomic_load((_Atomic uint64_t *)&wd->trips);
+    CHECK_EQ_INT(status(&st), EOK);
+    printf("  20 resets, the arm never answering: %d refused EIO, longest %.2f ms; watchdog trips +%llu, last role %u "
+           "(QEMU, function only)\n", eio, longest, (unsigned long long)(trips1 - trips0),
+           (unsigned)atomic_load((_Atomic uint32_t *)&wd->last_role));
+    CHECK_EQ_INT(eio, 20);
+    CHECK_EQ_INT(trips1 - trips0, 0);
+    CHECK_EQ_INT(st.state, ARB_STATE_SAFE_STOP);
+    (void)munmap((void *)wd, sizeof *wd);
+}
+
 static const arb_test_case_t normal_cases[] = {
     ARB_TEST_CASE(fr_g1_dev_arbiter_exists_in_path_namespace),
     ARB_TEST_CASE(fr_g1_command_round_trip_over_devctl),
@@ -712,11 +894,15 @@ static const arb_test_case_t normal_cases[] = {
     ARB_TEST_CASE(fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once),
     ARB_TEST_CASE(fr_g5_reset_through_the_gateway_is_refused),
     ARB_TEST_CASE(fr_g8_recording_never_waits_for_a_reader),
+    ARB_TEST_CASE(fr_g9_opens_come_from_a_fixed_pool_with_a_share_per_user),
     ARB_TEST_CASE(fr_g5_last_client_close_enters_hold),
 };
 static const arb_test_case_t hang_cases[] = { ARB_TEST_CASE(fr_g9_arm_never_replies_times_out_and_safe_stops) };
 static const arb_test_case_t stopped_cases[] = { ARB_TEST_CASE(fr_g9_arm_not_receiving_times_out_and_safe_stops) };
 static const arb_test_case_t stale_cases[] = { ARB_TEST_CASE(fr_g3_stale_start_reported_as_deny) };
+static const arb_test_case_t noreset_cases[] = {
+    ARB_TEST_CASE(fr_g5_reset_with_an_arm_that_never_answers_never_trips_the_watchdog),
+};
 
 int main(int argc, char **argv)
 {
@@ -739,6 +925,9 @@ int main(int argc, char **argv)
     if (strcmp(mode, "stale") == 0) {
         return arb_test_run("test_guardian stale", stale_cases, 1);
     }
-    printf("usage: test_guardian normal|hang|stopped|stale\n");
+    if (strcmp(mode, "noreset") == 0) {
+        return arb_test_run("test_guardian noreset", noreset_cases, 1);
+    }
+    printf("usage: test_guardian normal|hang|stopped|stale|noreset\n");
     return 2;
 }

@@ -63,7 +63,7 @@ typedef struct {
     uint16_t estops;                   /* emergency stops received (FR-W4) */
     uint16_t resets;                   /* operator resets done (FR-G5) */
     uint16_t resets_refused;           /* resets refused: not the operator, wrong state, no watchdog, arm */
-    uint16_t reserved;                 /* 0 */
+    uint16_t opens_refused;            /* FR-G9: opens refused: the pool or the user's share full */
     uint32_t last_seq;                 /* FR-G10: newest sequence number consumed; the next
                                           command must be newer (valid when has_seq is 1) */
     uint8_t  has_seq;                  /* 1 once any command passed the sequence check */

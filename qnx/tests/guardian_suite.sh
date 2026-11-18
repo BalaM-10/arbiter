@@ -8,14 +8,14 @@ fail=0
 STUB=
 GUARD=
 
-arb_start() {    # arb_start <stub mode>   (watchdog, stand-in arm, guardian)
+arb_start() {    # arb_start <stub mode> [operator-uid]   (watchdog, stand-in arm, guardian)
     ./arb-watchdog &
     WD=$!
     sleep 1
     ./arb_arm_stub "$1" &
     STUB=$!
     sleep 1
-    ./arb-guardian "$CONTRACT" &
+    ./arb-guardian "$CONTRACT" ${2:+"$2"} &
     GUARD=$!
     sleep 1
 }
@@ -79,6 +79,11 @@ arb_stop
 echo "## arm rejects the start position"
 arb_start stale
 ./test_guardian stale || fail=1
+arb_stop
+
+echo "## FR-G5, FR-W2: operator reset with an arm that never answers it (review M2-J7)"
+arb_start noreset 800
+./test_guardian noreset || fail=1
 arb_stop
 
 # The evidence logger (docs/EVIDENCE_LOG.md): with the guardian and the stub

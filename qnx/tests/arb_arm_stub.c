@@ -6,6 +6,8 @@
  *   arb_arm_stub normal   reply to every request; the "arm" jumps to each target
  *   arb_arm_stub hang     reply to state queries, never reply to a setpoint
  *   arb_arm_stub stale    reply to every setpoint with STALE_START
+ *   arb_arm_stub noreset  reply to everything but an operator reset, which it
+ *                         holds unanswered (review M2-J7: the guardian's reset path)
  *
  * It also checks two things the 8.0 docs leave open (docs/DESIGN_M1_ADDENDUM.md,
  * decision 7): that name_attach() with our own dispatch handle uses our channel
@@ -23,7 +25,7 @@
 #include "arb_arm_proto.h"
 #include "arb_ids.h"
 
-typedef enum { MODE_NORMAL, MODE_HANG, MODE_STALE } mode_t_;
+typedef enum { MODE_NORMAL, MODE_HANG, MODE_STALE, MODE_NORESET } mode_t_;
 
 /* Decision 7 of docs/DESIGN_M1_ADDENDUM.md: name_attach() given our own dispatch
  * handle must register our channel, so the flags we chose (no _NTO_CHF_UNBLOCK) hold. */
@@ -54,7 +56,7 @@ int main(int argc, char **argv)
 
     setvbuf(stdout, NULL, _IOLBF, 0);
     if (argc != 2) {
-        printf("usage: arb_arm_stub normal|hang|stale\n");
+        printf("usage: arb_arm_stub normal|hang|stale|noreset\n");
         return 2;
     }
     if (strcmp(argv[1], "normal") == 0) {
@@ -63,6 +65,8 @@ int main(int argc, char **argv)
         mode = MODE_HANG;
     } else if (strcmp(argv[1], "stale") == 0) {
         mode = MODE_STALE;
+    } else if (strcmp(argv[1], "noreset") == 0) {
+        mode = MODE_NORESET;
     } else {
         printf("unknown mode %s\n", argv[1]);
         return 2;
@@ -147,6 +151,8 @@ int main(int argc, char **argv)
             reply.pos_urad[0] = pos[0];
             reply.pos_urad[1] = pos[1];
             (void)MsgReply(rcvid, EOK, &reply, sizeof reply);
+        } else if (msg.type == ARB_ARM_MSG_RESET && mode == MODE_NORESET) {
+            continue;                      /* hold it: the guardian's reset send must time out */
         } else {
             (void)MsgError(rcvid, EBADMSG);
         }
