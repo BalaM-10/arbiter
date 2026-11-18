@@ -1,0 +1,27 @@
+watchdog Nov 18 01:08:48.765          arb_watchdog.21397526                 main*     1  privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+watchdog Nov 18 01:08:48.765          arb_watchdog.21397526                 main      1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+watchdog Nov 18 01:08:49.802          arb_watchdog.21397526                 main      8  registered the arm, pid 21413911
+watchdog Nov 18 01:08:50.878          arb_watchdog.21397526                 main      8  registered the guardian, pid 21446680
+arm Nov 18 01:08:49.801               arb_arm.21413911                 main*     1  privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arm Nov 18 01:08:49.802               arb_arm.21413911                 main      1  ready as arbiter_arm, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arm Nov 18 01:08:50.876               arb_arm.21413911                 main      8  bound the guardian, pid 21446680: only it may command the arm
+arm Nov 18 01:08:53.969               arb_arm.21413911                 main      6  guardian HOLD: stopping along the segment (1 so far)
+arm Nov 18 01:08:54.191               arb_arm.21413911                 main      6  guardian SAFE_STOP: braked and latched (1 so far)
+arm Nov 18 01:08:55.735               arb_arm.21413911                 main      8  operator reset from the guardian: registered with the watchdog again, latch cleared (1 so far)
+arm Nov 18 01:08:55.735               arb_arm.21413911                 main      8  recognised a watchdog event of the previous registration, still queued at the operator reset: the watchdog's own, not forged (1 so far)
+arm Nov 18 01:08:55.735               arb_arm.21413911                 main      6  guardian HOLD: stopping along the segment (2 so far)
+arm Nov 18 01:08:57.430               arb_arm.21413911                 main      6  guardian HOLD: stopping along the segment (3 so far)
+guardian Nov 18 01:08:50.875          arb_guardian.21446680                 main*     1  privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+guardian Nov 18 01:08:50.878          arb_guardian.21446680                 main      1  ready on /dev/arbiter, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+guardian Nov 18 01:08:50.878          arb_guardian.21446680                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 18 01:08:53.719          arb_guardian.21446680                 main      3  state NORMAL
+guardian Nov 18 01:08:53.969          arb_guardian.21446680                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 18 01:08:54.191          arb_guardian.21446680                 main      3  state SAFE_STOP, cause violations (threshold of counted denials)
+guardian Nov 18 01:08:55.735          arb_guardian.21446680                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 18 01:08:55.735          arb_guardian.21446680                 main      3  operator reset: SAFE_STOP left for HOLD (1 so far)
+guardian Nov 18 01:08:55.735          arb_guardian.21446680                 main      8  recognised a watchdog event of the previous registration, still queued at the operator reset: the watchdog's own, not forged (1 so far)
+guardian Nov 18 01:08:55.749          arb_guardian.21446680                 main      3  state NORMAL
+guardian Nov 18 01:08:57.430          arb_guardian.21446680                 main      3  state HOLD (no command within the silence timeout, or no client)
+logd Nov 18 01:08:51.960              arb_logd.21471257                 main*     1  privileges dropped: uid 813 gid 813; kept PRIORITY 1-30; refused as expected: setuid(0), priority 31, fork()
+logd Nov 18 01:08:51.961              arb_logd.21471257                 main      1  ready, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+logd Nov 18 01:08:53.727              arb_logd.21471257                 main      8  mapped the arm's telemetry read-only, to relay it to the gateway

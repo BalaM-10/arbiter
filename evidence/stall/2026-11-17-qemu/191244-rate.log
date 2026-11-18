@@ -1,0 +1,29 @@
+# qemu-stall rate 300 — 2026-11-17T19:12:55-06:00
+# commit: aa4776b
+# host: Ubuntu 22.04.5 LTS; QEMU pid 265391: -smp 2
+# target: root@172.31.1.174:/data/home/root/arbiter/bin, QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+# QEMU proves function; the times are QEMU measurements, not claims.
+## rate 300 s: nothing paused
+START mode rate seconds 300 telemetry_head 2020
+EVENT 0.652 guardian.state 1 2
+EVENT 139765.135 arm.wd_brakes 0 1
+EVENT 139765.135 arm.lease_expiries 0 1
+EVENT 139765.135 wd.trips 0 1
+EVENT 139765.135 wd.last_role 0 1
+EVENT 139765.135 wd.last_cause 0 2
+STALL 139993.900 12.678
+EVENT 140013.205 arm.wd_lost 0 1
+EVENT 140013.205 arm.wd_lost_cause 0 2
+EVENT 140013.205 wd.trips 1 2
+EVENT 140013.205 wd.last_role 1 2
+EVENT 140013.205 guardian.state 2 3
+EVENT 140013.205 guardian.stop_cause 0 3
+EVENT 140013.205 guardian.watchdog_lost 0 1
+EVENT 140013.205 guardian.watchdog_lost_cause 0 2
+RESET 140249.291 0 3
+RESET 140444.286 0 1
+EVENT 140456.809 guardian.state 1 2
+SUMMARY seconds 300 intervals 295030 ge2ms 1827 ge5ms 21 ge10ms 1 ge20ms 0 ge50ms 0 below0.1ms 1419 largest_ms 12.678 samples_lost 0
+SUMMARY submits_allowed 1996 submits_denied 2 safe_stops 1 resets_ok 2 resets_failed 0 wd_trips 3 probe_longest_pass_ms 265.850
+SUMMARY end arm.wd_lost=1 arm.wd_lost_cause=2 arm.wd_brakes=2 arm.rejected=0 arm.lease_expiries=1 wd.trips=3 wd.last_role=1 wd.last_cause=2 wd.rejected=503 guardian.state=2 guardian.stop_cause=0 guardian.watchdog_lost=2 guardian.watchdog_lost_cause=2 guardian.watchdog_trips=0 guardian.arm_faults=0 guardian.resets=2
+state HOLD cause none estops 0 resets 2 resets_refused 0 watchdog_lost 2 decisions 1998 submits_refused 0 last_seq 1998 has_seq 1

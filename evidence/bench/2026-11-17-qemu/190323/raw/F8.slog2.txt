@@ -1,0 +1,35 @@
+watchdog Nov 18 01:05:25.832          arb_watchdog.13119510                 main*     1  privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+watchdog Nov 18 01:05:25.832          arb_watchdog.13119510                 main      1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+watchdog Nov 18 01:05:26.840          arb_watchdog.13119510                 main      8  registered the arm, pid 13135895
+watchdog Nov 18 01:05:27.861          arb_watchdog.13119510                 main      8  registered the guardian, pid 13168664
+arm Nov 18 01:05:26.839               arb_arm.13135895                 main*     1  privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arm Nov 18 01:05:26.840               arb_arm.13135895                 main      1  ready as arbiter_arm, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arm Nov 18 01:05:27.861               arb_arm.13135895                 main      8  bound the guardian, pid 13168664: only it may command the arm
+arm Nov 18 01:05:31.327               arb_arm.13135895                 main      6  guardian HOLD: stopping along the segment (1 so far)
+arm Nov 18 01:05:33.599               arb_arm.13135895                 main      6  guardian HOLD: stopping along the segment (2 so far)
+guardian Nov 18 01:05:27.860          arb_guardian.13168664                 main*     1  privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+guardian Nov 18 01:05:27.861          arb_guardian.13168664                 main      1  ready on /dev/arbiter, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+guardian Nov 18 01:05:27.861          arb_guardian.13168664                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 18 01:05:30.342          arb_guardian.13168664                 main      3  state NORMAL
+guardian Nov 18 01:05:31.327          arb_guardian.13168664                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 18 01:05:32.626          arb_guardian.13168664                 main      3  state NORMAL
+guardian Nov 18 01:05:33.599          arb_guardian.13168664                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (1 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (2 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (3 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (4 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (5 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (6 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (7 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (8 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (9 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (10 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (11 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (12 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (13 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (14 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (15 so far)
+guardian Nov 18 01:05:36.866          arb_guardian.13168664                 main      5  refused a malformed or unknown devctl (16 so far)
+logd Nov 18 01:05:28.882              arb_logd.13193241                 main*     1  privileges dropped: uid 813 gid 813; kept PRIORITY 1-30; refused as expected: setuid(0), priority 31, fork()
+logd Nov 18 01:05:28.882              arb_logd.13193241                 main      1  ready, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+logd Nov 18 01:05:30.347              arb_logd.13193241                 main      8  mapped the arm's telemetry read-only, to relay it to the gateway

@@ -198,6 +198,27 @@ Measured on this laptop (QEMU, function only;
     clock. A 2-minute probe right after showed none over 3.6 ms
     ([`173905-rate.log`](../evidence/stall/2026-11-17-qemu/173905-rate.log)): the
     pauses come in bursts.
+- 2026-11-17 evening, at aa4776b (the host in best-performance power mode, other
+  apps closed): a 5-minute probe measured 1827 gaps over 2 ms, 21 over 5 ms and
+  one of 12.7 ms, which safe-stopped the system once
+  ([`191244-rate.log`](../evidence/stall/2026-11-17-qemu/191244-rate.log)); on
+  2026-11-16 the same probe found 24 over 2 ms in 10 minutes and none over 5 ms.
+  In that period the planner end-to-end run safe-stopped after command 65 (the
+  guardian missed the watchdog's beat for over 10 ms,
+  [`planner-e2e-191106.log`](../evidence/runs/2026-11-17-qemu/planner-e2e-191106.log))
+  and one gateway test saw 22 of 50 telemetry frames in 500 ms
+  ([`run-185858.log`](../evidence/runs/2026-11-17-qemu/run-185858.log)). Both are
+  kept as findings, linked to the measured pauses (likely, not proven per event).
+- **Not a host pause: the SAFE_STOP at start in `run-182322.log`** (twice in
+  `arm_suite`, the guardian tripped as stuck). Found and fixed: the guardian and
+  the arm wrote their startup lines to stdout only after registering with the
+  watchdog (stdout to a pipe is buffered until the flush), so a slow SSH session
+  could block them there for over 10 ms. Reproduced every time with a full FIFO
+  as stdout (`nfr_q6_a_blocked_stdout_never_trips_the_watchdog_*`, failing run
+  [`repeat-arm_suite-184004.log`](../evidence/runs/2026-11-17-qemu/repeat-arm_suite-184004.log));
+  fixed in 3bba895 (all output before the registration, the system log only
+  after). The earlier SAFE_STOP at start in `run-124700.log` had stdout to
+  `/dev/null` and is not explained by this.
   - The gateway suite in [`run-124700.log`](../evidence/runs/2026-11-17-qemu/run-124700.log)
     found the guardian already in `SAFE_STOP` when its first planner connected:
     likely the same cause, a watchdog trip just after startup, **not proven**: the

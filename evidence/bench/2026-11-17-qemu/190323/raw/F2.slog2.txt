@@ -1,0 +1,19 @@
+watchdog Nov 18 01:03:43.642           arb_watchdog.9433110                 main*     1  privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+watchdog Nov 18 01:03:43.642           arb_watchdog.9433110                 main      1  ready as arbiter_watchdog, heartbeat timeout 10 ms
+watchdog Nov 18 01:03:44.650           arb_watchdog.9433110                 main      8  registered the arm, pid 9449495
+watchdog Nov 18 01:03:45.685           arb_watchdog.9433110                 main      8  registered the guardian, pid 9482264
+arm Nov 18 01:03:44.649                arb_arm.9449495                 main*     1  privileges dropped: uid 811 gid 811; kept PRIORITY 1-70, CONNECTION, XPROCESS_QUERY 812-812; refused as expected: setuid(0), priority 71, fork()
+arm Nov 18 01:03:44.650                arb_arm.9449495                 main      1  ready as arbiter_arm, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arm Nov 18 01:03:45.684                arb_arm.9449495                 main      8  bound the guardian, pid 9482264: only it may command the arm
+arm Nov 18 01:03:48.466                arb_arm.9449495                 main      6  guardian HOLD: stopping along the segment (1 so far)
+arm Nov 18 01:03:50.929                arb_arm.9449495                 main      6  guardian HOLD: stopping along the segment (2 so far)
+guardian Nov 18 01:03:45.684           arb_guardian.9482264                 main*     1  privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+guardian Nov 18 01:03:45.685           arb_guardian.9482264                 main      1  ready on /dev/arbiter, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+guardian Nov 18 01:03:45.685           arb_guardian.9482264                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 18 01:03:48.215           arb_guardian.9482264                 main      3  state NORMAL
+guardian Nov 18 01:03:48.466           arb_guardian.9482264                 main      3  state HOLD (no command within the silence timeout, or no client)
+guardian Nov 18 01:03:49.000           arb_guardian.9482264                 main      3  state NORMAL
+guardian Nov 18 01:03:50.929           arb_guardian.9482264                 main      3  state HOLD (no command within the silence timeout, or no client)
+logd Nov 18 01:03:46.723               arb_logd.9506841                 main*     1  privileges dropped: uid 813 gid 813; kept PRIORITY 1-30; refused as expected: setuid(0), priority 31, fork()
+logd Nov 18 01:03:46.723               arb_logd.9506841                 main      1  ready, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+logd Nov 18 01:03:48.211               arb_logd.9506841                 main      8  mapped the arm's telemetry read-only, to relay it to the gateway
