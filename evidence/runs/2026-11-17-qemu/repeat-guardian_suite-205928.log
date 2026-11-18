@@ -1,0 +1,442 @@
+# run-tests qemu — 2026-11-17T20:59:29-06:00, REPEAT=1, ONLY=guardian_suite.sh, security policy off
+# commit: 059ec13
+# host: Ubuntu 22.04.5 LTS; qcc 12.2.0,gcc_ntox86_64
+
+## contract corpus (host compiler)
+$ arbiter contract corpus contracts/default.yaml -o build/contract-corpus
+wrote build/contract-corpus/manifest.txt
+  3390650a5efb466213042e60cfd0c3dcf980025eace0a99b1dcd9caf03f90af9  build/contract-corpus/contract.bin
+
+## build (all architectures)
+$ make -C qnx ARCH=x86_64 clean all
+rm -rf ../build/x86_64 ../build/host
+mkdir -p ../build/x86_64
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/hello samples/hello/hello.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/msgpass samples/msgpass/msgpass.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_contract_file tests/test_contract_file.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_send_timeout tests/test_send_timeout.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -Iguardian -o ../build/x86_64/arb-guardian guardian/main.c guardian/arm_link.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-logd logd/main.c common/arb_privdrop.c libcontract/arb_contract.c -lm -lslog2 -lqcrypto
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb_arm_stub tests/arb_arm_stub.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_guardian tests/test_guardian.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_logd tests/test_logd.c
+install -m 755 tests/guardian_suite.sh ../build/x86_64/guardian_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-arm arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_arm_motion tests/test_arm_motion.c arm/arm_motion.c arm/arm_backend_sim.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_arm tests/test_arm.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_e2e tests/test_e2e.c -lm
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_wd_scoid tests/test_wd_scoid.c common/arb_privdrop.c -lm
+install -m 755 tests/arm_suite.sh ../build/x86_64/arm_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-watchdog watchdog/main.c common/arb_privdrop.c -lslog2
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_watchdog tests/test_watchdog.c common/arb_wd_client.c common/arb_server_check.c
+install -m 755 tests/watchdog_suite.sh ../build/x86_64/watchdog_suite.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-inject tests/arb_inject.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-stall-probe tests/arb_stall_probe.c -lm
+install -m 755 tests/bench_scenario.sh ../build/x86_64/bench_scenario.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-ctl tools/arb_ctl.c
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-untrusted tests/arb_untrusted.c
+install -m 755 tests/f11_suite.sh ../build/x86_64/f11_suite.sh
+install -m 755 tests/policy_suite.sh ../build/x86_64/policy_suite.sh
+install -m 755 tests/arb_suite_lib.sh ../build/x86_64/arb_suite_lib.sh
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/arb-gateway gateway/main.c common/arb_privdrop.c -lslog2 -lsocket
+qcc -Vgcc_ntox86_64 -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/x86_64/test_gateway tests/test_gateway.c -lsocket
+install -m 755 tests/gateway_suite.sh ../build/x86_64/gateway_suite.sh
+install -m 755 tests/planner_e2e.sh ../build/x86_64/planner_e2e.sh
+  arb-arm  sha256 f04b7307efd1877f0ddee8cc95e10bc848245917921e9e0c26ca6432f77f5fcc
+    ELF 64-bit LSB pie executable, x86-64
+  arb-ctl  sha256 69e244a17fa3ad509d8bc9cce59e7aea1e4931f5beb870de3809dd6ab6413058
+    ELF 64-bit LSB pie executable, x86-64
+  arb-gateway  sha256 956ef98839dbfc2ca5964bbf56f9ec6535576afa1c8de9b9dcf08a74386411b1
+    ELF 64-bit LSB pie executable, x86-64
+  arb-guardian  sha256 8a8780c4cc15fd90f09763bbec13906c73869a86e4078fdbb981cfd1e4d16bde
+    ELF 64-bit LSB pie executable, x86-64
+  arb-inject  sha256 edbaeead53eb1d1ce8a416c610295bae078b616c0c75cf0fa9298ce67942c2d4
+    ELF 64-bit LSB pie executable, x86-64
+  arb-logd  sha256 76d78e3dad7a9614da0f5099bc7dc700ee3b9ddeeef0e9e27ace98939af51c9c
+    ELF 64-bit LSB pie executable, x86-64
+  arb-stall-probe  sha256 c8aafc5d542533f01061e7804ef4c19c862e0a8982713207c17e67135e52814e
+    ELF 64-bit LSB pie executable, x86-64
+  arb-untrusted  sha256 fdfec4568c68751bb9d068465d65988db0ddc5f1d58c88f013c5af5c43eb0bb2
+    ELF 64-bit LSB pie executable, x86-64
+  arb-watchdog  sha256 115f1e987459b0daff22aaa176d6456512542613985a81ce1cfb269fbb78508d
+    ELF 64-bit LSB pie executable, x86-64
+  arb_arm_stub  sha256 3053ef9de68a2c5f06cd84319d43526621d08e89e73456d7df82550e4b69204a
+    ELF 64-bit LSB pie executable, x86-64
+  arb_suite_lib.sh  sha256 7ce3e946e0cc5333db332241dfa82761705d536c163ba12fbaf92da954174666
+    ASCII text
+  arm_suite.sh  sha256 aea2dea2f89ca0fded246bf0c49e061cbc83a439e2d86d44010a1d446c2dae91
+    POSIX shell script, ASCII text executable
+  bench_scenario.sh  sha256 efaaae96a80d5277344a218db02af6b49fe09758da02a4bac0196e6604491f96
+    POSIX shell script, ASCII text executable
+  f11_suite.sh  sha256 8a94dbd469acb8a561366bd7f0ba73bddcc6fe3a395ac20013c5a14899545e29
+    POSIX shell script, ASCII text executable
+  gateway_suite.sh  sha256 417b5257003235700bb46bc6a582c8c924c49110a1ef8158ad3476d965a122cc
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 81daa1f6051bdfdb6c64bf1c1c3157469c6d9cbb2627f99c553abaab8c6edca0
+    POSIX shell script, ASCII text executable
+  hello  sha256 e491474caa943f082c5eb613ccce073a77f6cfd2b75d39d99440d34ff4ec8d82
+    ELF 64-bit LSB pie executable, x86-64
+  msgpass  sha256 b6b20a163faa339894cdb71eb34eb3746f73486a6cd3f9a6f13a6baf5fa23c8a
+    ELF 64-bit LSB pie executable, x86-64
+  planner_e2e.sh  sha256 3ccd9f96da2de0960c0298a1a808fe22eefeda4b7c5ef797520b0c4700e2e4f8
+    POSIX shell script, ASCII text executable
+  policy_suite.sh  sha256 b2fc2c8f6407f628325fb2c56905c63feeaf2fa007f623ec2ea4c9c12b5d447b
+    POSIX shell script, ASCII text executable
+  test_arm  sha256 e8745af02f66fde86cf2f446caf300cdaf79b9713e33ce93ce2e1f71edabbdb9
+    ELF 64-bit LSB pie executable, x86-64
+  test_arm_motion  sha256 25444e80f3e870f81448030e9942aaffd49ee6a8880a59ca451e927d0e8bb42c
+    ELF 64-bit LSB pie executable, x86-64
+  test_contract_file  sha256 883832f76207a3c49c4f8b4e5d164fc5f8ed5e0eeb1786841d6d54f39f80032f
+    ELF 64-bit LSB pie executable, x86-64
+  test_e2e  sha256 74455c2c8f5eca94bd7226f2c827051b17b909b54631f13894911677c64cdf7a
+    ELF 64-bit LSB pie executable, x86-64
+  test_gateway  sha256 9767cd61b6e3e8e700dc1c12adedbfcc5e5e9ad89287947f3a47ae1a6337a1b9
+    ELF 64-bit LSB pie executable, x86-64
+  test_guardian  sha256 b8dc7bd7cbabf8427f978bb279c9c5e386086a26e55ae36503acdff4eee40fef
+    ELF 64-bit LSB pie executable, x86-64
+  test_libcontract  sha256 93239a2b1bb1dbe07d670e7828d72934186e87b2dda160c4b0261149be396f43
+    ELF 64-bit LSB pie executable, x86-64
+  test_logd  sha256 d202c997977deb45531c0e818c3504e2ad1c12814717200cf256765e5e34ef63
+    ELF 64-bit LSB pie executable, x86-64
+  test_send_timeout  sha256 1f58334bb9bcea95d2a0af51c6efe8b888e88d2c734224441b45c7f1f6ce4f21
+    ELF 64-bit LSB pie executable, x86-64
+  test_watchdog  sha256 e62fa85a2784eb0a523c5a0c145d58b7bfd6bb791b4abb931759698dbe9ba81a
+    ELF 64-bit LSB pie executable, x86-64
+  test_wd_scoid  sha256 ad00c3787165f8dff7fed5db7085f78d2bbe211bfff9aa6958972a27e5c50461
+    ELF 64-bit LSB pie executable, x86-64
+  watchdog_suite.sh  sha256 57dcb7adc7d33a150230bc5204bf1ad697c276b5e0e5db7b2faec30675f1bd96
+    POSIX shell script, ASCII text executable
+$ make -C qnx ARCH=aarch64le clean all
+rm -rf ../build/aarch64le ../build/host
+mkdir -p ../build/aarch64le
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/hello samples/hello/hello.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/msgpass samples/msgpass/msgpass.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_libcontract tests/test_libcontract.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_contract_file tests/test_contract_file.c libcontract/arb_contract.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_send_timeout tests/test_send_timeout.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -Iguardian -o ../build/aarch64le/arb-guardian guardian/main.c guardian/arm_link.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-logd logd/main.c common/arb_privdrop.c libcontract/arb_contract.c -lm -lslog2 -lqcrypto
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb_arm_stub tests/arb_arm_stub.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_guardian tests/test_guardian.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_logd tests/test_logd.c
+install -m 755 tests/guardian_suite.sh ../build/aarch64le/guardian_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-arm arm/main.c arm/arm_motion.c arm/arm_backend_sim.c common/arb_wd_client.c common/arb_privdrop.c common/arb_server_check.c libcontract/arb_contract.c -lm -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_arm_motion tests/test_arm_motion.c arm/arm_motion.c arm/arm_backend_sim.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_arm tests/test_arm.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_e2e tests/test_e2e.c -lm
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_wd_scoid tests/test_wd_scoid.c common/arb_privdrop.c -lm
+install -m 755 tests/arm_suite.sh ../build/aarch64le/arm_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-watchdog watchdog/main.c common/arb_privdrop.c -lslog2
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_watchdog tests/test_watchdog.c common/arb_wd_client.c common/arb_server_check.c
+install -m 755 tests/watchdog_suite.sh ../build/aarch64le/watchdog_suite.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-inject tests/arb_inject.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-stall-probe tests/arb_stall_probe.c -lm
+install -m 755 tests/bench_scenario.sh ../build/aarch64le/bench_scenario.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-ctl tools/arb_ctl.c
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-untrusted tests/arb_untrusted.c
+install -m 755 tests/f11_suite.sh ../build/aarch64le/f11_suite.sh
+install -m 755 tests/policy_suite.sh ../build/aarch64le/policy_suite.sh
+install -m 755 tests/arb_suite_lib.sh ../build/aarch64le/arb_suite_lib.sh
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/arb-gateway gateway/main.c common/arb_privdrop.c -lslog2 -lsocket
+qcc -Vgcc_ntoaarch64le -std=c11 -Wall -Wextra -Werror -O2 -D_QNX_SOURCE -Icommon -Ilibcontract -Itests -Iarm -o ../build/aarch64le/test_gateway tests/test_gateway.c -lsocket
+install -m 755 tests/gateway_suite.sh ../build/aarch64le/gateway_suite.sh
+install -m 755 tests/planner_e2e.sh ../build/aarch64le/planner_e2e.sh
+  arb-arm  sha256 27026558ee4d973bed33a6f57843f8f0f4855355410435c700b4e197ac83b618
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-ctl  sha256 a75641b51daca2f66d38b80f71a9cdaf6b38459b72e90b38428e3d9294c36a51
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-gateway  sha256 a2f5c1c3e12210321fd8527d5f6ebe3c4166f50a7b2285484e8892afb7f5e234
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-guardian  sha256 0f05a0f47a6970653ee2433423e8b84113a36434500554c1b6563a38d922d1a1
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-inject  sha256 6e3d0a75b44a68b378ac27caacc78ca3a06e20fac2f593628f5caf9c797d5f48
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-logd  sha256 e2871b30f8d4bb5b4c4d2a5dbd95d09f2928b7fa94fc0b25746a6f94e26548dd
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-stall-probe  sha256 2f6c18fa5cc85264a84a7b56b70c4f989ab3f1d38a262bab988d454160aaa1ca
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-untrusted  sha256 b927481062d4c8541592e6887f2247efc1315d4b8dc0e07f7e6783f384ef391c
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb-watchdog  sha256 16b7e5820e6bb0a3b2f4621abf9684d5ed5c1d30b976fac311a9f766e1ea28b2
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb_arm_stub  sha256 78264cb38faaf9435fa60372512ce1216be9a1a5927f692b1944e9508a4cbafd
+    ELF 64-bit LSB pie executable, ARM aarch64
+  arb_suite_lib.sh  sha256 7ce3e946e0cc5333db332241dfa82761705d536c163ba12fbaf92da954174666
+    ASCII text
+  arm_suite.sh  sha256 aea2dea2f89ca0fded246bf0c49e061cbc83a439e2d86d44010a1d446c2dae91
+    POSIX shell script, ASCII text executable
+  bench_scenario.sh  sha256 efaaae96a80d5277344a218db02af6b49fe09758da02a4bac0196e6604491f96
+    POSIX shell script, ASCII text executable
+  f11_suite.sh  sha256 8a94dbd469acb8a561366bd7f0ba73bddcc6fe3a395ac20013c5a14899545e29
+    POSIX shell script, ASCII text executable
+  gateway_suite.sh  sha256 417b5257003235700bb46bc6a582c8c924c49110a1ef8158ad3476d965a122cc
+    POSIX shell script, ASCII text executable
+  guardian_suite.sh  sha256 81daa1f6051bdfdb6c64bf1c1c3157469c6d9cbb2627f99c553abaab8c6edca0
+    POSIX shell script, ASCII text executable
+  hello  sha256 1ab74333346df2367c5a3d0ecaa885a93cd1ec9810f1dd119626d56d96859569
+    ELF 64-bit LSB pie executable, ARM aarch64
+  msgpass  sha256 caca0169357d68d3bf54f1b3e4419a94380aaca1b84aa055fa4e8e007016a72b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  planner_e2e.sh  sha256 3ccd9f96da2de0960c0298a1a808fe22eefeda4b7c5ef797520b0c4700e2e4f8
+    POSIX shell script, ASCII text executable
+  policy_suite.sh  sha256 b2fc2c8f6407f628325fb2c56905c63feeaf2fa007f623ec2ea4c9c12b5d447b
+    POSIX shell script, ASCII text executable
+  test_arm  sha256 645a6be90932a2f7c35f8cfc9719fcaeb1dac326baffc5881fe9dcee7ab6e369
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_arm_motion  sha256 3ae70102ea30e61902ebba8b91b3d840865878a644c42f86a2af45733e6293a8
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_contract_file  sha256 8ccaca6ba7f924598d38a0e42ebfc8c795649228791187bf46bcc50e14cfc3a3
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_e2e  sha256 bf69a5c9682e5102052b159ed7997cdd22ee30cab5850a81401572ca719047c3
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_gateway  sha256 8c42005634d9ea5e12d410fea02c3fbd1774ca78acb94233b9577a910777faed
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_guardian  sha256 ef364f86fda8fa19e498752602cfba9d32556c4fafcfc14dd2a080d16b4ecd91
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_libcontract  sha256 1d8eca5373fbee6966cb841e5ddbeaeb16011b44f37917db869860400942e467
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_logd  sha256 27331718b157180ee15fc1a8735178cc83fd46ed2da85f45e853de3d83a42e55
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_send_timeout  sha256 8e3f122f43780231816e91e73f174370ea4c007fb1580b1bdc94b60b9f58312b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_watchdog  sha256 25dfd0c554ca4f103facc02dbf12a1cc72b86870513aa00656c4584d674e8f9b
+    ELF 64-bit LSB pie executable, ARM aarch64
+  test_wd_scoid  sha256 344f738b76cc05e89c4203b73f02a60f75600382a131ecb3e2dd4bf1e2766b68
+    ELF 64-bit LSB pie executable, ARM aarch64
+  watchdog_suite.sh  sha256 57dcb7adc7d33a150230bc5204bf1ad697c276b5e0e5db7b2faec30675f1bd96
+    POSIX shell script, ASCII text executable
+deployed arb-arm arb-ctl arb-gateway arb-guardian arb-inject arb-logd arb-stall-probe arb-untrusted arb-watchdog arb_arm_stub arb_suite_lib.sh arm_suite.sh bench_scenario.sh f11_suite.sh gateway_suite.sh guardian_suite.sh hello msgpass planner_e2e.sh policy_suite.sh test_arm test_arm_motion test_contract_file test_e2e test_gateway test_guardian test_libcontract test_logd test_send_timeout test_watchdog test_wd_scoid watchdog_suite.sh to qemu (root@172.31.1.174:/data/home/root/arbiter/bin)
+
+## target: root@172.31.1.174:/data/home/root/arbiter/bin (x86_64)
+$ uname -a
+QNX arbiter-qemu 8.0.0 2026/02/27-11:02:56EST x86pc x86_64
+
+## guardian_suite.sh — arb-guardian on QNX with a stub arm: /dev/arbiter, devctl verdicts, message checks, silence and client loss, bounded arm send (FR-C4, FR-G1..G6, FR-G9, NFR-I3, NFR-I6, NFR-Q3)
+$ cd /data/home/root/arbiter/bin && ./guardian_suite.sh
+## FR-C4: the guardian refuses to start on a bad contract table
+arb-guardian: contract refused (FR-C4) (code 6); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/crc.bin (exit 2, no /dev/arbiter)
+arb-guardian: contract refused (FR-C4) (code 2); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/truncated.bin (exit 2, no /dev/arbiter)
+arb-guardian: contract refused (FR-C4) (code 4); not starting
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/version.bin (exit 2, no /dev/arbiter)
+arb-guardian: open contract: No such file or directory
+PASS fr_c4_guardian_refuses_corrupted_contract contract-corpus/no-such-file.bin (exit 2, no /dev/arbiter)
+## well-behaved arm
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+nrw-rw-rw-  1 root root 0 2026-11-18 02:50 /dev/arbiter
+nrw-rw-rw-  1 root root 0 2026-11-18 02:50 /dev/name/local/arbiter_arm
+PASS nfr_q3_guardian_is_a_resource_manager_in_the_path_namespace
+     pid tid prio name                                                                         
+28475416   1  64f ./arb-guardian                                                                  
+PASS nfr_i3_guardian_runs_fifo_at_its_documented_priority (64, FIFO)
+PASS fr_g1_dev_arbiter_exists_in_path_namespace
+PASS fr_g1_command_round_trip_over_devctl
+PASS fr_g8_every_decision_is_recorded_with_its_latency
+info decision latency over the last 5 records: 0.8 to 314.1 us (QEMU, function only)
+PASS nfr_q4_decision_latency_measured_with_the_cycle_counter
+info gateway O_RDONLY -1 (errno 13); logger O_RDONLY 4, O_RDWR -1 (errno 13)
+PASS nfr_i1_gateway_user_cannot_open_the_decision_ring
+PASS fr_g3_clamp_and_denials_over_devctl
+PASS fr_g4_replay_denied_over_devctl
+PASS fr_g2_zero_duration_denied_over_devctl
+PASS fr_g4_rate_limit_over_devctl
+PASS nfr_i6_devctl_wrong_size_rejected
+PASS nfr_i6_unknown_devctl_command_rejected
+PASS nfr_i6_read_only_descriptor_cannot_submit
+PASS nfr_i6_random_payloads_never_crash_the_guardian
+info forged pulses: 2000 sent; guardian ticks +57 in 56.5 ms; foreign_pulses +2000
+PASS fr_g5_forged_tick_and_trip_pulses_are_ignored_and_counted
+PASS fr_g5_silence_enters_hold_over_devctl
+PASS fr_g10_only_the_gateway_user_may_submit
+PASS fr_g10_a_second_submitter_is_refused_until_the_first_closes
+PASS fr_g10_status_reports_the_last_sequence
+PASS fr_g10_restarted_client_resumes_after_the_published_sequence
+  info submitter killed -> HOLD after 0.361 ms (-1: not within 100 ms), clients 1
+PASS fr_g5_submitter_killed_with_a_status_reader_open_holds_at_once
+PASS fr_g5_reset_through_the_gateway_is_refused
+info 1124 replays answered, ring head +1124, 0 holes in the newest 1024 slots
+PASS fr_g8_recording_never_waits_for_a_reader
+  user 820: 64 opens granted, the next refused with nothing (share 4, pool 32)
+  check failed: got == ARB_DEV_OPENS_PER_USER  (64 != 4)  (tests/test_guardian.c:756)
+  check failed: refused_errno != 0  (tests/test_guardian.c:757)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  check failed: fd == -1  (tests/test_guardian.c:760)
+  opens refused +0; ticks +107 in about 100 ms
+  check failed: b.opens_refused - a.opens_refused == 101  (0 != 101)  (tests/test_guardian.c:769)
+  check failed: submit(gw, &c, &w) == EOK  (16 != 0)  (tests/test_guardian.c:775)
+  check failed: w.verdict == ARB_VERDICT_ALLOW  (0 != 1)  (tests/test_guardian.c:776)
+  root: 64 more opens granted with 1 already open, then refused; clients 65 (pool 32)
+  check failed: b.clients == ARB_DEV_OPENS_MAX  (65 != 32)  (tests/test_guardian.c:810)
+  check failed: got == ARB_DEV_OPENS_MAX - (int)a.clients  (64 != 31)  (tests/test_guardian.c:811)
+FAIL fr_g9_opens_come_from_a_fixed_pool_with_a_share_per_user
+PASS fr_g5_last_client_close_enters_hold
+RESULT FAIL test_guardian normal 23/24
+## arm receives setpoints and never replies (REPLY-blocked guardian)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info devctl with a faulty arm returned after 3.191 ms (send timeout 2 ms, 1 ms tick)
+PASS fr_g9_arm_never_replies_times_out_and_safe_stops
+RESULT PASS test_guardian hang 1/1
+## arm process stopped (SEND-blocked guardian)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+info devctl with a faulty arm returned after 2.545 ms (send timeout 2 ms, 1 ms tick)
+PASS fr_g9_arm_not_receiving_times_out_and_safe_stops
+RESULT PASS test_guardian stopped 1/1
+## arm rejects the start position
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+PASS fr_g3_stale_start_reported_as_deny
+RESULT PASS test_guardian stale 1/1
+## FR-G5, FR-W2: operator reset with an arm that never answers it (review M2-J7)
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+arb-guardian: privileges dropped: uid 810 gid 810; kept PRIORITY 1-64, CONNECTION, XPROCESS_QUERY 811-812; refused as expected: setuid(0), priority 65, fork()
+arb-guardian: ready on /dev/arbiter, priority 64, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+  20 resets, the arm never answering: 20 refused EIO, longest 11.71 ms; watchdog trips +1, last role 1 (QEMU, function only)
+  check failed: trips1 - trips0 == 0  (1 != 0)  (tests/test_guardian.c:869)
+FAIL fr_g5_reset_with_an_arm_that_never_answers_never_trips_the_watchdog
+RESULT FAIL test_guardian noreset 0/1
+## FR-E1, FR-E2, FR-E4, FR-E5: the evidence logger
+PASS fr_e2_logger_sha256_matches_the_nist_vector
+PASS fr_e3_logger_hashes_files_with_sha256 (ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  /tmp/arbiter-logd-test/abc)
+3390650a5efb466213042e60cfd0c3dcf980025eace0a99b1dcd9caf03f90af9  contract-corpus/contract.bin
+arb-watchdog: privileges dropped: uid 812 gid 812; kept PRIORITY 1-66; refused as expected: setuid(0), priority 67, fork()
+arb-watchdog: ready as arbiter_watchdog, priority 66, timeout 10 ms, status /arbiter_watchdog_status
+PASS fr_g6_name_attach_uses_own_channel (own chid 1, name_attach chid 1)
+info R 1 idx 0 t_ns 6704605271465 seq 5001 target -150000 0 dur 1000 verdict 1 rule 0 before 1 after 2 flags 0 fwd -150000 0 1000 latency_cycles 154477 prev 02178a7a8b9910d291627cf595076e4c7d712ed06820896f7c25637881cada78 hash 0930785898829ca6226a27707c4316aa2fb0d4ba291958ff2bb92989c0cf9550
+info R 2 idx 1 t_ns 6704605362998 seq 5002 target -700000 0 dur 100 verdict 2 rule 5 before 2 after 2 flags 0 fwd -700000 0 550 latency_cycles 149560 prev 0930785898829ca6226a27707c4316aa2fb0d4ba291958ff2bb92989c0cf9550 hash 7e298706e2ac2ae45d83125d94c0baf099c857eb24ce7d1f00b37027d9e0f1ff
+info R 3 idx 2 t_ns 6704605444728 seq 5001 target -150000 0 dur 1000 verdict 3 rule 2 before 2 after 2 flags 0 fwd 0 0 0 latency_cycles 1574 prev 7e298706e2ac2ae45d83125d94c0baf099c857eb24ce7d1f00b37027d9e0f1ff hash f9cd4b9ab7cc6f00cc5e2e26cd51debecd616d5b7887e126249fb76cb96d6109
+PASS fr_e1_every_decision_is_logged_with_its_fields
+info 4 lines, 0 not linked to the previous one
+PASS fr_e2_each_line_carries_the_previous_lines_hash
+info G 4 lost 301 from_idx 3 to_idx 303 prev f9cd4b9ab7cc6f00cc5e2e26cd51debecd616d5b7887e126249fb76cb96d6109 hash 1c6ad7d2408c1d3edff14e3456e748734064d807cd055d753ca56b28761aabd6
+info 1324 of 1324 answered while the logger was stopped; 301 declared lost; 1023 records after
+PASS fr_e5_a_logger_that_falls_behind_declares_what_it_lost
+arb-logd: privileges dropped: uid 813 gid 813; kept PRIORITY 1-30; refused as expected: setuid(0), priority 31, fork()
+arb-logd: ready, /tmp/arbiter-logd-test/run.log, contract sha256 8928766e78796834906a60a2537db990ad4cc47cbb0e3dac100bff245fa13bb3
+arb-logd: stopped, 1026 records, 301 lost, last hash 2d9c0cda8ab30d4f3456fe2d3c55c2d78d98208d8403208286ece02df62f80a8
+info last line: E 1028 records 1026 lost 301 prev ea56626157896977006664e4773e7fbc053aa3442778da213d4ba2376c5f9605 hash 2d9c0cda8ab30d4f3456fe2d3c55c2d78d98208d8403208286ece02d
+PASS fr_e4_the_logger_ends_with_a_record_and_publishes_its_anchor
+RESULT PASS test_logd run 4/4
+info allowed before the kill 10/10, after 10/10; guardian arm faults 0 -> 0, state 2
+PASS fr_e5_killing_the_logger_changes_no_decision
+RESULT PASS test_logd kill 1/1
+RESULT FAIL guardian_suite
+exit=1
+
+SUMMARY 0/1 tests passed on qemu (each run 1 time(s))
