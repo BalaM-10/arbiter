@@ -658,23 +658,42 @@ static void fr_g5_motion_resumes_after_operator_reset(void)
     CHECK(moved);
 }
 
-/* FR-G5 with FR-W6: an operator reset registers the arm and the guardian with the
- * watchdog again, each under a new token. A beat the watchdog delivered under the
- * old registration may still be queued, or arrive, as the new one takes over: it
- * is the watchdog's own, not a forgery, and must not be counted as one (F7 at
- * 325e3b0 counted one in the arm and one in the guardian). 100 e-stop and reset
- * cycles, each reset at a different point of the watchdog's 2 ms beat. */
+/* FR-G5 with FR-W6 (F7 reset race): after each operator reset the arm and the
+ * guardian register with the watchdog again, each under a new token. A beat the
+ * watchdog delivered under the old registration may still be queued, or arrive,
+ * as the new one takes over: it is the watchdog's own, not a forgery, and must
+ * not be counted as one (F7 at 325e3b0 counted one in the arm and one in the
+ * guardian). E-stop and reset cycles, each reset at a different point of the
+ * watchdog's 2 ms beat: at least RESET_MIN, then on until both the arm and the
+ * guardian have recognised at least one stale event, at most RESET_CAP.
+ * Two results (owner decision 2026-11-18):
+ *   forged: 0 counted as forged on every run, however many cycles (else FAIL);
+ *   exercised: PASS once both saw a stale event; NOT EXERCISED if the cap is
+ *   reached first, which fails the test: the race was never hit, so the stale
+ *   path was not shown to work. */
+#define RESET_MIN 100
+#define RESET_CAP 500
+
+static uint64_t g_reset_cycles;              /* set by the forged test, read by the exercised one */
+static uint64_t g_stale_arm, g_stale_guardian;
+
 static void fr_g5_repeated_resets_never_count_the_watchdogs_own_pulses_as_forged(void)
 {
     arb_status_t st0, st;
-    uint64_t rej0, lost0;
-    int ok = 0;
+    uint64_t rej0, lost0, astale0, forged_arm;
+    unsigned forged_guardian;
+    int ok = 0, k;
 
     CHECK_EQ_INT(get_status(&st0), EOK);
     rej0 = tm_count(&g_tm->rejected);
     lost0 = tm_count(&g_tm->wd_lost);
-    for (int k = 0; k < 100; k++) {                     /* bound: 100 cycles */
+    astale0 = tm_count(&g_tm->wd_stale);
+    for (k = 0; k < RESET_CAP; k++) {                   /* bound: RESET_CAP cycles */
         const struct timespec d = { 0, (long)(k % 10) * 250000L };   /* 0 to 2.25 ms: across one beat */
+        if (k >= RESET_MIN && get_status(&st) == EOK && st.wd_stale > st0.wd_stale &&
+            tm_count(&g_tm->wd_stale) > astale0) {
+            break;
+        }
         if (devctl(g_fd, ARB_DCMD_ESTOP, NULL, 0, NULL) != EOK) {
             break;
         }
@@ -688,15 +707,39 @@ static void fr_g5_repeated_resets_never_count_the_watchdogs_own_pulses_as_forged
     }
     ms_sleep(20);
     CHECK_EQ_INT(get_status(&st), EOK);
-    printf("info 100 e-stop and reset cycles: %d resets done; arm counted %llu pulses as forged, guardian %u; "
-           "arm lost the watchdog %llu times, guardian %u\n", ok,
-           (unsigned long long)(tm_count(&g_tm->rejected) - rej0), st.foreign_pulses - st0.foreign_pulses,
-           (unsigned long long)(tm_count(&g_tm->wd_lost) - lost0), (unsigned)(st.watchdog_lost - st0.watchdog_lost));
-    CHECK_EQ_INT(ok, 100);
-    CHECK_EQ_INT(tm_count(&g_tm->rejected) - rej0, 0);
-    CHECK_EQ_INT(st.foreign_pulses - st0.foreign_pulses, 0);
+    forged_arm = tm_count(&g_tm->rejected) - rej0;
+    forged_guardian = st.foreign_pulses - st0.foreign_pulses;
+    g_reset_cycles = (uint64_t)k;
+    g_stale_arm = tm_count(&g_tm->wd_stale) - astale0;
+    g_stale_guardian = st.wd_stale - st0.wd_stale;
+    printf("info %d e-stop and reset cycles: %d resets done; arm counted %llu pulses as forged, guardian %u; "
+           "arm lost the watchdog %llu times, guardian %u; stale events recognised: arm %llu, guardian %llu\n",
+           k, ok, (unsigned long long)forged_arm, forged_guardian,
+           (unsigned long long)(tm_count(&g_tm->wd_lost) - lost0), (unsigned)(st.watchdog_lost - st0.watchdog_lost),
+           (unsigned long long)g_stale_arm, (unsigned long long)g_stale_guardian);
+    if (forged_arm != 0 || forged_guardian != 0) {
+        printf("info outcome: FAIL (pulses of the watchdog counted as forged)\n");
+    }
+    CHECK_EQ_INT(ok, k);
+    CHECK_EQ_INT(forged_arm, 0);
+    CHECK_EQ_INT(forged_guardian, 0);
     CHECK_EQ_INT(tm_count(&g_tm->wd_lost) - lost0, 0);
     CHECK_EQ_INT(st.watchdog_lost, st0.watchdog_lost);
+}
+
+/* The second result of the cycles above: the stale path was exercised in both. */
+static void fr_g5_stale_watchdog_events_after_a_reset_are_recognised(void)
+{
+    if (g_stale_arm > 0 && g_stale_guardian > 0) {
+        printf("info outcome: PASS (exercised: stale events in the arm %llu, in the guardian %llu, after %llu "
+               "cycles)\n", (unsigned long long)g_stale_arm, (unsigned long long)g_stale_guardian,
+               (unsigned long long)g_reset_cycles);
+        return;
+    }
+    printf("info outcome: NOT EXERCISED (%llu cycles, cap %d: no stale event in the %s); counts as a failure\n",
+           (unsigned long long)g_reset_cycles, RESET_CAP,
+           g_stale_arm == 0 && g_stale_guardian == 0 ? "arm or the guardian" : g_stale_arm == 0 ? "arm" : "guardian");
+    arb_test_failures++;
 }
 
 /* FR-G5 with FR-W5: no reset while the watchdog is absent; the arm refuses (it
@@ -913,6 +956,7 @@ static const arb_test_case_t operator_cases[] = {
     ARB_TEST_CASE(fr_g5_reset_only_from_operator),
     ARB_TEST_CASE(fr_g5_motion_resumes_after_operator_reset),
     ARB_TEST_CASE(fr_g5_repeated_resets_never_count_the_watchdogs_own_pulses_as_forged),
+    ARB_TEST_CASE(fr_g5_stale_watchdog_events_after_a_reset_are_recognised),
     ARB_TEST_CASE(fr_g5_reset_refused_while_watchdog_absent),
     ARB_TEST_CASE(fr_w5_motion_resumes_only_after_watchdog_back_and_reset),
 };

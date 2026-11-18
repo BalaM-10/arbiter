@@ -70,9 +70,12 @@ typedef struct {
     uint8_t  reserved1;                /* 0 */
     uint16_t submits_refused;          /* FR-G10: SUBMITs refused: not the gateway user, or
                                           not the current submitter's open */
+    uint32_t wd_stale;                 /* FR-G5, F7: watchdog events of the previous registration,
+                                          recognised after an operator reset (not forged) */
+    uint32_t reserved2;                /* 0 */
 } arb_status_t;
 
-_Static_assert(sizeof(arb_status_t) == 56, "arb_status_t layout");
+_Static_assert(sizeof(arb_status_t) == 64, "arb_status_t layout");
 
 /* devctl() payload for a command: the command in, the verdict out (same buffer). */
 typedef union {

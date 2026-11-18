@@ -427,6 +427,7 @@ static void log_changes(void)
                   "operator reset from the guardian: registered with the watchdog again, latch cleared (%lld so far)",
                   (int64_t)g_resets);
     }
+    atomic_store_explicit(&g_telem->wd_stale, (uint64_t)g_wd.stale, memory_order_relaxed);   /* F7 test */
     log_count(&g_logged.wd_stale, (uint64_t)g_wd.stale, ARB_LOG_CLIENT, SLOG2_INFO,
               "recognised a watchdog event of the previous registration, still queued at the operator reset: "
               "the watchdog's own, not forged (%lld so far)");

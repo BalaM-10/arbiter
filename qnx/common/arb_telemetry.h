@@ -27,7 +27,7 @@
 
 #define ARB_TELEM_NAME    "/arbiter_arm_telemetry"   /* /dev/shmem/arbiter_arm_telemetry */
 #define ARB_TELEM_MAGIC   0x4D4C4554u                /* "TELM" */
-#define ARB_TELEM_VERSION 4u                      /* 2: t_ns added; 3: wd_lost, wd_lost_cause; 4: seqlock slots */
+#define ARB_TELEM_VERSION 5u                      /* 2: t_ns; 3: wd_lost, wd_lost_cause; 4: seqlock slots; 5: wd_stale */
 #define ARB_TELEM_SLOTS   8192u                      /* 8 s at 1 kHz */
 
 typedef struct {
@@ -63,6 +63,8 @@ typedef struct {
     _Atomic uint64_t wd_brakes;        /* brakes commanded by the watchdog */
     _Atomic uint64_t wd_lost;          /* brakes because the watchdog itself was lost (FR-W5, FR-W6) */
     _Atomic uint64_t wd_lost_cause;    /* ARB_WD_LOST_* of the first such brake, 0 if none */
+    _Atomic uint64_t wd_stale;         /* FR-G5, F7: watchdog events of the previous registration
+                                          recognised after an operator reset (not forged) */
     arb_telem_slot_t s[ARB_TELEM_SLOTS];
 } arb_telem_t;
 

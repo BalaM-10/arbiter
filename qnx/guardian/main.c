@@ -395,6 +395,7 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
         g_status.clients = g_attr.count;
         g_status.last_seq = g_guard.last_seq;      /* FR-G10: a restarted planner continues after it */
         g_status.has_seq = g_guard.have_seq;
+        g_status.wd_stale = g_wd.stale;
         memset(&msg->o, 0, sizeof msg->o);
         memcpy(_IO_OUTPUT_PAYLOAD(msg), &g_status, sizeof g_status);
         return _RESMGR_PTR(ctp, &msg->o, want);

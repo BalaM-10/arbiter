@@ -168,9 +168,9 @@ arb_wd_up
 arb_arm_up
 arb_guard_up
 ./test_e2e operator "$WD" || fail=1
-# FR-G5 with FR-W6: during the repeated resets, the arm and the guardian each
-# recognise beats the watchdog delivered under their previous registration (still
-# queued when they registered again) as stale, not forged, and log it.
+# FR-G5 with FR-W6: test_e2e above resets until the arm and the guardian have each
+# recognised a beat of their previous registration as stale (its own outcome:
+# PASS, or NOT EXERCISED, a failure). Here: each also wrote it to the system log.
 # QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slog2info.html
 c=0
 for spec in "arb_arm $ARM" "arb_guardian $GUARD"; do
@@ -179,9 +179,9 @@ for spec in "arb_arm $ARM" "arb_guardian $GUARD"; do
     if [ -n "$line" ]; then echo "  ok   $1: $line"; else echo "  FAIL $1: no stale-event line in slog2"; c=1; fi
 done
 if [ "$c" -eq 0 ]; then
-    echo "PASS fr_g5_stale_watchdog_events_after_a_reset_are_recognised"
+    echo "PASS fr_g5_stale_watchdog_events_are_logged"
 else
-    echo "FAIL fr_g5_stale_watchdog_events_after_a_reset_are_recognised"
+    echo "FAIL fr_g5_stale_watchdog_events_are_logged"
     fail=1
 fi
 arb_down
