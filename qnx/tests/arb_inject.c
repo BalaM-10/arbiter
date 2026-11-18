@@ -174,12 +174,9 @@ static void drain(void)
         g_next = keep_from;
     }
     for (; g_next < h; g_next++) {                /* bound: < ARB_TELEM_SLOTS per call */
-        arb_telem_sample_t c = g_tm->s[g_next % ARB_TELEM_SLOTS];
-        uint64_t h2;
+        arb_telem_sample_t c;
 
-        atomic_thread_fence(memory_order_acquire);
-        h2 = atomic_load_explicit(&((arb_telem_t *)g_tm)->head, memory_order_relaxed);
-        if (c.index != g_next || g_next + ARB_TELEM_SLOTS <= h2) {
+        if (!arb_telem_get(g_tm, g_next, &c)) {
             add_gap(g_next, 1u);
             continue;
         }

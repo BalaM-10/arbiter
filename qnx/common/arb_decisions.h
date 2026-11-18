@@ -55,4 +55,35 @@ _Static_assert(sizeof(arb_dec_record_t) == 96, "arb_dec_record_t layout");
 _Static_assert((ARB_DEC_SLOTS & (ARB_DEC_SLOTS - 1u)) == 0, "slots: a power of two");
 _Static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "64-bit atomics must be lock-free for shared memory");
 
+/* The ring protocol, in one place for the writer, the readers and the host test.
+ * Writer, the guardian only: record number head goes into slot
+ * head % ARB_DEC_SLOTS, then head + 1 is published (release). */
+static inline void arb_dec_put(arb_dec_ring_t *d, const arb_dec_record_t *r)
+{
+    const uint64_t h = atomic_load_explicit(&d->head, memory_order_relaxed);
+    arb_dec_record_t *e = &d->r[h % ARB_DEC_SLOTS];
+
+    *e = *r;
+    e->index = h;
+    atomic_store_explicit(&d->head, h + 1u, memory_order_release);
+}
+
+/* Readers: the number of records ever written. */
+static inline uint64_t arb_dec_head(const arb_dec_ring_t *d)
+{
+    return atomic_load_explicit(&((arb_dec_ring_t *)d)->head, memory_order_acquire);
+}
+
+/* Readers: record number i into *out. 1 if it is record i and was not being
+ * overwritten while copied, else 0 (not written yet, overwritten, or possibly
+ * torn: drop it and count it, FR-E5). */
+static inline int arb_dec_get(const arb_dec_ring_t *d, uint64_t i, arb_dec_record_t *out)
+{
+    uint64_t h2;
+
+    *out = d->r[i % ARB_DEC_SLOTS];
+    h2 = atomic_load_explicit(&((arb_dec_ring_t *)d)->head, memory_order_acquire);
+    return out->index == i && i < h2 && i + ARB_DEC_SLOTS > h2;
+}
+
 #endif /* ARB_DECISIONS_H */

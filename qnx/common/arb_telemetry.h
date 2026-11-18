@@ -57,4 +57,35 @@ typedef struct {
 _Static_assert(sizeof(arb_telem_sample_t) == 48, "layout");
 _Static_assert(ATOMIC_LLONG_LOCK_FREE == 2, "64-bit atomics must be lock-free for shared memory");
 
+/* The ring protocol, in one place for every writer and reader (and the host test).
+ * Writer, the arm only: sample number head goes into slot head % ARB_TELEM_SLOTS,
+ * then head + 1 is published (release). */
+static inline void arb_telem_put(arb_telem_t *t, const arb_telem_sample_t *s)
+{
+    const uint64_t h = atomic_load_explicit(&t->head, memory_order_relaxed);
+    arb_telem_sample_t *e = &t->s[h % ARB_TELEM_SLOTS];
+
+    *e = *s;
+    e->index = h;
+    atomic_store_explicit(&t->head, h + 1u, memory_order_release);
+}
+
+/* Readers: the number of samples ever written. */
+static inline uint64_t arb_telem_head(const arb_telem_t *t)
+{
+    return atomic_load_explicit(&((arb_telem_t *)t)->head, memory_order_acquire);
+}
+
+/* Readers: sample number i into *out. 1 if it is sample i and was not being
+ * overwritten while copied, else 0 (not written yet, overwritten, or possibly
+ * torn: drop it and count it). */
+static inline int arb_telem_get(const arb_telem_t *t, uint64_t i, arb_telem_sample_t *out)
+{
+    uint64_t h2;
+
+    *out = t->s[i % ARB_TELEM_SLOTS];
+    h2 = atomic_load_explicit(&((arb_telem_t *)t)->head, memory_order_acquire);
+    return out->index == i && i < h2 && i + ARB_TELEM_SLOTS > h2;
+}
+
 #endif /* ARB_TELEMETRY_H */

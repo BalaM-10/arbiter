@@ -167,7 +167,9 @@ static void fr_g8_every_decision_is_recorded_with_its_latency(void)
     CHECK_EQ_INT(devctl(g_fd, ARB_DCMD_SUBMIT, &u, sizeof u, NULL), EPERM);   /* root: refused, not decided */
     CHECK_EQ_INT(ring_head() - h0, 3);
     for (int i = 0; i < 3; i++) {                   /* bound: 3 */
-        const arb_dec_record_t *r = &g_ring->r[(h0 + (uint64_t)i) % ARB_DEC_SLOTS];
+        arb_dec_record_t rec, prev;
+        const arb_dec_record_t *r = &rec;
+        CHECK(arb_dec_get(g_ring, h0 + (uint64_t)i, &rec));
         CHECK_EQ_INT(r->index, h0 + (uint64_t)i);
         CHECK_EQ_INT(r->cmd.seq, c[i].seq);
         CHECK_EQ_INT(r->cmd.target_urad[0], c[i].target_urad[0]);
@@ -178,7 +180,8 @@ static void fr_g8_every_decision_is_recorded_with_its_latency(void)
         CHECK_EQ_INT(r->verdict.duration_ms, w[i].duration_ms);
         CHECK(r->latency_cycles > 0 && r->latency_cycles < g_ring->cycles_per_sec);
         if (i > 0) {
-            const arb_dec_record_t *q = &g_ring->r[(h0 + (uint64_t)i - 1u) % ARB_DEC_SLOTS];
+            const arb_dec_record_t *q = &prev;
+            CHECK(arb_dec_get(g_ring, h0 + (uint64_t)i - 1u, &prev));
             CHECK(r->t_ns >= q->t_ns && r->t_cycles >= q->t_cycles);
         }
     }
@@ -203,7 +206,10 @@ static void nfr_q4_decision_latency_measured_with_the_cycle_counter(void)
     CHECK_EQ_INT(g_ring->cycles_per_sec, SYSPAGE_ENTRY(qtime)->cycles_per_sec);
     h = ring_head();
     for (uint64_t i = h > 8u ? h - 8u : 0u; i < h; i++) {   /* bound: 8 records */
-        const uint64_t c = g_ring->r[i % ARB_DEC_SLOTS].latency_cycles;
+        arb_dec_record_t rec;
+        uint64_t c;
+        CHECK(arb_dec_get(g_ring, i, &rec));
+        c = rec.latency_cycles;
         CHECK(c > 0);
         lo = c < lo ? c : lo;
         hi = c > hi ? c : hi;
@@ -218,7 +224,8 @@ static void nfr_q4_decision_latency_measured_with_the_cycle_counter(void)
 
 /* FR-G8 "without blocking": with no reader at all, the guardian decides more
  * commands than the ring holds, every one is answered, and the ring holds the
- * newest ARB_DEC_SLOTS of them, in order. Replays are used: decided, cheap, and
+ * newest of them, in order: ARB_DEC_SLOTS - 1 readable, since the reader rule
+ * (arb_dec_get) never accepts the oldest slot, the one the writer fills next. Replays are used: decided, cheap, and
  * they do not count toward SAFE_STOP. */
 static void fr_g8_recording_never_waits_for_a_reader(void)
 {
@@ -238,11 +245,12 @@ static void fr_g8_recording_never_waits_for_a_reader(void)
         ok += submit(g_fd, &c, &w) == EOK && w.rule == ARB_RULE_SEQUENCE;
     }
     h1 = ring_head();
-    for (uint64_t i = h1 - ARB_DEC_SLOTS; i < h1; i++) {   /* bound: ARB_DEC_SLOTS */
-        holes += g_ring->r[i % ARB_DEC_SLOTS].index != i;
+    for (uint64_t i = h1 - ARB_DEC_SLOTS + 1u; i < h1; i++) {   /* bound: ARB_DEC_SLOTS - 1 */
+        arb_dec_record_t rec;
+        holes += !arb_dec_get(g_ring, i, &rec);
     }
     printf("info %u replays answered, ring head +%llu, %u holes in the newest %u slots\n", ok,
-           (unsigned long long)(h1 - h0), holes, ARB_DEC_SLOTS);
+           (unsigned long long)(h1 - h0), holes, ARB_DEC_SLOTS - 1u);
     CHECK_EQ_INT(ok, n);
     CHECK_EQ_INT(h1 - h0, n);
     CHECK_EQ_INT(holes, 0);

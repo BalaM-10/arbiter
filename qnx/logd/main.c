@@ -242,13 +242,12 @@ static int emit_record(const arb_dec_record_t *r)
  * head2 - SLOTS, arb_decisions.h), is lost and declared, never logged torn. */
 static int drain(void)
 {
-    const uint64_t head = atomic_load_explicit(&((arb_dec_ring_t *)g_ring)->head, memory_order_acquire);
+    const uint64_t head = arb_dec_head(g_ring);
     uint64_t gap_from = 0;
     int in_gap = 0;
 
     for (uint64_t i = g_next; i < head; i++) {                    /* bound: head - g_next, see below */
         arb_dec_record_t copy;
-        uint64_t head2;
 
         if (head - i > ARB_DEC_SLOTS) {                           /* overwritten already: skip in one step */
             if (!in_gap) {
@@ -258,9 +257,7 @@ static int drain(void)
             i = head - ARB_DEC_SLOTS;                             /* the loop's i++ moves past it */
             continue;
         }
-        copy = g_ring->r[i % ARB_DEC_SLOTS];
-        head2 = atomic_load_explicit(&((arb_dec_ring_t *)g_ring)->head, memory_order_acquire);
-        if (copy.index != i || i + ARB_DEC_SLOTS <= head2) {
+        if (!arb_dec_get(g_ring, i, &copy)) {           /* overwritten while copied, or torn */
             if (!in_gap) {
                 gap_from = i;
                 in_gap = 1;
@@ -370,11 +367,10 @@ static void relay(rcvid_t rcvid)
         telem_open();
     }
     if (g_telem != NULL) {
-        const uint64_t head = atomic_load_explicit(&((arb_telem_t *)g_telem)->head, memory_order_acquire);
+        const uint64_t head = arb_telem_head(g_telem);
         if (head > 0) {
-            rep.s = g_telem->s[(head - 1u) % ARB_TELEM_SLOTS];
             rep.head = head;
-            rep.have = rep.s.index == head - 1u;
+            rep.have = (uint8_t)arb_telem_get(g_telem, head - 1u, &rep.s);
             if (!rep.have) {
                 memset(&rep.s, 0, sizeof rep.s);
             }

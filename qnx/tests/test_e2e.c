@@ -70,8 +70,7 @@ static int tm_last(arb_telem_sample_t *out)
     if (h == 0) {
         return 0;
     }
-    *out = g_tm->s[(h - 1u) % ARB_TELEM_SLOTS];
-    return out->index == h - 1u;
+    return arb_telem_get(g_tm, h - 1u, out);
 }
 
 static double ms_between(uint64_t c0, uint64_t c1)
@@ -568,8 +567,9 @@ static int64_t first_stop_index_after(uint64_t after, uint64_t *last_before)
 
     *last_before = UINT64_MAX;
     for (uint64_t i = lo; i < h; i++) {                 /* bound: ARB_TELEM_SLOTS */
-        const arb_telem_sample_t *e = &g_tm->s[i % ARB_TELEM_SLOTS];
-        if (e->index != i) {
+        arb_telem_sample_t sample;
+        const arb_telem_sample_t *e = &sample;
+        if (!arb_telem_get(g_tm, i, &sample)) {
             continue;
         }
         if (e->t_cycles < after) {
@@ -603,7 +603,9 @@ static void fr_w4_estop_from_any_client_safe_stops_within_2_cycles(void)
     stop = first_stop_index_after(t_after, &before);
     CHECK(stop >= 0 && before != UINT64_MAX);
     if (stop >= 0 && before != UINT64_MAX) {
-        const arb_telem_sample_t *e = &g_tm->s[(uint64_t)stop % ARB_TELEM_SLOTS];
+        arb_telem_sample_t sample;
+        const arb_telem_sample_t *e = &sample;
+        CHECK(arb_telem_get(g_tm, (uint64_t)stop, &sample));
         printf("info e-stop: braking in control cycle %lld after the devctl returned (%.2f ms; QEMU, function only)\n",
                (long long)((uint64_t)stop - before), ms_between(t_after, e->t_cycles));
         CHECK((uint64_t)stop - before <= 2u);

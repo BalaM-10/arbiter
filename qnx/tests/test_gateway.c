@@ -299,12 +299,12 @@ static int alive(pid_t p)
 /* The arm's newest telemetry sample (the test runs as root, which may read the ring). */
 static arb_telem_sample_t arm_sample(void)
 {
-    const uint64_t head = atomic_load_explicit(&((arb_telem_t *)g_telem)->head, memory_order_acquire);
+    const uint64_t head = arb_telem_head(g_telem);
     arb_telem_sample_t s;
 
     memset(&s, 0, sizeof s);
-    if (head > 0) {
-        s = g_telem->s[(head - 1u) % ARB_TELEM_SLOTS];
+    if (head > 0 && !arb_telem_get(g_telem, head - 1u, &s)) {
+        memset(&s, 0, sizeof s);
     }
     return s;
 }
@@ -776,7 +776,10 @@ static int telemetry_for(int fd, long ms, int *bad, int *moving)
         if (f.h.type != ARB_NET_TELEMETRY) {
             continue;
         }
-        r = g_telem->s[f.telemetry.index % ARB_TELEM_SLOTS];
+        if (!arb_telem_get(g_telem, f.telemetry.index, &r)) {
+            memset(&r, 0, sizeof r);           /* overwritten since: counts as not matching */
+            r.index = ~f.telemetry.index;
+        }
         if (r.index != f.telemetry.index || r.t_ns != f.telemetry.t_ns || r.pos_urad[0] != f.telemetry.pos_urad[0] ||
             r.pos_urad[1] != f.telemetry.pos_urad[1] || r.vel_urad_s[0] != f.telemetry.vel_urad_s[0] ||
             r.vel_urad_s[1] != f.telemetry.vel_urad_s[1] || r.segment != f.telemetry.segment ||

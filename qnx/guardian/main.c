@@ -310,17 +310,15 @@ static void to_wire(const arb_verdict_t *v, arb_verdict_wire_t *w)
  * new head (release), as arb_decisions.h describes. Bounded: one copy. */
 static void record_decision(const arb_cmd_t *c, const arb_verdict_t *v, uint64_t t_ns, uint64_t t_rx, uint64_t t_done)
 {
-    const uint64_t h = atomic_load_explicit(&g_dec->head, memory_order_relaxed);
-    arb_dec_record_t *r = &g_dec->r[h % ARB_DEC_SLOTS];
+    arb_dec_record_t r;
 
-    r->index = h;
-    r->t_ns = (int64_t)t_ns;
-    r->t_cycles = t_rx;
-    r->latency_cycles = t_done - t_rx;
-    r->cmd = *c;
-    r->verdict = *v;
-    r->reserved = 0;
-    atomic_store_explicit(&g_dec->head, h + 1u, memory_order_release);
+    memset(&r, 0, sizeof r);
+    r.t_ns = (int64_t)t_ns;
+    r.t_cycles = t_rx;
+    r.latency_cycles = t_done - t_rx;
+    r.cmd = *c;
+    r.verdict = *v;
+    arb_dec_put(g_dec, &r);              /* sets the index, then publishes */
 }
 
 static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)

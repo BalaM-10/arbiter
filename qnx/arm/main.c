@@ -120,21 +120,20 @@ static void count(_Atomic uint64_t *c)
 
 static void publish(const arm_sample_t *s, int64_t t_ns)
 {
-    const uint64_t h = atomic_load_explicit(&g_telem->head, memory_order_relaxed);
-    arb_telem_sample_t *e = &g_telem->s[h % ARB_TELEM_SLOTS];
+    arb_telem_sample_t e;
 
+    memset(&e, 0, sizeof e);
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/c/clockcycles.html */
-    e->t_cycles = ClockCycles();
-    e->index = h;
-    e->t_ns = t_ns;
-    e->pos_urad[0] = s->pos_urad[0];
-    e->pos_urad[1] = s->pos_urad[1];
-    e->vel_urad_s[0] = s->vel_urad_s[0];
-    e->vel_urad_s[1] = s->vel_urad_s[1];
-    e->segment = g_segment;
-    e->state = s->state;
-    e->lease_ok = (uint8_t)g_lease_valid;
-    atomic_store_explicit(&g_telem->head, h + 1u, memory_order_release);
+    e.t_cycles = ClockCycles();
+    e.t_ns = t_ns;
+    e.pos_urad[0] = s->pos_urad[0];
+    e.pos_urad[1] = s->pos_urad[1];
+    e.vel_urad_s[0] = s->vel_urad_s[0];
+    e.vel_urad_s[1] = s->vel_urad_s[1];
+    e.segment = g_segment;
+    e.state = s->state;
+    e.lease_ok = (uint8_t)g_lease_valid;
+    arb_telem_put(g_telem, &e);          /* sets the index, then publishes */
 }
 
 /* ------------------------------------------------------------ control loop */

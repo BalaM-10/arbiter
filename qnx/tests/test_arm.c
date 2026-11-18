@@ -63,11 +63,7 @@ static uint64_t tm_head(void)
 /* Copy sample i; 0 if it has been overwritten (or is not written yet). */
 static int tm_get(uint64_t i, arb_telem_sample_t *out)
 {
-    uint64_t h;
-
-    *out = g_tm->s[i % ARB_TELEM_SLOTS];
-    h = tm_head();
-    return out->index == i && i < h && i + ARB_TELEM_SLOTS > h;
+    return arb_telem_get(g_tm, i, out);
 }
 
 static int tm_last(arb_telem_sample_t *out)

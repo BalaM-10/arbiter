@@ -118,10 +118,10 @@ static void drain(tick_stats_t *t)
         t->last_cycles = 0;
     }
     for (; t->next < head; t->next++) {               /* bound: < ARB_TELEM_SLOTS per call */
-        const arb_telem_sample_t s = g_tm->s[t->next % ARB_TELEM_SLOTS];
+        arb_telem_sample_t s;
         double ms;
 
-        if (s.index != t->next) {                     /* overwritten while we read it */
+        if (!arb_telem_get(g_tm, t->next, &s)) {      /* overwritten while we read it */
             t->lost++;
             t->last_cycles = 0;
             continue;
