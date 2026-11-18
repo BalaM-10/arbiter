@@ -99,7 +99,7 @@ static const RESMGR_OCB_T  *g_submitter;
 static struct {
     uint8_t  state, cause;
     uint32_t arm_faults, watchdog_trips, foreign_pulses, bad_messages, arm_pulse_errors, watchdog_lost;
-    uint32_t estops, resets, resets_refused, submits_refused;
+    uint32_t estops, resets, resets_refused, submits_refused, wd_stale;
 } g_logged;
 
 static uint64_t now_ns(void)
@@ -571,6 +571,9 @@ static void log_changes(int first)
     log_count(&g_logged.resets_refused, g_status.resets_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
               "operator reset refused: not the operator, not opened for writing, not stopped, "
               "no watchdog, or the arm refused (%lld so far)");
+    log_count(&g_logged.wd_stale, g_wd.stale, ARB_LOG_CLIENT, SLOG2_INFO,
+              "recognised a watchdog event of the previous registration, still queued at the operator reset: "
+              "the watchdog's own, not forged (%lld so far)");
     log_count(&g_logged.submits_refused, g_status.submits_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
               "refused a command: not the gateway's user, or not the submitter's open (%lld so far)");
     if (g_status.watchdog_lost != g_logged.watchdog_lost) {

@@ -98,7 +98,7 @@ static uint64_t             g_resets_refused;      /* resets refused: no watchdo
 /* What the system log last said (NFR-Q6). Owner: the arm's single thread. */
 static struct {
     uint64_t rejected_other, refused_senders, lease_expiries, disconnects, wd_brakes;
-    uint64_t guardian_brakes, guardian_holds, wd_lost, resets, resets_refused;
+    uint64_t guardian_brakes, guardian_holds, wd_lost, resets, resets_refused, wd_stale;
     int64_t  bound_pid;
 } g_logged;
 
@@ -424,6 +424,9 @@ static void log_changes(void)
                   "operator reset from the guardian: registered with the watchdog again, latch cleared (%lld so far)",
                   (int64_t)g_resets);
     }
+    log_count(&g_logged.wd_stale, (uint64_t)g_wd.stale, ARB_LOG_CLIENT, SLOG2_INFO,
+              "recognised a watchdog event of the previous registration, still queued at the operator reset: "
+              "the watchdog's own, not forged (%lld so far)");
     log_count(&g_logged.resets_refused, g_resets_refused, ARB_LOG_REFUSED, SLOG2_WARNING,
               "operator reset refused: no watchdog to register with (%lld so far)");
     if (telem_count(&g_telem->wd_lost) != g_logged.wd_lost) {

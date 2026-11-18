@@ -113,6 +113,11 @@ int arb_wd_client_reregister(arb_wd_client_t *w)
         return -1;
     }
     (void)ConnectDetach(w->coid);       /* the old connection, after the new one holds the role */
+    /* Events the watchdog delivered under the old registration may still be queued
+     * for us: they carry the old token (ARB_WD_STALE_TICKS, arb_wd_client.h). */
+    n.prev_token = w->token;
+    n.prev_ticks_left = ARB_WD_STALE_TICKS;
+    n.stale = w->stale;
     *w = n;
     return 0;
 }
@@ -134,22 +139,43 @@ static int genuine(arb_wd_client_t *w, const struct _pulse *p, int code)
     return p->code == code && (uint64_t)p->value.sival_long == w->token && arb_own_pulse(&w->own_scoid, p->scoid);
 }
 
+/* The same checks, for the previous registration's token, inside its window. */
+static int stale(arb_wd_client_t *w, const struct _pulse *p, int code)
+{
+    return w->prev_ticks_left > 0u && p->code == code && (uint64_t)p->value.sival_long == w->prev_token &&
+           arb_own_pulse(&w->own_scoid, p->scoid);
+}
+
 int arb_wd_client_is_trip(arb_wd_client_t *w, const struct _pulse *p, int code)
 {
-    return genuine(w, p, code);
+    if (genuine(w, p, code)) {
+        return 1;
+    }
+    if (stale(w, p, code)) {
+        w->stale++;
+        return 1;                        /* the watchdog tripped us just before the reset: honour it */
+    }
+    return 0;
 }
 
 int arb_wd_client_beat(arb_wd_client_t *w, const struct _pulse *p, int beat_code)
 {
-    if (!genuine(w, p, beat_code)) {
-        return 0;
+    if (genuine(w, p, beat_code)) {
+        w->ticks_since_beat = 0;
+        return 1;
     }
-    w->ticks_since_beat = 0;
-    return 1;
+    if (stale(w, p, beat_code)) {
+        w->stale++;                      /* the watchdog's own, from before: not forged, restarts nothing */
+        return 1;
+    }
+    return 0;
 }
 
 int arb_wd_client_tick_lost(arb_wd_client_t *w)
 {
+    if (w->prev_ticks_left > 0u) {
+        w->prev_ticks_left--;            /* the stale window closes on our own clock */
+    }
     if (w->ticks_since_beat < (uint32_t)ARB_WD_BEAT_TIMEOUT_MS) {
         w->ticks_since_beat++;
         return 0;
