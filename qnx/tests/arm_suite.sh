@@ -210,6 +210,79 @@ else
 fi
 arb_down
 
+# NFR-Q6 with FR-W2: once a trusted process is supervised by the watchdog, it
+# writes nothing that can block; after registration it logs through slog2 only.
+# Here its stdout and stderr are a FIFO that is already full (a filler that never
+# stops writing, a reader that never reads), so any write to it blocks ("If the
+# O_NONBLOCK flag is clear, a write request may block", write() page). The
+# watchdog must not trip it as stuck, and once the FIFO is drained it comes up as
+# usual: the guardian in HOLD, cause none.
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/m/mkfifo.html
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/w/write.html
+blocked_stdout_case() {      # <guardian|arm> <test name>: which one gets the blocked stdout
+    who=$1
+    tname=$2
+    bf=/tmp/arb-blocked.$$.fifo
+    rm -f "$bf"
+    mkfifo "$bf"
+    sleep 120 <"$bf" &          # the reader: holds the FIFO open, never reads
+    brd=$!
+    cat /dev/zero >"$bf" &      # the filler: keeps it full
+    bfill=$!
+    sleep 1
+    ./arb-watchdog &
+    WD=$!
+    sleep 1
+    if [ "$who" = arm ]; then
+        ./arb-arm "$CONTRACT" >"$bf" 2>&1 &
+    else
+        ./arb-arm "$CONTRACT" &
+    fi
+    ARM=$!
+    sleep 1
+    if [ "$who" = guardian ]; then
+        ./arb-guardian "$CONTRACT" "$OPERATOR_UID" >"$bf" 2>&1 &
+        GUARD=$!
+    fi
+    sleep 1                     # 100 watchdog timeouts with the write blocked
+    trips=$(slog2info -b arb_watchdog | grep "arb_watchdog.$WD " | grep -c "trip:")
+    if [ "$who" = arm ]; then blocked=$ARM; else blocked=$GUARD; fi
+    kill -0 "$blocked" 2>/dev/null && alive=yes || alive=no
+    echo "  $who with a blocked stdout for 1 s: alive $alive; watchdog trips $trips"
+    kill "$bfill" 2>/dev/null
+    wait "$bfill" 2>/dev/null
+    cat "$bf" >/dev/null &      # drain it: the blocked write completes
+    bdrain=$!
+    sleep 1
+    if [ "$who" = arm ]; then
+        ./arb-guardian "$CONTRACT" "$OPERATOR_UID" &
+        GUARD=$!
+        sleep 1
+    fi
+    st=$(./arb-ctl status | head -1)
+    trips2=$(slog2info -b arb_watchdog | grep "arb_watchdog.$WD " | grep -c "trip:")
+    echo "  after the drain: guardian $st; watchdog trips $trips2"
+    slog2info -b arb_watchdog | grep "arb_watchdog.$WD " | grep "trip" | sed 's/^/  /'
+    case "$st" in
+        "state HOLD cause none"*) okst=1 ;;
+        *) okst=0 ;;
+    esac
+    if [ "$alive" = yes ] && [ "$trips" -eq 0 ] && [ "$trips2" -eq 0 ] && [ "$okst" -eq 1 ]; then
+        echo "PASS $tname"
+    else
+        echo "FAIL $tname"
+        fail=1
+    fi
+    arb_down
+    kill "$bdrain" "$brd" 2>/dev/null
+    wait "$bdrain" 2>/dev/null
+    wait "$brd" 2>/dev/null
+    rm -f "$bf"
+}
+echo "## NFR-Q6, FR-W2: a blocked stdout after registering with the watchdog"
+blocked_stdout_case guardian nfr_q6_a_blocked_stdout_never_trips_the_watchdog_guardian
+blocked_stdout_case arm nfr_q6_a_blocked_stdout_never_trips_the_watchdog_arm
+
 echo "## NFR-Q6: trusted processes log through slogger2"
 arb_wd_up
 arb_arm_up
