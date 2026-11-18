@@ -73,10 +73,28 @@ class Run:
     slog: list[str] = field(default_factory=list)          # "<process> <slog2info line>", this scenario only
     evlog: list[str] = field(default_factory=list)         # arb-logd's log lines (docs/EVIDENCE_LOG.md)
     evanchor: str = ""                                     # its published last hash
+    hog: dict[str, Any] = field(default_factory=dict)      # F12: arb-hog's HOG lines (qnx/tests/arb_hog.c)
+    trace: dict[str, Any] = field(default_factory=dict)    # F12, NFR-Q5: the kernel trace summary (trace.py)
     done: bool = False
     exit_code: int = -1
     t0_ns: int = 0          # clock of the first command; scenario times are relative to it
     target: str = ""        # target name from scripts/targets.env (decides whether timing is judged)
+
+
+def _hog_line(run: Run, f: list[str]) -> None:
+    """HOG start uid .. euid .. threads .. seconds .. pid ..
+    | HOG thread i prio .. policy .. loops .. ran_ms ..
+    | HOG end ok 0|1 (the format in qnx/tests/arb_hog.c)."""
+    try:
+        if f[1] == "start" and len(f) == 12:
+            run.hog.update({f[i]: int(f[i + 1]) for i in range(2, 12, 2)})
+        elif f[1] == "thread" and len(f) == 11:
+            run.hog.setdefault("thread", []).append(
+                {"i": int(f[2]), **{f[i]: int(f[i + 1]) for i in range(3, 11, 2)}})
+        elif f[1] == "end" and len(f) == 4:
+            run.hog["ok"] = int(f[3])
+    except ValueError:
+        run.hog["malformed"] = run.hog.get("malformed", 0) + 1
 
 
 def parse(text: str, exit_code: int) -> Run:
@@ -114,6 +132,8 @@ def parse(text: str, exit_code: int) -> Run:
             run.slog.append(line[len("SLOG "):])
         elif tag == "LOG":
             run.logs.append(" ".join(f[1:]))
+        elif tag == "HOG" and len(f) >= 3:
+            _hog_line(run, f)
         elif tag == "DONE":
             run.done = True
     if run.verdicts:

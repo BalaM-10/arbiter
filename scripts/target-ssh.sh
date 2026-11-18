@@ -6,6 +6,7 @@
 #   ./scripts/target-ssh.sh qemu host                 print the target's address
 #   ./scripts/target-ssh.sh qemu run '<command>'      stdin is passed through
 #   ./scripts/target-ssh.sh qemu put <local> <remote path relative to the deploy dir>
+#   ./scripts/target-ssh.sh qemu get <absolute remote path> <local>
 set -euo pipefail
 . "$(dirname "$0")/lib/target.sh"
 
@@ -16,5 +17,6 @@ case "${2:-}" in
     run)  exec "${SSH[@]}" "cd '$T_DIR' && export $T_ENV && ${3:?command}" ;;
     put)  "${SSH[@]}" "mkdir -p '$T_DIR/$(dirname "${4:?remote}")'"
           exec "${SCP[@]}" "${3:?local}" "$T_USER@$T_HOST:$T_DIR/$4" ;;
-    *)    die "usage: $0 <target> info|host|run <cmd>|put <local> <remote>" ;;
+    get)  exec "${SCP[@]}" "$T_USER@$T_HOST:${3:?remote}" "${4:?local}" ;;
+    *)    die "usage: $0 <target> info|host|run <cmd>|put <local> <remote>|get <remote> <local>" ;;
 esac

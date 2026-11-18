@@ -24,7 +24,7 @@ are in [`QNX_EVIDENCE.md`](QNX_EVIDENCE.md).
 | Security policy (`secpolcompile`, `secpolpush`, `on -T`) | An untrusted process connects to the arm at all; the kernel refuses it before any Arbiter code runs (TM-C2) | F11, policy on | QEMU policy image: `policy_suite` (rules read back from the kernel with `secpol`, `fr_s1`..`fr_s5`) and `f11_suite on` in `evidence/runs/2026-11-16-qemu_secpol/run-203526.log` |
 | Abilities and privilege dropping (`procmgr_ability`) | A compromised trusted process keeps powers it never needed (NFR-I5) | `nfr_i5_dropped_abilities_are_denied` | `evidence/runs/2026-11-16-qemu/run-202754.log` line 438: each trusted process runs as its own user and checks at startup that `setuid(0)`, `fork()` and a higher priority are refused |
 | Cycle counter (`ClockCycles()`) | Decision latency would be guessed instead of measured (NFR-T2) | Timing runs on the Pi 5 | not yet: hardware timing is M3 |
-| Kernel trace (`tracelogger`) | The isolation claim would rest on assertion instead of a recording (NFR-Q5) | F3, F12 | not built yet (M2 P7) |
+| Kernel trace (`tracelogger`) | The isolation claim would rest on assertion instead of a recording (NFR-Q5) | F3, F12 | Built for F12 (the trace is saved in the bench folder); evidence run pending. F3: not built yet (open at M2 close) |
 
 QEMU runs prove function only. Timing is reported only from Raspberry Pi 5 runs,
 as measurements, never as guarantees.

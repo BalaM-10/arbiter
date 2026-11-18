@@ -25,6 +25,12 @@
  *   A <t_ms> garbage <n>                               n malformed devctls on /dev/arbiter (F8):
  *                                                      unknown commands and a status buffer one byte
  *                                                      short, by turns; rc = how many were NOT refused
+ *   A <t_ms> hog <s>,<n>                               start the F12 CPU hog: /tmp/arb-hog (copied there
+ *                                                      by bench_scenario.sh) as the untrusted user (and
+ *                                                      type, on the policy image), s seconds (1..30) on
+ *                                                      n threads; rc 0 once it is started. Its HOG lines
+ *                                                      come on stdout when it ends; it is killed when
+ *                                                      the run ends if it is still running
  *   E <t_ms>                                           end of the run
  *   # ...                                              comment
  *
@@ -50,6 +56,7 @@
  */
 #include <errno.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -72,6 +79,9 @@
 #define PREROLL       50u         /* samples kept from before the first step */
 #define DRAIN_MS      20          /* telemetry read period; the ring holds 8 s */
 #define GARBAGE_MAX   1000        /* malformed devctls per garbage action */
+#define HOG_MAX_S        30       /* F12: the hog's hard cap (arb_hog.c) */
+#define HOG_MAX_THREADS  16
+#define HOG_PATH         "/tmp/arb-hog"   /* readable by the untrusted user (bench_scenario.sh) */
 
 typedef struct {
     char     kind;                /* 'C', 'S', 'A' or 'E' */
@@ -79,14 +89,17 @@ typedef struct {
     uint32_t seq;
     int32_t  q[ARB_JOINTS];
     uint32_t duration_ms;
-    char     action;              /* 'A' steps: 'e' estop, 'k' kill, 'g' garbage */
-    long     pid;                 /* 'A' kill: the process; 'A' garbage: how many */
+    char     action;              /* 'A' steps: 'e' estop, 'k' kill, 'g' garbage, 'h' hog */
+    long     pid;                 /* 'A' kill: the process; 'A' garbage: how many; 'A' hog: seconds */
+    long     threads;             /* 'A' hog: threads */
 } step_t;
 
 typedef struct {
     int64_t t_ns;
     char    action;
     long    pid;
+    long    threads;
+    pid_t   child;                /* 'h': the hog's process, or -1 */
     int     rc;
 } arec_t;
 
@@ -266,6 +279,9 @@ static int parse_script(void)
             } else if (strcmp(name, "garbage") == 0 && sscanf(arg, "%ld", &s.pid) == 1 && s.pid > 0 &&
                        s.pid <= GARBAGE_MAX) {
                 s.action = 'g';
+            } else if (strcmp(name, "hog") == 0 && sscanf(arg, "%ld,%ld", &s.pid, &s.threads) == 2 &&
+                       s.pid >= 1 && s.pid <= HOG_MAX_S && s.threads >= 1 && s.threads <= HOG_MAX_THREADS) {
+                s.action = 'h';
             } else {
                 fprintf(stderr, "arb-inject: bad action: %s", line);
                 return -1;
@@ -289,6 +305,62 @@ static int parse_script(void)
         return -1;
     }
     return 0;
+}
+
+/* F12: start the hog as the untrusted user, through the `on` utility (the way
+ * f11_suite.sh starts its attacker), as type arb_untrusted_t on the policy image.
+ * Root for the fork only, then back to the gateway's user. Returns the child or -1.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/o/on.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/fork.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/e/execvp.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/e/exit.html */
+static pid_t start_hog(long secs, long threads)
+{
+    char s_arg[16], n_arg[16], user[24];
+    pid_t c;
+
+    (void)snprintf(s_arg, sizeof s_arg, "%ld", secs);
+    (void)snprintf(n_arg, sizeof n_arg, "%ld", threads);
+    (void)snprintf(user, sizeof user, "%d:%d", ARB_UID_UNTRUSTED, ARB_UID_UNTRUSTED);
+    if (seteuid(0) == -1) {
+        return -1;
+    }
+    fflush(stdout);
+    c = fork();
+    if (c == 0) {
+        if (access("/proc/boot/secpolpush", F_OK) == 0) {
+            char *const argv[] = { "on", "-T", "arb_untrusted_t", "-u", user, HOG_PATH, s_arg, n_arg, NULL };
+            (void)execvp("on", argv);
+        } else {
+            char *const argv[] = { "on", "-u", user, HOG_PATH, s_arg, n_arg, NULL };
+            (void)execvp("on", argv);
+        }
+        exit(127);
+    }
+    (void)seteuid((uid_t)ARB_UID_GATEWAY);
+    return c;
+}
+
+/* At the end of the run: a hog still running is killed (a backstop: it ends by
+ * itself after its seconds), and every hog is waited for, so its HOG lines are out.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/w/waitpid.html */
+static void end_hogs(void)
+{
+    for (unsigned i = 0; i < g_na; i++) {                     /* bound: the script's actions */
+        arec_t *a = &g_a[i];
+        int st;
+        if (a->action != 'h' || a->child <= 0) {
+            continue;
+        }
+        if (waitpid(a->child, &st, WNOHANG) == 0) {
+            if (seteuid(0) == 0) {
+                (void)kill(a->child, SIGKILL);
+                (void)seteuid((uid_t)ARB_UID_GATEWAY);
+            }
+            (void)waitpid(a->child, &st, 0);
+        }
+        a->child = -1;
+    }
 }
 
 int main(void)
@@ -379,8 +451,13 @@ int main(void)
 
             a->action = s->action;
             a->pid = s->pid;
+            a->threads = s->threads;
+            a->child = -1;
             a->t_ns = now_ns();
-            if (s->action == 'e') {
+            if (s->action == 'h') {
+                a->child = start_hog(s->pid, s->threads);
+                a->rc = a->child > 0 ? 0 : errno;
+            } else if (s->action == 'e') {
                 /* FR-W4: any client may stop.
                  * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/devctl.html */
                 a->rc = devctl(fd, ARB_DCMD_ESTOP, NULL, 0, NULL);
@@ -419,6 +496,7 @@ int main(void)
     }
     drain();
     snapshot(&end);
+    end_hogs();
 
     for (unsigned i = 0; i < g_nv; i++) {
         const vrec_t *v = &g_v[i];
@@ -440,6 +518,8 @@ int main(void)
             printf("A %lld estop - %d\n", (long long)a->t_ns, a->rc);
         } else if (a->action == 'g') {
             printf("A %lld garbage %ld %d\n", (long long)a->t_ns, a->pid, a->rc);
+        } else if (a->action == 'h') {
+            printf("A %lld hog %ld,%ld %d\n", (long long)a->t_ns, a->pid, a->threads, a->rc);
         } else {
             printf("A %lld kill %ld %d\n", (long long)a->t_ns, a->pid, a->rc);
         }

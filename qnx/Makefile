@@ -45,7 +45,7 @@ BINS := $(OUT)/hello $(OUT)/msgpass $(OUT)/test_libcontract $(OUT)/test_contract
         $(OUT)/arb-guardian $(OUT)/arb-logd $(OUT)/arb_arm_stub $(OUT)/test_guardian $(OUT)/test_logd $(OUT)/guardian_suite.sh \
         $(OUT)/arb-arm $(OUT)/test_arm_motion $(OUT)/test_arm $(OUT)/test_e2e $(OUT)/test_wd_scoid $(OUT)/arm_suite.sh \
         $(OUT)/arb-watchdog $(OUT)/test_watchdog $(OUT)/watchdog_suite.sh \
-        $(OUT)/arb-inject $(OUT)/arb-stall-probe $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh \
+        $(OUT)/arb-inject $(OUT)/arb-stall-probe $(OUT)/bench_scenario.sh $(OUT)/arb-ctl $(OUT)/arb-untrusted $(OUT)/arb-hog $(OUT)/f11_suite.sh $(OUT)/policy_suite.sh $(OUT)/arb_suite_lib.sh \
         $(OUT)/arb-gateway $(OUT)/test_gateway $(OUT)/gateway_suite.sh $(OUT)/planner_e2e.sh
 
 .PHONY: all clean qnx-env host-test host-rings analyze analyze-qnx check-pure
@@ -155,6 +155,10 @@ $(OUT)/arb-stall-probe: tests/arb_stall_probe.c tests/arb_as_gateway.h common/ar
 
 $(OUT)/arb-untrusted: tests/arb_untrusted.c common/arb_arm_proto.h common/arb_telemetry.h common/arb_devctl.h common/arb_ids.h common/arb_watchdog_proto.h | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
+
+# F12: the CPU hog (untrusted, started only by the bench; qnx/tests/arb_hog.c).
+$(OUT)/arb-hog: tests/arb_hog.c common/arb_ids.h common/arb_prio.h | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/arb_hog.c
 
 $(OUT)/f11_suite.sh: tests/f11_suite.sh | $(OUT)
 	install -m 755 $< $@

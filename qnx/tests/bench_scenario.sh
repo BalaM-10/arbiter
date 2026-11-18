@@ -42,8 +42,13 @@ $ARB_ON_LOGD ./arb-logd "$CONTRACT" "$LOGDIR/evidence.log" </dev/null >"$LOGDIR/
 LOGD=$!
 sleep 1
 
-# Actions name processes by placeholder: fill in this run's pids (F13).
+# F12: the CPU hog, where the untrusted user can run it (not in root's home).
+cp ./arb-hog /tmp/arb-hog && chmod 755 /tmp/arb-hog
+# Actions name processes by placeholder: fill in this run's pids (F13), and the
+# number of CPUs for the hog's threads (F12; one "ProcessorN:" line per CPU).
+NCPU=$(pidin info | grep -c '^Processor')
 sed -e "s/@GUARD@/$(pid_of arb-guardian)/g" -e "s/@ARM@/$(pid_of arb-arm)/g" -e "s/@WD@/$(pid_of arb-watchdog)/g" \
+    -e "s/@NCPU@/$NCPU/g" \
     "$LOGDIR/script.txt" >"$LOGDIR/script.run" && mv "$LOGDIR/script.run" "$LOGDIR/script.txt"
 
 if [ "$VIA" = gateway ]; then
@@ -96,6 +101,10 @@ wait "$LOGD" 2>/dev/null
 sed 's/^/EVLOG /' "$LOGDIR/evidence.log" 2>/dev/null
 [ -r "$LOGDIR/evidence.log.anchor" ] && echo "EVANCHOR $(cat "$LOGDIR/evidence.log.anchor")"
 
+# F12 backstop: no hog outlives its scenario (arb-inject kills it too).
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slay.html
+slay -f arb-hog >/dev/null 2>&1
+rm -f /tmp/arb-hog
 kill "$GUARD" "$ARM" 2>/dev/null
 wait "$GUARD" 2>/dev/null
 wait "$ARM" 2>/dev/null

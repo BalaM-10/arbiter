@@ -24,14 +24,14 @@ do. What Arbiter defends against, and what it does not, is in
 | Works today, on QNX 8.0 in QEMU | Not built yet |
 | --- | --- |
 | QNX SDP 8.0.4 toolchain, builds for x86_64 and aarch64le | |
-| QEMU x86_64 target built with `mkqnximage`, reached over SSH | Fault scenarios F3 and F12 in the bench (M2 P7) |
+| QEMU x86_64 target built with `mkqnximage`, reached over SSH | Fault scenario F3 (message and pulse floods) in the bench |
 | Scripted build, deploy and on-target test run, with every log saved | Raspberry Pi 5 target, timing measurements, dashboard (M3) |
 | `libcontract`: the guardian's decision logic (contract table check, command checks in order, keep-out along the whole path, states) as a pure library, 72 tests on the host and on QNX; keep-out checks both links of the arm as segments | |
 | Contract compiler (`arbiter contract`): strict YAML validation, binary table, checked against the C loader on the host and on QNX | |
 | Guardian (`arb-guardian`): resource manager at `/dev/arbiter`, devctl verdicts, message checks, silence and client-loss HOLD, `TimerTimeout`-bounded arm link; commands only from the gateway's user, one submitter at a time, HOLD at once when it goes, last sequence number published | |
 | Arm controller (`arb-arm`): 1 kHz loop on its own timer, simulated 2-joint arm, its own speed and limit checks, guardian-only sender binding, 10 ms motion lease, brake on guardian loss, read-only telemetry; end to end with the guardian | |
 | Watchdog (`arb-watchdog`): kernel death notices and heartbeats for guardian and arm; brakes the arm or stops the guardian through registered events; records which failure occurred. The arm and the guardian accept its beat and trip only on the connection they registered with, so a forged pulse with the right value is refused | |
-| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F2 AI hang, F4 joint limit, F5 keep-out, F6 over-speed, F7 repeated violations and operator reset, F8 malformed input, F9 replay, F10 AI killed, F13 guardian killed, F14 e-stop, F15 evidence tampering; the AI-side ones sent from the host through the planner protocol and the gateway, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 12/12](evidence/bench/2026-11-17-qemu/190715/report.html) | |
+| **Fault bench** (`arbiter bench run`): F1 normal pick-and-place, F2 AI hang, F4 joint limit, F5 keep-out, F6 over-speed, F7 repeated violations and operator reset, F8 malformed input, F9 replay, F10 AI killed, F12 CPU hog at the highest unprivileged priority with a kernel trace (built; its evidence run is pending), F13 guardian killed, F14 e-stop, F15 evidence tampering; the AI-side ones sent from the host through the planner protocol and the gateway, run against the live target and judged from the arm's own telemetry with independent Python kinematics, not from the guardian's verdicts. [Latest report: 12/12](evidence/bench/2026-11-17-qemu/190715/report.html) | |
 | Watchdog failure is fail-safe (M2): if the watchdog dies or freezes, the arm brakes and latches and the guardian enters SAFE_STOP, each on its own; a watchdog that comes back restarts nothing | |
 | Emergency stop and operator reset (M2): `arb-ctl estop` from any client stops everything; `arb-ctl reset` works only for the operator's user ID, and only once a watchdog is running | |
 | Isolation without the security policy (M2): every process runs as its own user; the trusted ones drop root and keep only the abilities they need, and check at startup that the rest is refused; the arm accepts only the guardian's user, and the guardian and the arm check who serves a name before trusting it. F11 (bypass, TM-C2) passes every case with the policy off, including an untrusted user submitting commands | |
@@ -89,7 +89,7 @@ source ~/qnx800/qnxsdp-env.sh
 sudo ./scripts/qemu-br0-dhcp.sh                                        # QEMU network, once per boot
 (cd targets/qemu-x86_64 && mkqnximage --run=-h && mkqnximage --getip)  # boot QNX
 ./scripts/run-tests.sh qemu                                            # build, deploy, run on QNX
-.venv/bin/arbiter bench run --target qemu                              # fault bench: F1, F2, F4 to F10, F13 to F15
+.venv/bin/arbiter bench run --target qemu                              # fault bench: F1, F2, F4 to F10, F12 to F15
 .venv/bin/arbiter planner e2e --target qemu                            # the scripted planner, through the gateway
 ./scripts/host-checks.sh                                               # host unit tests, analyzers, traceability
 ```
@@ -100,7 +100,7 @@ Expected:
   `RESULT PASS watchdog_suite`, `RESULT PASS arm_suite`, `RESULT PASS guardian_suite` and
   `SUMMARY 11/11 tests passed on qemu`. The log is saved under `evidence/runs/`.
 - `arbiter bench run` (about four minutes): one line per check for each scenario, then
-  `SUMMARY bench 12/12 scenarios passed on qemu` and the path of `report.html` under
+  `SUMMARY bench 13/13 scenarios passed on qemu` and the path of `report.html` under
   `evidence/bench/`, then `packet: PASS ... packet.json` (the evidence packet, checked). Open it: each scenario states its pass condition, lists every check
   with what decided it, and shows a top view of the arm's path next to the operator's hand
   area. On QEMU, F1 measures and prints control-tick spacing but does not judge it; the

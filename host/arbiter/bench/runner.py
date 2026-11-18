@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import datetime as dt
 import gzip
+import lzma
+import shutil
 import subprocess
 import tempfile
 import time
@@ -16,6 +18,7 @@ from .. import protocol as pr
 from ..contract import compile_file
 from . import checks as ck
 from . import report
+from . import trace as ktrace
 from . import transport as tr
 from .checks import TIMING_POLICY, Check, timing_judged
 from .records import parse
@@ -29,6 +32,53 @@ SCENARIO_TIMEOUT_S = 180
 OPERATOR_UID = 800                       # qnx/common/arb_ids.h ARB_UID_OPERATOR
 OPERATOR_CTL = "/tmp/arb-ctl-bench"      # copied there by bench_scenario.sh: uid 800 cannot enter root's home
 GATEWAY_READY_S = 30     # the target starts four processes before the gateway
+# NFR-Q5: a kernel trace of a scenario that sets TRACE (F12). tracelogger must run
+# as root (the target user is root); -w wide events; -r ring mode: the kernel logs
+# into its buffers (-k per CPU, about 16 KB each) and tracelogger writes nothing
+# until SIGINT, so a hog that starves tracelogger cannot make it lose events
+# while the scenario runs; the file is in RAM (/dev/shmem).
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/t/tracelogger.html
+# Decoded on this host with traceprinter (it checks for a QNX license first).
+# QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/t/traceprinter.html
+TRACE_KEV = "/dev/shmem/arbiter-bench-trace.kev"
+TRACE_START = (f"slay -f tracelogger >/dev/null 2>&1; rm -f {TRACE_KEV}; "
+               f"tracelogger -w -r -k 1024 -f {TRACE_KEV} </dev/null >/tmp/arbiter-tracelogger.out 2>&1 &")
+# SIGINT, then wait for it to write the file and exit (bounded: 30 x 1 s).
+TRACE_STOP = ("slay -s SIGINT tracelogger >/dev/null 2>&1; "
+              "for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do "
+              "pidin -p tracelogger >/dev/null 2>&1 || break; sleep 1; done; "
+              f"slay -f tracelogger >/dev/null 2>&1; ls -l {TRACE_KEV}; cat /tmp/arbiter-tracelogger.out")
+
+
+def _trace_start(target: str) -> str:
+    r = _ssh(target, "run", TRACE_START)
+    time.sleep(2)                    # let tracelogger start before the scenario does
+    return r.stdout + r.stderr
+
+
+def _trace_finish(target: str, raw: Path, sid: str) -> tuple[str, dict[str, Any]]:
+    """Stop the trace, copy it here, keep it (xz) in raw/, and decode it: its text, or
+    an error summary."""
+    stop = _ssh(target, "run", TRACE_STOP)
+    (raw / f"{sid}.tracelogger.txt").write_text(stop.stdout + stop.stderr, encoding="utf-8")
+    kev = raw / f"{sid}.kev"
+    got = _ssh(target, "get", TRACE_KEV, str(kev))
+    _ssh(target, "run", f"rm -f {TRACE_KEV}")
+    if got.returncode != 0 or not kev.exists():
+        return "", {"error": f"could not copy the trace from the target: {got.stderr.strip()[:200]}"}
+    tp = shutil.which("traceprinter")
+    if tp is None:
+        kev.with_suffix(".kev.xz").write_bytes(lzma.compress(kev.read_bytes()))
+        kev.unlink()
+        return "", {"error": "traceprinter not on PATH (source ~/qnx800/qnxsdp-env.sh); raw trace kept"}
+    dec = subprocess.run([tp, "-f", str(kev)], capture_output=True, text=True, check=False)
+    text = dec.stdout
+    # The raw trace is kept (decode it with traceprinter -f); its text is not, to keep the repository small.
+    (raw / f"{sid}.kev.xz").write_bytes(lzma.compress(kev.read_bytes()))
+    kev.unlink()
+    if dec.returncode != 0:
+        return "", {"error": f"traceprinter failed ({dec.returncode}): {dec.stderr.strip()[:200]}"}
+    return text, {}
 
 
 def _ssh(target: str, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -186,12 +236,20 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
         via = "planner -> gateway" if getattr(mod, "TRANSPORT", "inject") == "gateway" else "arb-inject"
         print(f"{sid} {mod.TITLE}: {len(script.commands)} commands, {script.end_ms / 1000:.1f} s, "
               f"via {via} ...", flush=True)
+        traced = bool(getattr(mod, "TRACE", False))
+        if traced:
+            _trace_start(target)
         stdout, rc, played = _run_scenario(target, mod, script)
+        trace_text, trace_err = _trace_finish(target, out / "raw", sid) if traced else ("", {})
         (out / "raw" / f"{sid}.script").write_text(text, encoding="utf-8")
         with gzip.open(out / "raw" / f"{sid}.out.gz", "wt", encoding="utf-8") as f:
             f.write(stdout)
         run = parse(stdout, rc)
         run.target = target
+        if traced:
+            pids = ktrace.pids_from(run.slog, run.hog.get("pid"))
+            run.trace = trace_err or ktrace.summarize(trace_text, pids)
+            (out / "raw" / f"{sid}.trace-summary.txt").write_text(f"{run.trace}\n", encoding="utf-8")
         transport = getattr(mod, "TRANSPORT", "inject")
         if played is not None:
             run.host_events = list(played.events)
@@ -229,6 +287,8 @@ def run_bench(target: str, contract: Path, only: list[str] | None, out_root: Pat
             "transport": "planner -> gateway" if transport == "gateway" else "arb-inject",
             "raw": f"raw/{sid}.out.gz", "script": f"raw/{sid}.script", "slog2": f"raw/{sid}.slog2.txt",
             "evidence": f"raw/{sid}.evidence.log",
+            **({"trace": f"raw/{sid}.kev.xz", "trace_summary": f"raw/{sid}.trace-summary.txt"}
+               if traced else {}),
             "paths": report.tip_paths(run)})
 
     n_pass = sum(1 for s in scenarios if s["passed"])
