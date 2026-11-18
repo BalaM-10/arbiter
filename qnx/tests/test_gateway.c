@@ -40,6 +40,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include "arb_contract.h"
 #include "arb_devctl.h"
@@ -991,6 +992,215 @@ static void fr_n3_killing_the_gateway_mid_move_holds_and_trusted_processes_run_o
     (void)close(fd);
 }
 
+/* ------------------------------------------------- NFR-I4: untrusted processes killed */
+
+/* A child process that plays an untrusted party and is killed by SIGKILL. It
+ * never ends by itself before the parent kills it (bounded: 30 s, then exit).
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/f/fork.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/p/pipe.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/w/waitpid.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/e/exit.html */
+static void child_wait_to_be_killed(void)
+{
+    for (int i = 0; i < 300; i++) {                          /* bound: 300 x 100 ms */
+        ms_sleep(100);
+    }
+    exit(0);
+}
+
+/* Read one int the child reports through the pipe, within timeout_ms: 0 on success. */
+static int read_report(int rfd, int32_t *out, int timeout_ms)
+{
+    struct pollfd p = { rfd, POLLIN, 0 };
+
+    if (poll(&p, 1, timeout_ms) != 1) {
+        return -1;
+    }
+    return read(rfd, out, sizeof *out) == (ssize_t)sizeof *out ? 0 : -1;
+}
+
+static int kill_and_reap(pid_t c)
+{
+    int st = 0;
+
+    if (kill(c, SIGKILL) != 0) {
+        return -1;
+    }
+    return waitpid(c, &st, 0) == c && WIFSIGNALED(st) && WTERMSIG(st) == SIGKILL ? 0 : -1;
+}
+
+/* An observer (TCP, read-only) and a local client of /dev/arbiter running as the
+ * untrusted user, each in its own process, killed while the planner's move runs:
+ * nothing changes. The guardian stays NORMAL, the arm keeps moving under it, and
+ * no trip, fault, brake or disconnect is counted (NFR-I4). */
+static void nfr_i4_killing_an_observer_or_a_local_client_mid_move_changes_nothing(void)
+{
+    int pfd[2];
+    pid_t obs, loc;
+    int32_t rep_obs = -1, rep_loc = -1;
+    arb_net_welcome_t w;
+    arb_net_frame_t f;
+    arb_status_t s0, s1;
+    arb_telem_sample_t a;
+    uint64_t wd_brakes0, wd_lost0, disc0;
+    int fd;
+
+    CHECK(pipe(pfd) == 0);
+    fflush(stdout);                   /* nothing buffered is printed twice by a child */
+    obs = fork();
+    if (obs == 0) {                   /* the observer */
+        const int ob = gw_connect(ARB_NET_OBSERVER_PORT);
+        int32_t ok = ob != -1 && recv_type(ob, ARB_NET_WELCOME, &f, WAIT_MS) == 1;
+        (void)write(pfd[1], &ok, sizeof ok);
+        child_wait_to_be_killed();
+    }
+    loc = fork();
+    if (loc == 0) {                   /* the local client, as the untrusted user */
+        /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/setuid.html */
+        int32_t uid = setuid(ARB_UID_UNTRUSTED) == 0 ? (int32_t)getuid() : -1;
+        const int d = open(ARB_DEV_PATH, O_RDONLY);
+        arb_status_t st;
+        if (d == -1 || devctl(d, ARB_DCMD_GET_STATUS, &st, sizeof st, NULL) != EOK) {
+            uid = -2;
+        }
+        (void)write(pfd[1], &uid, sizeof uid);
+        child_wait_to_be_killed();
+    }
+    CHECK(obs > 0 && loc > 0);
+    CHECK(read_report(pfd[0], &rep_obs, WAIT_MS) == 0);
+    CHECK(read_report(pfd[0], &rep_loc, WAIT_MS) == 0);
+    /* The two reports may come in either order: one is the observer's 1, the other a uid. */
+    {
+        const int32_t ok = rep_obs == 1 ? rep_obs : rep_loc;
+        const int32_t uid = rep_obs == 1 ? rep_loc : rep_obs;
+        printf("  observer connected: %s; local client: %s (uid %d), status read through /dev/arbiter\n",
+               ok == 1 ? "yes" : "no", uid >= 0 ? "open" : "failed", uid);
+        CHECK_EQ_INT(ok, 1);
+        CHECK_EQ_INT(uid, ARB_UID_UNTRUSTED);
+    }
+    fd = planner_open(&w);
+    CHECK(fd != -1);
+    if (fd == -1 || obs <= 0 || loc <= 0) {
+        if (obs > 0) { (void)kill_and_reap(obs); }
+        if (loc > 0) { (void)kill_and_reap(loc); }
+        (void)close(pfd[0]);
+        (void)close(pfd[1]);
+        return;
+    }
+    CHECK(status(&s0) == EOK);
+    wd_brakes0 = atomic_load(&((arb_telem_t *)g_telem)->wd_brakes);
+    wd_lost0 = atomic_load(&((arb_telem_t *)g_telem)->wd_lost);
+    disc0 = atomic_load(&((arb_telem_t *)g_telem)->disconnects);
+    g_seq = g_have_seq ? g_seq + 1u : 1u;
+    g_have_seq = 1;
+    CHECK(send_command(fd, g_seq, -400000, 300000, 2000) == 0);      /* a 2 s move */
+    CHECK_EQ_INT(recv_type(fd, ARB_NET_VERDICT, &f, WAIT_MS), 1);
+    CHECK_EQ_INT(f.verdict.verdict, ARB_VERDICT_ALLOW);
+    ms_sleep(100);
+    CHECK_EQ_INT(arm_sample().state, 2);                              /* moving */
+    CHECK(kill_and_reap(obs) == 0);
+    CHECK(kill_and_reap(loc) == 0);
+    ms_sleep(50);                     /* still inside the 250 ms silence timeout */
+    a = arm_sample();
+    CHECK(status(&s1) == EOK);
+    printf("  observer and local client killed mid-move: guardian state %u, arm state %u (2 = moving)\n",
+           (unsigned)s1.state, (unsigned)a.state);
+    CHECK_EQ_INT(s1.state, ARB_STATE_NORMAL);
+    CHECK_EQ_INT(a.state, 2);
+    CHECK_EQ_INT(s1.watchdog_trips, s0.watchdog_trips);
+    CHECK_EQ_INT(s1.watchdog_lost, s0.watchdog_lost);
+    CHECK_EQ_INT(s1.arm_faults, s0.arm_faults);
+    CHECK_EQ_INT(atomic_load(&((arb_telem_t *)g_telem)->wd_brakes), wd_brakes0);
+    CHECK_EQ_INT(atomic_load(&((arb_telem_t *)g_telem)->wd_lost), wd_lost0);
+    CHECK_EQ_INT(atomic_load(&((arb_telem_t *)g_telem)->disconnects), disc0);
+    CHECK(alive(g_wd) && alive(g_arm) && alive(g_guard) && alive(g_gw));
+    (void)close(fd);                  /* the planner leaves: HOLD, the arm stops */
+    CHECK(state_within(ARB_STATE_HOLD, 1000) >= 0);
+    ms_sleep(1500);
+    (void)close(pfd[0]);
+    (void)close(pfd[1]);
+}
+
+/* The planner's own process killed mid-move (the gateway lives on): the kernel
+ * closes its socket, the gateway ends the session and closes its submit handle,
+ * the guardian holds, and the arm stops short of the target with no trip, fault
+ * or brake. The gateway keeps running and accepts the next planner (NFR-I4). */
+static void nfr_i4_killing_the_planner_process_mid_move_holds_the_arm(void)
+{
+    int pfd[2];
+    pid_t pl;
+    int32_t rep = -1;
+    arb_status_t s0, s1;
+    arb_telem_sample_t a;
+    uint64_t wd_brakes0, wd_lost0, disc0;
+    uint32_t seq;
+    long ms;
+
+    CHECK(status(&s0) == EOK);
+    wd_brakes0 = atomic_load(&((arb_telem_t *)g_telem)->wd_brakes);
+    wd_lost0 = atomic_load(&((arb_telem_t *)g_telem)->wd_lost);
+    disc0 = atomic_load(&((arb_telem_t *)g_telem)->disconnects);
+    seq = s0.has_seq ? s0.last_seq + 1u : 1u;
+    CHECK(pipe(pfd) == 0);
+    fflush(stdout);
+    pl = fork();
+    if (pl == 0) {                    /* the planner */
+        arb_net_welcome_t w;
+        arb_net_frame_t f;
+        const int fd = planner_open(&w);
+        int32_t v = -1;
+        if (fd != -1 && send_command(fd, seq, 0, 0, 2000) == 0 &&     /* a 2 s move home */
+            recv_type(fd, ARB_NET_VERDICT, &f, WAIT_MS) == 1) {
+            v = (int32_t)f.verdict.verdict;
+        }
+        (void)write(pfd[1], &v, sizeof v);
+        child_wait_to_be_killed();
+    }
+    CHECK(pl > 0);
+    if (pl <= 0) {
+        (void)close(pfd[0]);
+        (void)close(pfd[1]);
+        return;
+    }
+    CHECK(read_report(pfd[0], &rep, WAIT_MS) == 0);
+    CHECK_EQ_INT(rep, ARB_VERDICT_ALLOW);
+    g_seq = seq;
+    g_have_seq = 1;
+    ms_sleep(100);
+    CHECK_EQ_INT(arm_sample().state, 2);                              /* moving */
+    CHECK(kill_and_reap(pl) == 0);
+    ms = state_within(ARB_STATE_HOLD, 1000);
+    printf("  planner process killed mid-move -> guardian HOLD after %ld ms (QEMU, function only)\n", ms);
+    CHECK(ms >= 0 && ms < 100);       /* the session ended, before the silence timeout could */
+    ms_sleep(1500);                                                   /* past the end of the move */
+    a = arm_sample();
+    CHECK(a.vel_urad_s[0] == 0 && a.vel_urad_s[1] == 0);              /* the arm stopped */
+    CHECK(a.pos_urad[0] != 0 || a.pos_urad[1] != 0);                  /* short of home: it held */
+    CHECK(status(&s1) == EOK);
+    CHECK_EQ_INT(s1.state, ARB_STATE_HOLD);
+    CHECK_EQ_INT(s1.watchdog_trips, s0.watchdog_trips);
+    CHECK_EQ_INT(s1.watchdog_lost, s0.watchdog_lost);
+    CHECK_EQ_INT(s1.arm_faults, s0.arm_faults);
+    CHECK_EQ_INT(atomic_load(&((arb_telem_t *)g_telem)->wd_brakes), wd_brakes0);
+    CHECK_EQ_INT(atomic_load(&((arb_telem_t *)g_telem)->wd_lost), wd_lost0);
+    CHECK_EQ_INT(atomic_load(&((arb_telem_t *)g_telem)->disconnects), disc0);
+    CHECK(alive(g_wd) && alive(g_arm) && alive(g_guard) && alive(g_gw));
+    printf("  arm stopped at %d %d urad; gateway, watchdog, arm, guardian alive; no trip, fault or brake\n",
+           a.pos_urad[0], a.pos_urad[1]);
+    {
+        arb_net_welcome_t w;
+        const int fd = planner_open(&w);                              /* the slot is free again */
+        CHECK(fd != -1);
+        if (fd != -1) {
+            CHECK_EQ_INT(w.last_seq, seq);
+            (void)close(fd);
+            ms_sleep(50);
+        }
+    }
+    (void)close(pfd[0]);
+    (void)close(pfd[1]);
+}
+
 static const arb_test_case_t run_cases[] = {
     ARB_TEST_CASE(fr_n2_frames_match_the_documented_examples),
     ARB_TEST_CASE(fr_n1_gateway_is_not_reachable_on_other_addresses),
@@ -1012,6 +1222,8 @@ static const arb_test_case_t run_cases[] = {
 };
 static const arb_test_case_t kill_cases[] = {
     ARB_TEST_CASE(fr_n4_without_the_logger_commands_are_still_decided),
+    ARB_TEST_CASE(nfr_i4_killing_an_observer_or_a_local_client_mid_move_changes_nothing),
+    ARB_TEST_CASE(nfr_i4_killing_the_planner_process_mid_move_holds_the_arm),
     ARB_TEST_CASE(fr_n3_killing_the_gateway_mid_move_holds_and_trusted_processes_run_on),
 };
 

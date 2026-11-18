@@ -139,7 +139,7 @@ fi
 ./test_gateway run "${GWADDR:-0.0.0.0}" "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
 down
 
-echo "## FR-N3: the gateway killed mid-move (and FR-N4: commands without the logger)"
+echo "## FR-N3, NFR-I4: untrusted processes killed mid-move: observer, local client, planner, gateway (and FR-N4: commands without the logger)"
 up
 ./test_gateway kill "${GWADDR:-0.0.0.0}" "${GW:-0}" "$WD" "$ARM" "$GUARD" || fail=1
 down
