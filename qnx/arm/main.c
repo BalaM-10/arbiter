@@ -603,15 +603,6 @@ int main(int argc, char **argv)
         printf("arb-arm: %s\n", report);
         arb_log_s(ARB_LOG_START, SLOG2_INFO, "%s", report);
     }
-    if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_ARM, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_WD_BRAKE,
-                               ARB_PULSE_ARM_WD_BEAT) != 0) {
-        const int e = errno;
-        if (e == EPERM && g_wd.server_pid != -1) {
-            arb_log_impostor(ARB_WD_NAME, g_wd.server_pid, g_wd.server_uid, ARB_UID_WATCHDOG);   /* F11 case 4 */
-        }
-        arb_log_fail("register with the watchdog", e);
-        return 6;
-    }
     SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_TICK, 0);
     if (timer_create(CLOCK_MONOTONIC, &ev, &timer) == -1) {
         arb_log_fail("timer_create", errno);
@@ -620,21 +611,36 @@ int main(int argc, char **argv)
     memset(&its, 0, sizeof its);
     its.it_value.tv_nsec = ARB_ARM_PERIOD_NS;
     its.it_interval.tv_nsec = ARB_ARM_PERIOD_NS;
-    if (timer_settime(timer, 0, &its, NULL) == -1) {
-        arb_log_fail("timer_settime", errno);
-        return 5;
-    }
+    /* NFR-Q6, FR-W2: every write to stdout happens here, flushed, before the
+     * watchdog supervises the arm. stdout to a pipe is buffered, so without the
+     * flush these lines would be written later, inside the supervised loop, and
+     * a write that blocks there trips the arm as stuck. A blocked stdout now
+     * delays the start instead (the arm is not registered, the guardian cannot
+     * start, nothing moves). From the registration on: the system log only. */
     {
         char hex[ARB_SHA256_HEX_LEN];
 
         arb_sha256_hex(g_contract.source_sha256, hex);
         printf("arb-arm: ready as %s, priority %d, backend %s, telemetry %s, contract sha256 %s\n", ARB_ARM_NAME,
                ARB_PRIO_ARM, g_backend.name, ARB_TELEM_NAME, hex);
+        (void)fflush(stdout);    /* a lost line must not stop the start */
+        if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_ARM, coid, ARB_PRIO_ARM, ARB_PULSE_ARM_WD_BRAKE,
+                                   ARB_PULSE_ARM_WD_BEAT) != 0) {
+            const int e = errno;
+            if (e == EPERM && g_wd.server_pid != -1) {
+                arb_log_impostor(ARB_WD_NAME, g_wd.server_pid, g_wd.server_uid, ARB_UID_WATCHDOG);   /* F11 case 4 */
+            }
+            arb_log_fail("register with the watchdog", e);
+            return 6;
+        }
+        if (timer_settime(timer, 0, &its, NULL) == -1) {
+            arb_log_fail_supervised("timer_settime", errno);
+            return 5;
+        }
         arb_log_s(ARB_LOG_START, SLOG2_INFO, "ready as " ARB_ARM_NAME ", contract sha256 %s", hex);
         g_logged.bound_pid = -1;         /* nothing bound yet: not a change worth a line */
         log_changes();
     }
-    fflush(stdout);
 
     /* The server loop: one message or pulse per iteration, for the life of the process.
      * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/m/msgreceive.html */
@@ -648,7 +654,7 @@ int main(int argc, char **argv)
              * Exiting drops the guardian's connection and the watchdog's
              * registration, and the frozen simulated arm moves no further. */
             if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
-                arb_log_fail("MsgReceive, 100 consecutive errors; exiting", errno);
+                arb_log_fail_supervised("MsgReceive, 100 consecutive errors; exiting", errno);
                 return 7;
             }
             continue;

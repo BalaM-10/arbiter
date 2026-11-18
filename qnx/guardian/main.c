@@ -786,15 +786,6 @@ int main(int argc, char **argv)
             return 4;
         }
     }
-    if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_GUARDIAN, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_WD_TRIP,
-                               ARB_PULSE_GUARDIAN_WD_BEAT) != 0) {
-        const int e = errno;
-        if (e == EPERM && g_wd.server_pid != -1) {
-            arb_log_impostor(ARB_WD_NAME, g_wd.server_pid, g_wd.server_uid, ARB_UID_WATCHDOG);   /* F11 case 4 */
-        }
-        arb_log_fail("register with the watchdog", e);
-        return 6;
-    }
     SIGEV_PULSE_INIT(&ev, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_TICK, 0);
     if (timer_create(CLOCK_MONOTONIC, &ev, &timer) == -1) {
         arb_log_fail("timer_create", errno);
@@ -804,28 +795,43 @@ int main(int argc, char **argv)
     its.it_value.tv_nsec = TICK_NS;
     its.it_interval.tv_nsec = TICK_NS;
 
-    arb_guard_init(&g_guard, &g_contract, now_ns());
-    if (timer_settime(timer, 0, &its, NULL) == -1) {
-        arb_log_fail("timer_settime", errno);
-        return 5;
-    }
-
     /* QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/d/dispatch_context_alloc.html */
     ctp = dispatch_context_alloc(dpp);
     if (ctp == NULL) {
         arb_log_fail("dispatch_context_alloc", errno);
         return 5;
     }
+    /* NFR-Q6, FR-W2: every write to stdout happens here, flushed, before the
+     * watchdog supervises the guardian. stdout to a pipe is buffered, so without
+     * the flush these lines would be written after the registration, before the
+     * first heartbeat, and a write that blocks there trips the guardian as stuck
+     * (run-182322). A blocked stdout now delays the start instead (not
+     * registered, /dev/arbiter not served, the arm without a lease: nothing
+     * moves). From the registration on: the system log only. */
     {
         char hex[ARB_SHA256_HEX_LEN];
 
         arb_sha256_hex(g_contract.source_sha256, hex);
         printf("arb-guardian: ready on %s, priority %d, contract sha256 %s\n", ARB_DEV_PATH, ARB_PRIO_GUARDIAN,
                hex);
+        (void)fflush(stdout);    /* a lost line must not stop the start */
+        if (arb_wd_client_register(&g_wd, ARB_WD_ROLE_GUARDIAN, coid, ARB_PRIO_GUARDIAN, ARB_PULSE_GUARDIAN_WD_TRIP,
+                                   ARB_PULSE_GUARDIAN_WD_BEAT) != 0) {
+            const int e = errno;
+            if (e == EPERM && g_wd.server_pid != -1) {
+                arb_log_impostor(ARB_WD_NAME, g_wd.server_pid, g_wd.server_uid, ARB_UID_WATCHDOG);   /* F11 case 4 */
+            }
+            arb_log_fail("register with the watchdog", e);
+            return 6;
+        }
+        arb_guard_init(&g_guard, &g_contract, now_ns());
+        if (timer_settime(timer, 0, &its, NULL) == -1) {
+            arb_log_fail_supervised("timer_settime", errno);
+            return 5;
+        }
         arb_log_s(ARB_LOG_START, SLOG2_INFO, "ready on " ARB_DEV_PATH ", contract sha256 %s", hex);
         log_changes(1);
     }
-    fflush(stdout);
 
     /* The server loop: blocks in MsgReceive() inside dispatch_block() and handles
      * one message or pulse per iteration. It runs for the life of the process.
@@ -837,7 +843,7 @@ int main(int argc, char **argv)
             /* e.g. EINTR; the old context stays valid. M1-J18: not forever at
              * priority 64; exiting drops the arm's connection, so the arm brakes. */
             if (++recv_errors >= ARB_RECV_ERRORS_MAX) {
-                arb_log_fail("dispatch_block, 100 consecutive errors; exiting", errno);
+                arb_log_fail_supervised("dispatch_block, 100 consecutive errors; exiting", errno);
                 return 7;
             }
             continue;

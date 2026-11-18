@@ -149,7 +149,8 @@ static inline void arb_log_ssi(uint16_t code, uint8_t sev, const char *fmt, cons
 }
 
 /* A startup step failed: to the system log and to the operator's terminal. Only
- * before the server loop starts, or on the way out. */
+ * before the process registers with the watchdog; after that,
+ * arb_log_fail_supervised(). */
 static inline void arb_log_fail(const char *what, int err)
 {
     fprintf(stderr, "%s: %s: %s\n", arb_log_prog, what, strerror(err));
@@ -169,6 +170,27 @@ static inline void arb_log_impostor(const char *name, int64_t pid, int64_t uid, 
         arb_log_ret(slog2fa(arb_log_buf, ARB_LOG_REFUSED, SLOG2_ERROR,
                             "the server of %s is pid %lld, user %lld, not user %lld: refused", SLOG2_FA_STRING(name),
                             SLOG2_FA_SIGNED(pid), SLOG2_FA_SIGNED(uid), SLOG2_FA_SIGNED(want), SLOG2_FA_END));
+    }
+}
+
+/* A failure once the process is supervised by the watchdog (after it registered):
+ * to the system log only. NFR-Q6, FR-W2: from registration on, a trusted process
+ * makes no write that can block. A write to stdout or stderr may block ("If the
+ * O_NONBLOCK flag is clear, a write request may block", write() page): when it
+ * is a pipe that nobody drains, the process looks stuck to the watchdog
+ * (nfr_q6_a_blocked_stdout_never_trips_the_watchdog_*). The slog2 pages describe
+ * no blocking for slog2fa(): the buffers are in shared RAM (slogger2 page), and
+ * the one wait they describe, the retries to obtain a buffer, is bounded by
+ * SLOG2_LIMIT_RETRIES with ARB_LOG_RETRIES, after which the call fails with
+ * EBUSY (slog2_register page); a failed write is counted in arb_log_dropped.
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/w/write.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.lib_ref/topic/s/slog2_register.html
+ * QNX 8.0: https://www.qnx.com/developers/docs/8.0/com.qnx.doc.neutrino.utilities/topic/s/slogger2.html */
+static inline void arb_log_fail_supervised(const char *what, int err)
+{
+    if (arb_log_buf != NULL) {
+        arb_log_ret(slog2fa(arb_log_buf, ARB_LOG_FAIL, SLOG2_ERROR, "%s failed, errno %d", SLOG2_FA_STRING(what),
+                            SLOG2_FA_SIGNED(err), SLOG2_FA_END));
     }
 }
 
