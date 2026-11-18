@@ -120,6 +120,41 @@ the planner run safe-stopped after command 65; both are kept and explained in
 
 To compile a contract by hand: `.venv/bin/arbiter contract compile contracts/default.yaml -o build/contract.bin`.
 
+## The demo in one command: what you will see
+
+With QNX booted (the first three commands of the quick start), `./scripts/demo.sh`
+runs the same planner and bench as the evidence runs, with six scenarios, in about
+three minutes on QEMU. Its output goes to `build/demo/`, not `evidence/`.
+
+1. **The AI proposes.** The scripted planner on this host sends the pick-and-place
+   path over TCP to the gateway on QNX. One line per command, each
+   `-> ALLOW NONE`: the guardian checked it against the contract and the arm moved.
+   It ends with the target's hash-chained evidence log checked here and
+   `PASS fr_p1_scripted_planner_runs_pick_and_place_through_the_gateway`.
+2. **QNX decides.** Six faults, one after the other, each on a freshly started
+   system, each judged from the arm's own telemetry, not from the guardian's word:
+   - **F1 normal operation:** every waypoint reached, no limit, keep-out or speed rule
+     broken.
+   - **F5 keep-out:** the arm is walked to within 30 mm of the operator's hand area
+     (allowed); a target inside the area, a path sweeping through it and a forearm
+     lying across it are each denied, and no part of the arm ever enters it.
+   - **F10 AI killed:** the gateway is killed mid-move; the guardian holds and the arm
+     stops short, and nothing trusted trips.
+   - **F12 CPU hog:** an untrusted process busy-loops at priority 63, the most an
+     unprivileged process may use, on every CPU; the arm's loop and the watchdog keep
+     running, and a kernel trace of the run is saved.
+   - **F13 guardian killed:** the arm brakes on its own and the watchdog records that
+     the guardian died.
+   - **F14 emergency stop:** the arm brakes and the guardian stays in `SAFE_STOP`; every
+     later command is denied.
+
+   Then `SUMMARY bench 6/6 scenarios passed on qemu` and the path of `report.html`.
+   Open it: each scenario states its pass condition and every check with what decided
+   it, with a top view of the arm's path next to the shaded hand area.
+
+On QEMU every result proves function, never timing; timing comes from the Raspberry
+Pi 5.
+
 ## Where to look
 
 - [`docs/WHY_QNX.md`](docs/WHY_QNX.md): one page, each QNX feature mapped to the failure it handles, the scenario that proves it and its log.
